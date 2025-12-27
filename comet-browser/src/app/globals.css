@@ -1,0 +1,81 @@
+@import "tailwindcss";
+
+@theme {
+  --color-deep-space-bg: #0D0E1C;
+  --color-deep-space-primary: #4A00B0;
+  --color-deep-space-secondary: #8A2BE2;
+  --color-deep-space-accent-neon: #00FFFF;
+  --color-deep-space-text: #E0E0E0;
+  --color-deep-space-border: rgba(255, 255, 255, 0.1);
+}
+
+:root {
+  --foreground-rgb: 224, 224, 224;
+  --background-start-rgb: 13, 14, 28;
+  --background-end-rgb: 5, 5, 15;
+}
+
+@layer base {
+  body {
+    @apply bg-deep-space-bg text-deep-space-text antialiased;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+}
+
+@layer utilities {
+  .glass {
+    @apply bg-white/5 backdrop-blur-xl border border-white/10;
+  }
+
+  .glass-dark {
+    @apply bg-black/20 backdrop-blur-2xl border border-white/5;
+  }
+
+  .neon-glow {
+    box-shadow: 0 0 15px rgba(0, 255, 255, 0.3);
+  }
+
+  .glass-vibrant {
+    @apply backdrop-blur-[40px] bg-white/[0.03] border border-white/10;
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  }
+
+  .bg-vibrant-mesh {
+    background-color: #050505;
+    background-image:
+      radial-gradient(at 0% 0%, rgba(0, 255, 255, 0.1) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, rgba(255, 0, 128, 0.08) 0px, transparent 50%),
+      radial-gradient(at 100% 100%, rgba(0, 100, 255, 0.08) 0px, transparent 50%),
+      radial-gradient(at 0% 100%, rgba(128, 0, 255, 0.08) 0px, transparent 50%);
+    background-attachment: fixed;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-white/10 rounded-full hover:bg-white/20 transition-all;
+  }
+}
+
+/* Animations */
+@keyframes pulse-slow {
+
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}

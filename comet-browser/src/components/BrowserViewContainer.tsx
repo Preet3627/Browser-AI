@@ -1,0 +1,101 @@
+"use client";
+
+import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+
+interface BrowserViewContainerProps {
+  initialUrl?: string;
+  onUrlChange?: (url: string) => void;
+  omnibarUrl: string;
+}
+
+const BrowserViewContainer: React.FC<BrowserViewContainerProps> = ({ initialUrl = 'https://www.google.com', onUrlChange, omnibarUrl }) => {
+  const [currentUrl, setCurrentUrl] = useState(initialUrl);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isElectron, setIsElectron] = useState(false);
+  const isMounted = useRef(false);
+
+  useEffect(() => {
+    isMounted.current = true;
+
+    if (window.electronAPI) {
+      setIsElectron(true);
+      window.electronAPI.navigateTo(initialUrl);
+
+      const interval = setInterval(async () => {
+        if (isMounted.current) {
+          try {
+            const url = await window.electronAPI.getCurrentUrl();
+            if (url && url !== currentUrl) {
+              setCurrentUrl(url);
+              onUrlChange?.(url);
+            }
+          } catch (e) {
+            console.error("Error polling URL:", e);
+          }
+        }
+      }, 1000);
+
+      setTimeout(() => setIsLoading(false), 800);
+      return () => {
+        isMounted.current = false;
+        clearInterval(interval);
+      };
+    } else {
+      // Web Fallback
+      setIsElectron(false);
+      setIsLoading(false);
+      setCurrentUrl(initialUrl);
+    }
+  }, [initialUrl, onUrlChange]);
+
+  useEffect(() => {
+    if (omnibarUrl && omnibarUrl !== currentUrl) {
+      if (window.electronAPI) {
+        window.electronAPI.navigateTo(omnibarUrl);
+        setIsLoading(true);
+        setTimeout(() => setIsLoading(false), 500);
+      } else {
+        // Just update state for iframe
+        setCurrentUrl(omnibarUrl);
+      }
+    }
+  }, [omnibarUrl]);
+
+  return (
+    <div className="w-full h-full relative overflow-hidden bg-[#050510]">
+      <AnimatePresence>
+        {isLoading && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#050510] text-deep-space-text"
+          >
+            <div className="relative w-16 h-16 mb-4">
+              <div className="absolute inset-0 border-4 border-deep-space-accent-neon/20 rounded-full"></div>
+              <div className="absolute inset-0 border-4 border-deep-space-accent-neon rounded-full border-t-transparent animate-spin"></div>
+            </div>
+            <p className="text-sm font-medium tracking-widest uppercase animate-pulse">Navigating</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {isElectron ? (
+        <div className="w-full h-full flex flex-col items-center justify-center pointer-events-none opacity-10">
+          <span className="text-6xl mb-4">🖥️</span>
+          <p className="text-white/40 text-sm font-light">Desktop View Rendering...</p>
+        </div>
+      ) : (
+        <iframe
+          src={currentUrl}
+          className="w-full h-full border-0 bg-white"
+          title="Browser Content"
+          sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
+        />
+      )}
+    </div>
+  );
+};
+
+export default BrowserViewContainer;

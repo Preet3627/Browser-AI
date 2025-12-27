@@ -1,0 +1,23 @@
+{
+    "name": "comet-browser-monorepo",
+    "version": "1.0.0",
+    "private": true,
+    "description": "Monorepo for Comet Browser (Desktop & Mobile)",
+    "workspaces": [
+        "comet-browser",
+        "CometBrowserMobile"
+    ],
+    "scripts": {
+        "dev:desktop": "npm run dev --workspace=comet-browser",
+        "dev:mobile": "npm run start --workspace=CometBrowserMobile",
+        "mobile:android": "npm run android --workspace=CometBrowserMobile",
+        "mobile:build-debug": "cd CometBrowserMobile/android && ./gradlew assembleDebug",
+        "mobile:build-release": "cd CometBrowserMobile/android && ./gradlew assembleRelease",
+        "mobile:clean": "cd CometBrowserMobile/android && ./gradlew clean",
+        "install:all": "npm install"
+    },
+    "devDependencies": {
+        "@tailwindcss/postcss": "^4.1.18",
+        "tailwindcss": "^4.1.18"
+    }
+}
