@@ -20,6 +20,7 @@
     "firebase": "^12.7.0",
     "framer-motion": "^12.23.26",
     "lucide-react": "^0.562.0",
+    "mysql2": "^3.11.5",
     "next": "16.1.1",
     "pdf-lib": "^1.17.1",
     "react": "19.2.3",

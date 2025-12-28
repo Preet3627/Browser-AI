@@ -8,7 +8,7 @@ import BackendSettings from './BackendSettings';
 import { motion, AnimatePresence } from 'framer-motion';
 import { OpenAICompatibleProvider } from '@/lib/llm/providers/openai-compatible';
 import { useAppStore } from '@/store/useAppStore';
-import { Cpu, Cloud, Settings, Save, Shield, Database } from 'lucide-react';
+import { Cpu, Cloud, Settings, Save, Shield, Database, ChevronDown, Check, Sparkles } from 'lucide-react';
 
 interface LLMProviderSettingsProps {
   selectedEngine: string;

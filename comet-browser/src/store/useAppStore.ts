@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { Security } from '@/lib/Security';
 
 interface PasswordEntry {
     id: string;
@@ -194,9 +195,15 @@ export const useAppStore = create<BrowserState>()(
             })),
             clearClipboard: () => set({ clipboard: [] }),
 
-            addPassword: (entry) => set((state) => ({
-                passwords: [...state.passwords, { ...entry, id: `pwd-${Date.now()}-${Math.random().toString(36).substr(2, 5)}` }]
-            })),
+
+            addPassword: (entry) => set((state) => {
+                const encryptedEntry = {
+                    ...entry,
+                    password: Security.encrypt(entry.password),
+                    id: `pwd-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`
+                };
+                return { passwords: [...state.passwords, encryptedEntry] };
+            }),
             removePassword: (id) => set((state) => ({
                 passwords: state.passwords.filter(p => p.id !== id)
             })),

@@ -8,8 +8,9 @@ import { User } from "firebase/auth";
 import firebaseService from '@/lib/FirebaseService';
 import ThinkingIndicator from './ThinkingIndicator';
 import { useAppStore } from '@/store/useAppStore';
-import { Sparkles, Terminal, Code2, Image as ImageIcon } from 'lucide-react';
+import { Sparkles, Terminal, Code2, Image as ImageIcon, Maximize2, Minimize2, FileText, Download, Wifi, WifiOff } from 'lucide-react';
 import MediaSuggestions from './MediaSuggestions';
+import { offlineChatbot } from '@/lib/OfflineChatbot';
 
 interface AIChatSidebarProps {
   studentMode: boolean;
@@ -36,6 +37,9 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = (props) => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
+  const [isFullScreen, setIsFullScreen] = useState(false);
+  const [aiMode, setAiMode] = useState<'cloud' | 'offline' | 'auto'>('auto');
+  const [isOnline, setIsOnline] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -52,6 +56,19 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = (props) => {
     return () => unsubscribe();
   }, []);
 
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
   const handleSendMessage = async (customContent?: string) => {
     const contentToUse = customContent || inputMessage.trim();
     if (!contentToUse) return;
@@ -61,6 +78,17 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = (props) => {
     if (!customContent) setInputMessage('');
     setIsLoading(true);
     setError(null);
+
+    // Smart AI switching
+    const shouldUseOffline = aiMode === 'offline' || (aiMode === 'auto' && !isOnline);
+
+    if (shouldUseOffline) {
+      // Use offline chatbot
+      const response = offlineChatbot.chat(contentToUse);
+      setMessages(prev => [...prev, { role: 'model', content: response }]);
+      setIsLoading(false);
+      return;
+    }
 
     try {
       if (window.electronAPI) {
@@ -96,6 +124,18 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = (props) => {
     }
   };
 
+  const handleExportTxt = async () => {
+    if (messages.length === 0) return;
+    const success = await window.electronAPI.exportChatAsTxt(messages);
+    if (success) alert('Chat exported as TXT');
+  };
+
+  const handleExportPdf = async () => {
+    if (messages.length === 0) return;
+    const success = await window.electronAPI.exportChatAsPdf(messages);
+    if (success) alert('Chat exported as PDF');
+  };
+
   if (props.isCollapsed) {
     return (
       <div className="flex flex-col items-center h-full py-2 space-y-6">
@@ -111,17 +151,50 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = (props) => {
   }
 
   return (
-    <div className="flex flex-col h-full gap-6">
+    <div className={`flex flex-col h-full gap-6 transition-all duration-500 rounded-[2.5rem] ${isFullScreen ? 'fixed inset-10 z-[300] bg-deep-space-bg border border-white/10 p-12 shadow-[0_0_100px_rgba(0,0,0,0.9)]' : ''}`}>
       <header className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-deep-space-accent-neon flex items-center justify-center text-deep-space-bg font-bold shadow-[0_0_20px_rgba(0,255,255,0.4)]">
             {store.appName.charAt(0)}
           </div>
-          <h2 className="text-lg font-bold tracking-tight text-white">{store.appName} AI</h2>
+          <div>
+            <h2 className="text-lg font-bold tracking-tight text-white">{store.appName} AI</h2>
+            {isFullScreen && <p className="text-[10px] text-white/30 uppercase tracking-widest font-black mt-1">Immersive Intelligence Workspace</p>}
+          </div>
+          <div className="flex items-center gap-1 ml-2">
+            {isOnline ? (
+              <Wifi size={12} className="text-green-400" />
+            ) : (
+              <WifiOff size={12} className="text-orange-400" />
+            )}
+            <span className="text-[8px] font-black uppercase tracking-widest text-white/20">
+              {aiMode === 'auto' ? (isOnline ? 'Cloud' : 'Offline') : aiMode}
+            </span>
+          </div>
         </div>
-        <button onClick={props.toggleCollapse} className="p-2 text-white/20 hover:text-white transition-colors">
-          <span className="text-sm">{props.isCollapsed ? (props.side === 'right' ? '◀' : '▶') : (props.side === 'right' ? '▶' : '◀')}</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              const modes: Array<'cloud' | 'offline' | 'auto'> = ['auto', 'cloud', 'offline'];
+              const currentIndex = modes.indexOf(aiMode);
+              setAiMode(modes[(currentIndex + 1) % modes.length]);
+            }}
+            className="p-2 text-white/20 hover:text-white transition-colors text-[10px] font-bold"
+            title="Toggle AI Mode"
+          >
+            {aiMode === 'auto' ? '🤖' : aiMode === 'cloud' ? '☁️' : '📴'}
+          </button>
+          <button
+            onClick={() => setIsFullScreen(!isFullScreen)}
+            className="p-2 text-white/20 hover:text-deep-space-accent-neon transition-colors"
+            title={isFullScreen ? "Exit Full Screen" : "Full Screen Mode"}
+          >
+            {isFullScreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+          </button>
+          <button onClick={props.toggleCollapse} className="p-2 text-white/20 hover:text-white transition-colors">
+            <span className="text-sm">{props.isCollapsed ? (props.side === 'right' ? '◀' : '▶') : (props.side === 'right' ? '▶' : '◀')}</span>
+          </button>
+        </div>
       </header>
 
       <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-6">
@@ -143,7 +216,12 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = (props) => {
                 ? 'bg-deep-space-primary/30 text-white border border-white/10 rounded-tr-none'
                 : 'bg-white/[0.03] text-white/90 border border-white/5 rounded-tl-none'
                 }`}>
-                {msg.content}
+                {msg.content.split(/(\$.*?\$)/).map((part, i) => {
+                  if (part.startsWith('$') && part.endsWith('$')) {
+                    return <span key={i} className="font-mono text-deep-space-accent-neon bg-white/5 px-1 rounded">{part.slice(1, -1)}</span>;
+                  }
+                  return part;
+                })}
                 {(msg.role === 'model' && (msg.content.toLowerCase().includes('story') || msg.content.toLowerCase().includes('email'))) && (
                   <div className="mt-4">
                     <MediaSuggestions onSelect={(url) => setInputMessage(prev => prev + `\n![image](${url})`)} />
@@ -172,6 +250,23 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = (props) => {
       </div>
 
       <footer className="space-y-4">
+        {messages.length > 0 && (
+          <div className="flex gap-2 mb-4">
+            <button
+              onClick={handleExportTxt}
+              className="flex-1 flex items-center justify-center gap-2 text-[9px] font-black uppercase tracking-widest py-3 px-3 rounded-xl border border-white/5 bg-white/[0.02] text-white/30 hover:bg-white/5 hover:text-white transition-all"
+            >
+              <FileText size={12} /> .TXT
+            </button>
+            <button
+              onClick={handleExportPdf}
+              className="flex-1 flex items-center justify-center gap-2 text-[9px] font-black uppercase tracking-widest py-3 px-3 rounded-xl border border-white/5 bg-white/[0.02] text-white/30 hover:bg-white/5 hover:text-white transition-all"
+            >
+              <Download size={12} /> .PDF
+            </button>
+          </div>
+        )}
+
         <div className="flex gap-2">
           <button
             onClick={() => handleSendMessage("Summarize the main points of this page")}

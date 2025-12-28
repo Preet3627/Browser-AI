@@ -34,6 +34,39 @@ declare global {
 
             // Extensions
             getExtensionPath: () => Promise<string>;
+
+            // Window Controls
+            minimizeWindow: () => void;
+            maximizeWindow: () => void;
+            closeWindow: () => void;
+
+            // Chat & File Export
+            exportChatAsTxt: (messages: ChatMessage[]) => Promise<boolean>;
+            exportChatAsPdf: (messages: ChatMessage[]) => Promise<boolean>;
+
+            // MCP Support
+            mcpCommand: (command: string, data: any) => Promise<any>;
+
+            // Database & Sync
+            initDatabase: (config: { host?: string; port?: number; user?: string; password?: string; database?: string }) => Promise<{ success: boolean; error?: string }>;
+            syncData: (params: { userId: string; type: string; data: any[]; direction: 'push' | 'pull' }) => Promise<{ success: boolean; synced?: number }>;
+
+            // P2P File Sync
+            scanFolder: (path: string, types: string[]) => Promise<any[]>;
+            readFileBuffer: (path: string) => Promise<ArrayBuffer>;
+
+            // Phone Control
+            sendPhoneCommand: (command: string, data: any) => Promise<void>;
+
+            // Contacts
+            getDeviceContacts: () => Promise<any[]>;
+            syncContacts: (deviceId: string, contacts: any[]) => Promise<{ success: boolean; synced: number }>;
+
+            // OTP
+            startSMSListener: () => Promise<boolean>;
+            startEmailListener: () => Promise<boolean>;
+            syncOTP: (otp: any) => Promise<void>;
+            requestSMSPermission: () => Promise<boolean>;
         };
     }
 }

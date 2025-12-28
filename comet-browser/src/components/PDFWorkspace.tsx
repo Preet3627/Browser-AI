@@ -3,7 +3,7 @@
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Tesseract from 'tesseract.js';
-import { FileText, Camera, Edit3, Trash2, Download, Search, Move } from 'lucide-react';
+import { FileText, Camera, Edit3, Trash2, Download, Search, Move, ZoomIn, ZoomOut, RotateCw } from 'lucide-react';
 
 const PDFWorkspace = () => {
     const [file, setFile] = useState<File | null>(null);
@@ -11,6 +11,8 @@ const PDFWorkspace = () => {
     const [ocrText, setOcrText] = useState("");
     const [isProcessing, setIsProcessing] = useState(false);
     const [progress, setProgress] = useState(0);
+    const [zoom, setZoom] = useState(1);
+    const [rotation, setRotation] = useState(0);
     const [annotations, setAnnotations] = useState<{ id: string; text: string; x: number; y: number }[]>([]);
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -106,9 +108,24 @@ const PDFWorkspace = () => {
                     <div className="relative w-full h-full flex items-center justify-center overflow-auto custom-scrollbar">
                         <div className="relative bg-white shadow-2xl rounded-sm group min-w-[600px] min-h-[800px]">
                             {file?.type === 'application/pdf' ? (
-                                <iframe src={fileUrl} className="w-full h-full min-h-[800px]" />
+                                <iframe
+                                    src={fileUrl}
+                                    className="w-full h-full min-h-[800px]"
+                                    style={{
+                                        transform: `scale(${zoom}) rotate(${rotation}deg)`,
+                                        transition: 'transform 0.3s ease-out'
+                                    }}
+                                />
                             ) : (
-                                <img src={fileUrl!} className="max-w-full" alt="document" />
+                                <img
+                                    src={fileUrl!}
+                                    className="max-w-full"
+                                    alt="document"
+                                    style={{
+                                        transform: `scale(${zoom}) rotate(${rotation}deg)`,
+                                        transition: 'transform 0.3s ease-out'
+                                    }}
+                                />
                             )}
 
                             {/* Floating Annotations */}
@@ -153,9 +170,28 @@ const PDFWorkspace = () => {
                             animate={{ y: 0 }}
                             className="absolute bottom-8 left-1/2 -translate-x-1/2 px-6 py-3 rounded-2xl glass shadow-2xl flex gap-6 items-center border border-white/10"
                         >
-                            <button className="flex flex-col items-center gap-1 text-white/40 hover:text-white transition-all font-bold">
-                                <Search size={18} />
-                                <span className="text-[10px] uppercase tracking-tighter">Zoom</span>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => setZoom(z => Math.max(0.5, z - 0.1))}
+                                    className="p-2 text-white/40 hover:text-white transition-all rounded-lg hover:bg-white/5"
+                                >
+                                    <ZoomOut size={18} />
+                                </button>
+                                <span className="text-[10px] font-black w-8 text-center text-white/60">{Math.round(zoom * 100)}%</span>
+                                <button
+                                    onClick={() => setZoom(z => Math.min(3, z + 0.1))}
+                                    className="p-2 text-white/40 hover:text-white transition-all rounded-lg hover:bg-white/5"
+                                >
+                                    <ZoomIn size={18} />
+                                </button>
+                            </div>
+                            <div className="w-[1px] h-8 bg-white/10" />
+                            <button
+                                onClick={() => setRotation(r => (r + 90) % 360)}
+                                className="flex flex-col items-center gap-1 text-white/40 hover:text-white transition-all font-bold"
+                            >
+                                <RotateCw size={18} />
+                                <span className="text-[10px] uppercase tracking-tighter">Rotate</span>
                             </button>
                             <div className="w-[1px] h-8 bg-white/10" />
                             <button className="flex flex-col items-center gap-1 text-white/40 hover:text-white transition-all font-bold">

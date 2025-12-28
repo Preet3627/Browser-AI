@@ -32,4 +32,37 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Extension & File Utils
   getExtensionPath: () => ipcRenderer.invoke('get-extension-path'),
+
+  // Window Controls
+  minimizeWindow: () => ipcRenderer.send('window-minimize'),
+  maximizeWindow: () => ipcRenderer.send('window-maximize'),
+  closeWindow: () => ipcRenderer.send('window-close'),
+
+  // Chat & File Export
+  exportChatAsTxt: (messages) => ipcRenderer.invoke('export-chat-txt', messages),
+  exportChatAsPdf: (messages) => ipcRenderer.invoke('export-chat-pdf', messages),
+
+  // MCP Support
+  mcpCommand: (command, data) => ipcRenderer.invoke('mcp-command', { command, data }),
+
+  // Database & Sync
+  initDatabase: (config) => ipcRenderer.invoke('init-database', config),
+  syncData: (params) => ipcRenderer.invoke('sync-data', params),
+
+  // P2P File Sync
+  scanFolder: (path, types) => ipcRenderer.invoke('scan-folder', { path, types }),
+  readFileBuffer: (path) => ipcRenderer.invoke('read-file-buffer', path),
+
+  // Phone Control
+  sendPhoneCommand: (command, data) => ipcRenderer.invoke('send-phone-command', { command, data }),
+
+  // Contacts
+  getDeviceContacts: () => ipcRenderer.invoke('get-device-contacts'),
+  syncContacts: (deviceId, contacts) => ipcRenderer.invoke('sync-contacts', { deviceId, contacts }),
+
+  // OTP
+  startSMSListener: () => ipcRenderer.invoke('start-sms-listener'),
+  startEmailListener: () => ipcRenderer.invoke('start-email-listener'),
+  syncOTP: (otp) => ipcRenderer.invoke('sync-otp', otp),
+  requestSMSPermission: () => ipcRenderer.invoke('request-sms-permission'),
 });
