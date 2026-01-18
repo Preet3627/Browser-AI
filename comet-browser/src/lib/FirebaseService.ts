@@ -1,46 +1,49 @@
-// src/lib/FirebaseService.ts
-import { initializeApp, getApp, getApps, FirebaseApp, deleteApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut as firebaseSignOut, onAuthStateChanged as firebaseOnAuthStateChanged, User, Auth, signInWithCustomToken as firebaseSignInWithCustomToken } from 'firebase/auth';
-import { getFirestore, collection, addDoc, serverTimestamp, Firestore, query, orderBy, getDocs } from 'firebase/firestore';
+import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
+import { getAuth, Auth, User, signInWithCustomToken as firebaseSignInWithCustomToken, signOut as firebaseSignOut, onAuthStateChanged as firebaseOnAuthStateChanged, GoogleAuthProvider, signInWithPopup, getRedirectResult } from 'firebase/auth';
+import { getFirestore, Firestore, collection, addDoc, getDocs, query, orderBy, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { firebaseConfigStorage, FirebaseConfig } from './firebaseConfigStorage';
 
 class FirebaseService {
-  app: FirebaseApp | null = null;
-  auth: Auth | null = null;
-  firestore: Firestore | null = null;
-  private googleProvider: GoogleAuthProvider;
+  public app: FirebaseApp | null = null;
+  public auth: Auth | null = null;
+  public firestore: Firestore | null = null;
 
   constructor() {
-    this.googleProvider = new GoogleAuthProvider();
+    this.initializeFirebase();
   }
 
-  async initializeFirebase(config: any, appName: string = 'cometBrowserApp') {
-    // Check if an app with this name already exists
-    const existingApp = getApps().find(app => app.name === appName);
-
-    if (existingApp) {
-      // If an app with the same name exists, delete it before re-initializing
-      // This is crucial to prevent re-initialization errors if the config changes
-      await deleteApp(existingApp);
-    }
-
-    this.app = initializeApp(config, appName);
-    this.auth = getAuth(this.app);
-    this.firestore = getFirestore(this.app);
-    console.log(`Firebase app '${appName}' initialized/re-initialized.`);
-  }
-
-  // Sign in with Google
-  async signInWithGoogle(): Promise<User | null> {
-    if (!this.auth) {
-      console.error("Firebase Auth not initialized.");
-      return null;
-    }
+  private initializeFirebase() {
     try {
-      const result = await signInWithPopup(this.auth, this.googleProvider);
-      return result.user;
+      // Get Firebase config from stored config (from landing page) or fallback to env vars
+      const getFirebaseConfig = (): FirebaseConfig => {
+        // First, try to load from localStorage (received from landing page)
+        const storedConfig = firebaseConfigStorage.load();
+        if (storedConfig) {
+          return storedConfig;
+        }
+
+        // Fallback to environment variables
+        return {
+          apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || '',
+          authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || '',
+          projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || '',
+          storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || '',
+          messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || '',
+          appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || '',
+          measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
+        };
+      };
+
+      const firebaseConfig = getFirebaseConfig();
+
+      // Only initialize if we have valid config
+      if (firebaseConfig.apiKey) {
+        this.app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+        this.auth = getAuth(this.app);
+        this.firestore = getFirestore(this.app);
+      }
     } catch (error) {
-      console.error("Error during Google sign-in:", error);
-      return null;
+      console.error("Error initializing Firebase:", error);
     }
   }
 
@@ -54,6 +57,35 @@ class FirebaseService {
       return result.user;
     } catch (error) {
       console.error("Error signing in with custom token:", error);
+      return null;
+    }
+  }
+
+  async signInWithGoogle(): Promise<User | null> {
+    if (!this.auth) {
+      console.error("Firebase Auth not initialized.");
+      return null;
+    }
+    const provider = new GoogleAuthProvider();
+    try {
+      const result = await signInWithPopup(this.auth, provider);
+      return result.user;
+    } catch (error) {
+      console.error("Error signing in with Google:", error);
+      return null;
+    }
+  }
+
+  async handleRedirectResult(): Promise<User | null> {
+    if (!this.auth) {
+      console.error("Firebase Auth not initialized.");
+      return null;
+    }
+    try {
+      const result = await getRedirectResult(this.auth);
+      return result ? result.user : null;
+    } catch (error) {
+      console.error("Error handling redirect result:", error);
       return null;
     }
   }
@@ -103,7 +135,7 @@ class FirebaseService {
   }
 
   // Get a user's history
-  async getHistory(userId: string): Promise<any[]> {
+  async getHistory(userId: string): Promise<Array<{ id: string; url: string; title: string; timestamp: Timestamp }>> {
     if (!this.firestore) {
       console.error("Firebase Firestore not initialized.");
       return [];
@@ -115,8 +147,8 @@ class FirebaseService {
       const historyCollectionRef = collection(this.firestore, `users/${userId}/history`);
       const q = query(historyCollectionRef, orderBy("timestamp", "desc"));
       const querySnapshot = await getDocs(q);
-      return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    } catch (error) => {
+      return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Array<{ id: string; url: string; title: string; timestamp: Timestamp }>;
+    } catch (error) {
       console.error("Error getting history:", error);
       return [];
     }

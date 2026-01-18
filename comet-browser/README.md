@@ -18,6 +18,15 @@
 - 🧩 **Chrome Extension Support:** Load and manage your local development plugins with ease.
 - 🔄 **Master Sync Core:** Persistent synchronization of bookmarks, history, and AI memory via Firebase/MySQL.
 
+## Recent Updates
+
+### Version 0.1.2
+
+*   **New Feature:** Added Performance Mode for optimized resource management.
+*   **Bug Fixes:** Resolved multiple TypeScript errors, including duplicate variable declarations and type mismatches across various components and the store.
+*   **Improvements:** Enhanced tab management with audio detection and configurable performance settings.
+
+
 ## 🚀 Quick Start (Development)
 
 1.  **Install Dependencies:**

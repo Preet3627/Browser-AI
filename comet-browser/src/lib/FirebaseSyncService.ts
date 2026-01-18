@@ -1,26 +1,43 @@
-import { getDatabase, ref, onValue, set } from "firebase/database";
-import { getAuth, User } from "firebase/auth";
-import { app } from "./FirebaseService";
+import { getDatabase, ref, onValue, set, Database } from "firebase/database";
+import { User, Auth } from "firebase/auth";
+import firebaseService from "./FirebaseService"; // Corrected import
 import { Security } from "./Security";
 
-// Type-only import to avoid circular dependency
-import type { useAppStore as useAppStoreType } from "@/store/useAppStore";
+// These will be null initially, and set once firebaseService is initialized
+let db: Database | null = null;
+let auth: Auth | null = null;
 
-const db = getDatabase(app);
-const auth = getAuth(app);
+// Listen for FirebaseService to be initialized and then set db and auth
+const initCheckInterval = setInterval(() => {
+  if (firebaseService.app && firebaseService.auth) {
+    db = getDatabase(firebaseService.app);
+    auth = firebaseService.auth;
+    clearInterval(initCheckInterval);
+  }
+}, 500);
+
 
 class FirebaseSyncService {
   private userId: string | null = null;
 
   constructor() {
-    auth.onAuthStateChanged((user) => {
-      if (user) {
-        this.userId = user.uid;
-        this.syncClipboard();
-      } else {
-        this.userId = null;
+    // Wait for auth to be initialized before listening to state changes
+    const authCheckInterval = setInterval(() => {
+      if (auth) {
+        auth.onAuthStateChanged((user: User | null) => {
+          if (user) {
+            this.userId = user.uid;
+            // Only sync if not in guest mode - check will be done in individual sync methods
+            this.syncClipboard();
+            this.syncHistory();
+            this.syncApiKeys();
+          } else {
+            this.userId = null;
+          }
+        });
+        clearInterval(authCheckInterval);
       }
-    });
+    }, 500);
   }
 
   private async getStore() {
@@ -29,7 +46,13 @@ class FirebaseSyncService {
   }
 
   public async syncClipboard() {
-    if (!this.userId) return;
+    if (!this.userId || !db) return;
+    
+    const useAppStore = await this.getStore();
+    const store = useAppStore.getState();
+    
+    // Skip sync if guest mode is enabled
+    if (store.isGuestMode || !store.cloudSyncConsent) return;
 
     const clipboardRef = ref(db, "clipboard/" + this.userId);
     onValue(clipboardRef, async (snapshot) => {
@@ -37,18 +60,26 @@ class FirebaseSyncService {
       if (data && Array.isArray(data)) {
         const useAppStore = await this.getStore();
         const store = useAppStore.getState();
+        
+        // Double-check guest mode and sync consent before syncing
+        if (store.isGuestMode || !store.cloudSyncConsent) return;
+        
         const decrypted = await Promise.all(
           data.map(item => Security.decrypt(item, store.syncPassphrase || undefined))
         );
-        store.setExcelAutofillData(decrypted);
+        store.clipboard = decrypted;
       }
     });
   }
 
-  public async setClipboard(clipboard: any[]) {
-    if (!this.userId) return;
+  public async setClipboard(clipboard: unknown[]) {
+    if (!this.userId || !db) return;
     const useAppStore = await this.getStore();
     const store = useAppStore.getState();
+    
+    // Skip sync if guest mode is enabled
+    if (store.isGuestMode || !store.cloudSyncConsent) return;
+    
     const encrypted = await Promise.all(
       clipboard.map(item => Security.encrypt(String(item), store.syncPassphrase || undefined))
     );
@@ -58,7 +89,13 @@ class FirebaseSyncService {
   }
 
   public async syncHistory() {
-    if (!this.userId) return;
+    if (!this.userId || !db) return;
+
+    const useAppStore = await this.getStore();
+    const store = useAppStore.getState();
+    
+    // Skip sync if guest mode is enabled
+    if (store.isGuestMode || !store.cloudSyncConsent) return;
 
     const historyRef = ref(db, "history/" + this.userId);
     onValue(historyRef, async (snapshot) => {
@@ -66,17 +103,23 @@ class FirebaseSyncService {
       if (data && Array.isArray(data)) {
         const useAppStore = await this.getStore();
         const store = useAppStore.getState();
-        const decrypted = await Promise.all(
-          data.map(item => Security.decrypt(item, store.syncPassphrase || undefined))
-        );
+        
+        // Double-check guest mode and sync consent before syncing
+        if (store.isGuestMode || !store.cloudSyncConsent) return;
+        
+        store.setHistory(data);
       }
     });
   }
 
   public async setHistory(history: string[]) {
-    if (!this.userId) return;
+    if (!this.userId || !db) return;
     const useAppStore = await this.getStore();
     const store = useAppStore.getState();
+    
+    // Skip sync if guest mode is enabled
+    if (store.isGuestMode || !store.cloudSyncConsent) return;
+    
     const encrypted = await Promise.all(
       history.map(item => Security.encrypt(item, store.syncPassphrase || undefined))
     );
@@ -86,13 +129,40 @@ class FirebaseSyncService {
   }
 
   public async syncApiKeys() {
-    // ... to be implemented
-  }
+    if (!this.userId || !db) return;
 
-  public async setApiKeys(apiKeys: any) {
-    if (!this.userId) return;
     const useAppStore = await this.getStore();
     const store = useAppStore.getState();
+    
+    // Skip sync if guest mode is enabled
+    if (store.isGuestMode || !store.cloudSyncConsent) return;
+
+    const apiKeysRef = ref(db, "apiKeys/" + this.userId);
+    onValue(apiKeysRef, async (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const useAppStore = await this.getStore();
+        const store = useAppStore.getState();
+        
+        // Double-check guest mode and sync consent before syncing
+        if (store.isGuestMode || !store.cloudSyncConsent) return;
+        
+        const decrypted = await Security.decrypt(data, store.syncPassphrase || undefined);
+        const parsedKeys = JSON.parse(decrypted);
+        store.setOpenaiApiKey(parsedKeys.openai);
+        store.setGeminiApiKey(parsedKeys.gemini);
+      }
+    });
+  }
+
+  public async setApiKeys(apiKeys: Record<string, string>) {
+    if (!this.userId || !db) return;
+    const useAppStore = await this.getStore();
+    const store = useAppStore.getState();
+    
+    // Skip sync if guest mode is enabled
+    if (store.isGuestMode || !store.cloudSyncConsent) return;
+    
     const encryptedKeys = await Security.encrypt(JSON.stringify(apiKeys), store.syncPassphrase || undefined);
     const apiKeysRef = ref(db, "apiKeys/" + this.userId);
     set(apiKeysRef, encryptedKeys);

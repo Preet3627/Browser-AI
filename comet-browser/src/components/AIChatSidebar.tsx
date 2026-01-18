@@ -14,6 +14,8 @@ import { offlineChatbot } from '@/lib/OfflineChatbot';
 import { LogOut, User as UserIcon, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { Security } from '@/lib/Security';
 
+import { SlidersHorizontal } from 'lucide-react';
+
 interface AIChatSidebarProps {
   studentMode: boolean;
   toggleStudentMode: () => void;
@@ -45,7 +47,8 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = (props) => {
   const [attachments, setAttachments] = useState<{ name: string; type: string; data: string }[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
+  const [showChat, setShowChat] = useState(true);
+  
   // ... (useEffect hooks match original)
 
   useEffect(() => {
@@ -214,6 +217,16 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = (props) => {
     );
   }
 
+  if (!showChat) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full">
+        <button onClick={() => setShowChat(true)} className="p-2 rounded-lg bg-white/5 hover:bg-white/10">
+          <SlidersHorizontal size={18} />
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div className={`flex flex-col h-full gap-6 transition-all duration-500 rounded-[2.5rem] ${isFullScreen ? 'fixed inset-10 z-[300] bg-deep-space-bg border border-white/10 p-12 shadow-[0_0_100px_rgba(0,0,0,0.9)]' : ''}`}>
       <header className="flex items-center justify-between">
@@ -273,7 +286,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = (props) => {
           )}
           <div className="flex flex-col">
             <span className="text-[10px] font-black uppercase text-white tracking-widest truncate max-w-[120px]">
-              {store.user?.name || 'Local Pilot'}
+              {store.user?.displayName || 'Local Pilot'}
             </span>
             <span className="text-[8px] font-bold text-white/20 uppercase">
               {store.isAdmin ? 'System Admin' : 'Certified User'}

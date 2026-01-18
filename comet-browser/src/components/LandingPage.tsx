@@ -1,11 +1,12 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
+import Image from 'next/image';
 import { useAppStore } from '@/store/useAppStore';
-import firebaseService from '@/lib/FirebaseService';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, Shield, Zap, Globe, Github, LogIn, Chrome, ArrowRight, Layers, Cpu, Database, ChevronLeft } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Sparkles, Shield, Zap, Globe, LogIn, ArrowRight, Layers, Cpu, ChevronLeft, UserX } from 'lucide-react';
 import AdminDashboard from './AdminDashboard';
+import { firebaseConfigStorage } from '@/lib/firebaseConfigStorage';
 
 const LandingPage = () => {
     const store = useAppStore();
@@ -18,155 +19,389 @@ const LandingPage = () => {
         const handleExternalAuthReturn = () => {
             const urlParams = new URLSearchParams(window.location.search);
             const status = urlParams.get('auth_status');
+            const userId = urlParams.get('uid');
             const userEmail = urlParams.get('email');
             const userName = urlParams.get('name');
             const userPhoto = urlParams.get('photo');
+            const firebaseConfigParam = urlParams.get('firebase_config');
 
-            if (status === 'success' && userEmail) {
+            // Store Firebase config if provided in URL
+            if (firebaseConfigParam) {
+                try {
+                    const config = JSON.parse(atob(firebaseConfigParam));
+                    firebaseConfigStorage.save(config);
+                    console.log('Firebase config stored from URL');
+                } catch (e) {
+                    console.error('Failed to parse Firebase config from URL:', e);
+                }
+            }
+
+            if (status === 'success' && userEmail && userId) {
+
                 const isAdminEmail = userEmail.endsWith('@ponsrischool.in');
+
                 store.setUser({
+
+                    uid: userId,
+
                     email: userEmail,
-                    name: userName || 'User',
-                    photoURL: userPhoto || null,
-                    lastLogin: Date.now(),
-                    activeTime: 0
+
+                    displayName: userName || 'User',
+
+                    photoURL: userPhoto || '',
+
                 });
 
+
+
                 if (isAdminEmail) {
+
                     store.setAdmin(true);
+
                 }
 
-                // If on desktop, go to browser. If on web, stay on dashboard.
-                if (window.electronAPI) {
-                    store.setActiveView('browser');
-                } else {
-                    setView('dashboard');
-                }
+
+
+                // Always go to browser after sign in
+
+                store.setActiveView('browser');
 
                 store.startActiveSession();
+
                 window.history.replaceState({}, document.title, window.location.pathname);
+
             }
+
         };
+
+
 
         handleExternalAuthReturn();
 
+
+
         // Listen for postMessage from auth popup
+
         const handleMessage = (event: MessageEvent) => {
+
             // Verify origin for security (in production, check event.origin)
+
             if (event.data && event.data.type === 'auth-success') {
-                const { email, name, photo } = event.data.data;
-                const isAdminEmail = email.endsWith('@ponsrischool.in');
+
+                // Store Firebase config if provided
+
+                if (event.data.firebaseConfig) {
+
+                    firebaseConfigStorage.save(event.data.firebaseConfig);
+
+                    console.log('Firebase config stored from postMessage');
+
+                }
+
+
+
+                const data = event.data.data || event.data;
+
+                const { uid, email, name, photo } = data;
+
+                const isAdminEmail = email?.endsWith('@ponsrischool.in');
+
+
 
                 store.setUser({
+
+                    uid: uid,
+
                     email: email,
-                    name: name || 'User',
-                    photoURL: photo || null,
-                    lastLogin: Date.now(),
-                    activeTime: 0
+
+                    displayName: name || 'User',
+
+                    photoURL: photo || '',
+
                 });
 
+
+
                 if (isAdminEmail) {
+
                     store.setAdmin(true);
+
                 }
 
-                // If on desktop, go to browser. If on web, stay on dashboard.
-                if (window.electronAPI) {
-                    store.setActiveView('browser');
-                } else {
-                    setView('dashboard');
-                }
+
+
+                // Always go to browser after sign in
+
+                store.setActiveView('browser');
 
                 store.startActiveSession();
+
                 setIsLoading(false);
+
             }
+
         };
 
-        window.addEventListener('message', handleMessage);
-        return () => window.removeEventListener('message', handleMessage);
-    }, []);
 
-    const handleLogin = () => {
-        setIsLoading(true);
-        const externalAuthUrl = `https://browser.ponsrischool.in/auth?client_id=desktop-app&redirect_uri=${encodeURIComponent(window.location.href)}`;
-        if (window.electronAPI) {
-            window.open(externalAuthUrl, '_blank');
-        } else {
-            window.location.href = externalAuthUrl;
+
+
+
+        window.addEventListener('message', handleMessage);
+
+        // Desktop app auth callback listener (for custom protocol)
+        let authCleanup: (() => void) | undefined;
+        if (window.electronAPI?.onAuthCallback) {
+            authCleanup = window.electronAPI.onAuthCallback((event: any, url: string) => {
+                console.log('[LandingPage] Auth callback received from Electron:', url);
+
+                try {
+                    // Parse the URL parameters from custom protocol URL
+                    // Format: comet-browser://auth-callback?auth_status=success&uid=...&email=...
+                    const urlObj = new URL(url);
+                    const params = new URLSearchParams(urlObj.search);
+
+                    const status = params.get('auth_status');
+                    const uid = params.get('uid');
+                    const email = params.get('email');
+                    const name = params.get('name');
+                    const photo = params.get('photo');
+                    const idToken = params.get('id_token');
+                    const firebaseConfigParam = params.get('firebase_config');
+
+                    console.log('[LandingPage] Parsed auth params:', { status, uid, email, name });
+
+                    // Store Firebase config if provided
+                    if (firebaseConfigParam) {
+                        try {
+                            const config = JSON.parse(atob(firebaseConfigParam));
+                            firebaseConfigStorage.save(config);
+                            console.log('[LandingPage] Firebase config stored from protocol URL');
+                        } catch (e) {
+                            console.error('[LandingPage] Failed to parse Firebase config:', e);
+                        }
+                    }
+
+                    if (status === 'success' && email && uid) {
+                        const isAdminEmail = email.endsWith('@ponsrischool.in');
+
+                        store.setUser({
+                            uid: uid,
+                            email: email,
+                            displayName: name || 'User',
+                            photoURL: photo || '',
+                        });
+
+                        if (isAdminEmail) {
+                            store.setAdmin(true);
+                        }
+
+                        // Always go to browser after sign in
+                        store.setActiveView('browser');
+                        store.startActiveSession();
+
+                        setIsLoading(false);
+                        console.log('[LandingPage] User logged in successfully via protocol');
+                    }
+                } catch (error) {
+                    console.error('[LandingPage] Error parsing auth callback URL:', error);
+                    setIsLoading(false);
+                }
+            });
         }
+
+        return () => {
+            window.removeEventListener('message', handleMessage);
+            if (authCleanup) authCleanup();
+        };
+
+    }, [store]);
+
+
+
+    const handleLogin = async () => {
+
+        setIsLoading(true);
+
+        try {
+
+            // Use custom protocol for desktop app callbacks
+            const redirectUri = window.electronAPI
+                ? 'comet-browser://auth-callback'
+                : window.location.href;
+
+            const externalAuthUrl = `https://browser.ponsrischool.in/auth?client_id=desktop-app&redirect_uri=${encodeURIComponent(redirectUri)}`;
+
+            console.log('[Login] Opening auth URL:', externalAuthUrl);
+            console.log('[Login] Redirect URI:', redirectUri);
+
+            if (window.electronAPI) {
+
+                // For desktop app, open in external browser for OAuth
+
+                window.electronAPI.openAuthWindow?.(externalAuthUrl);
+
+            } else {
+
+                window.open(externalAuthUrl, '_blank');
+
+            }
+
+        } catch (error) {
+
+            console.error('Login error:', error);
+
+            setIsLoading(false);
+
+        }
+
     };
 
+
+
     if (store.user && (!window.electronAPI || view === 'dashboard')) {
+
         return (
+
             <div className="min-h-screen bg-[#020205] text-white p-8 md:p-12 overflow-y-auto relative selection:bg-deep-space-accent-neon/30 custom-scrollbar">
+
                 <div className="max-w-6xl mx-auto space-y-12 relative z-10 pt-20">
+
                     {/* Header */}
+
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+
                         <div className="flex items-center gap-6">
+
                             <div className="w-20 h-20 rounded-3xl bg-cyan-400/10 border border-cyan-400/20 flex items-center justify-center overflow-hidden">
-                                {store.user.photoURL ? <img src={store.user.photoURL} alt="Profile" className="w-full h-full object-cover" /> : <Layers size={32} className="text-cyan-400" />}
+
+                                {store.user.photoURL ? <Image src={store.user.photoURL} alt="Profile" width={80} height={80} className="w-full h-full object-cover" /> : <Layers size={32} className="text-cyan-400" />}
+
                             </div>
+
                             <div>
-                                <h1 className="text-4xl font-black uppercase tracking-tight">{store.user.name}</h1>
+
+                                <h1 className="text-4xl font-black uppercase tracking-tight">{store.user.displayName}</h1>
+
                                 <p className="text-white/40 font-bold uppercase tracking-widest text-xs mt-1">{store.user.email}</p>
+
                             </div>
+
                         </div>
+
                         <div className="flex gap-4">
+
                             {store.isAdmin && (
+
                                 <button
+
                                     onClick={() => setIsAdminConsoleOpen(!isAdminConsoleOpen)}
+
                                     className="px-6 py-3 bg-cyan-400 text-black font-black rounded-2xl text-[10px] uppercase tracking-widest flex items-center gap-2"
+
                                 >
+
                                     {isAdminConsoleOpen ? <ChevronLeft size={14} /> : null}
+
                                     {isAdminConsoleOpen ? "Back to User" : "Admin Console"}
+
                                 </button>
+
                             )}
+
                             <button onClick={() => store.logout()} className="px-6 py-3 bg-white/5 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-red-500/20 hover:text-red-500 transition-all">
+
                                 Logout
+
                             </button>
+
                         </div>
+
                     </div>
 
+
+
                     {isAdminConsoleOpen ? (
+
                         <div className="bg-white/[0.02] border border-white/5 rounded-[3rem] p-8 md:p-12">
+
                             <AdminDashboard />
+
                         </div>
+
                     ) : (
+
                         <div className="grid lg:grid-cols-3 gap-8">
+
                             {/* History Card */}
+
                             <div className="lg:col-span-2 p-8 rounded-[2.5rem] bg-white/[0.02] border border-white/5 space-y-6">
+
                                 <div className="flex items-center justify-between">
+
                                     <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-white/40">Recent Cloud History</h3>
+
                                     <Globe size={16} className="text-cyan-400" />
+
                                 </div>
+
                                 <div className="space-y-3">
-                                    {store.history.length > 0 ? store.history.map((url, i) => (
+
+                                    {store.history.length > 0 ? store.history.map((item, i) => (
+
                                         <div key={i} className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 transition-all cursor-pointer group">
+
                                             <div className="w-8 h-8 rounded-lg bg-black/40 flex items-center justify-center text-white/20 group-hover:text-cyan-400">
+
                                                 <Globe size={14} />
+
                                             </div>
-                                            <p className="text-xs font-medium truncate flex-1">{url}</p>
+
+                                            <p className="text-xs font-medium truncate flex-1">{item.url}</p>
+
                                             <ArrowRight size={14} className="text-white/10 group-hover:text-white" />
+
                                         </div>
+
                                     )) : <div className="py-20 text-center text-white/20 text-xs font-bold uppercase tracking-widest">No history synced yet</div>}
+
                                 </div>
+
                             </div>
 
+
+
                             {/* Clipboard Card */}
+
                             <div className="p-8 rounded-[2.5rem] bg-white/[0.02] border border-white/5 space-y-6 h-fit">
+
                                 <div className="flex items-center justify-between">
+
                                     <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-white/40">Cloud Clipboard</h3>
+
                                     <Zap size={16} className="text-yellow-400" />
+
                                 </div>
+
                                 <div className="space-y-4">
+
                                     {store.clipboard.length > 0 ? store.clipboard.map((item, i) => (
+
                                         <div key={i} className="p-4 rounded-2xl bg-black/40 border border-white/5 text-[11px] font-medium leading-relaxed max-h-32 overflow-hidden text-white/60 relative group">
+
                                             {item}
+
                                             <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-end p-2">
-                                                <button className="p-2 rounded-lg bg-cyan-400 text-black hover:scale-105 transition-all">
+
+                                                <button className="p-2 rounded-lg bg-cyan-400 text-black hover:scale-105 transition-all" title="Copy to clipboard" aria-label="Copy clipboard item">
+
                                                     <ArrowRight size={12} />
+
                                                 </button>
+
                                             </div>
+
                                         </div>
+
                                     )) : <div className="py-20 text-center text-white/20 text-xs font-bold uppercase tracking-widest">Clipboard empty</div>}
                                 </div>
                             </div>
@@ -204,7 +439,7 @@ const LandingPage = () => {
                 <div className="max-w-7xl mx-auto px-8 py-4 flex items-center justify-between">
                     <div className="flex items-center gap-4">
                         <div className="w-10 h-10 bg-[#00ffff] rounded-2xl flex items-center justify-center shadow-[0_0_25px_rgba(0,255,255,0.5)] p-1.5">
-                            <img src="/icon.ico" alt="Comet" className="w-full h-full object-contain" />
+                            <Image src="/icon.ico" alt="Comet" width={64} height={64} className="w-full h-full object-contain" />
                         </div>
                         <span className="text-2xl font-black uppercase tracking-tighter text-white">COMET</span>
                     </div>
@@ -249,8 +484,19 @@ const LandingPage = () => {
                             onClick={handleLogin}
                             className="px-10 py-5 bg-cyan-400 text-black font-black rounded-3xl text-sm uppercase tracking-widest shadow-[0_20px_40px_rgba(34,211,238,0.2)] hover:scale-105 transition-all flex items-center gap-3"
                         >
-                            {store.user ? "Open Dashboard" : "Get Started"} <ArrowRight size={18} />
+                            {store.user ? "Open Dashboard" : "Sign In with Google"} <ArrowRight size={18} />
                         </button>
+                        {!store.user && !store.isGuestMode && (
+                            <button
+                                onClick={() => {
+                                    store.setGuestMode(true);
+                                }}
+                                className="px-10 py-5 bg-white/5 border border-white/10 font-black rounded-3xl text-sm uppercase tracking-widest hover:bg-white/10 transition-all flex items-center gap-3"
+                            >
+                                <UserX size={18} />
+                                Continue as Guest
+                            </button>
+                        )}
                         <button className="px-10 py-5 bg-white/5 border border-white/10 font-black rounded-3xl text-sm uppercase tracking-widest hover:bg-white/10 transition-all">
                             Documentation
                         </button>

@@ -11,13 +11,13 @@ const AutofillSettings = () => {
     const [showAdd, setShowAdd] = useState(false);
 
     // Form States
-    const [newAddr, setNewAddr] = useState({ name: '', street: '', city: '', zip: '', country: '' });
+    const [newAddr, setNewAddr] = useState({ name: '', address: '', street: '', city: '', zip: '', country: '' });
     const [newCard, setNewCard] = useState({ name: '', cardNumber: '', expiry: '', cvc: '' });
 
     const handleSave = () => {
         if (activeTab === 'addresses') {
-            if (newAddr.name) store.addAddress(newAddr);
-            setNewAddr({ name: '', street: '', city: '', zip: '', country: '' });
+            if (newAddr.name) store.addAddress({ ...newAddr, address: newAddr.street });
+            setNewAddr({ name: '', address: '', street: '', city: '', zip: '', country: '' });
         } else {
             if (newCard.cardNumber) store.addPaymentMethod(newCard);
             setNewCard({ name: '', cardNumber: '', expiry: '', cvc: '' });

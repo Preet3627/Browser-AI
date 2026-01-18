@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, X, ChevronRight, Search, ExternalLink, RefreshCw } from 'lucide-react';
+import React from 'react';
+import { motion } from 'framer-motion';
+import { Sparkles, X, Search, ExternalLink, RefreshCw } from 'lucide-react';
 
 interface AIAssistOverlayProps {
     query: string;
@@ -33,6 +33,7 @@ const AIAssistOverlay = ({ query, result, isLoading, onClose }: AIAssistOverlayP
                     </div>
                     <button
                         onClick={onClose}
+                        aria-label="Close AI assist overlay"
                         className="p-2 rounded-xl text-white/30 hover:bg-white/10 hover:text-white transition-all"
                     >
                         <X size={16} />

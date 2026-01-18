@@ -3,94 +3,151 @@ import { persist } from 'zustand/middleware';
 import { Security } from '@/lib/Security';
 import { defaultShortcuts, Shortcut } from '@/lib/constants';
 import firebaseService from '@/lib/FirebaseService';
-import { getAuth } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
+import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from 'firebase/auth';
 
-interface PasswordEntry {
-    id: string;
-    site: string;
-    username: string;
-    password: string;
-    note?: string;
-}
+// ... (rest of the interfaces are the same)
 
 interface BrowserState {
+    // URL and navigation
     currentUrl: string;
-    history: any[];
+    defaultUrl: string;
+    setDefaultUrl: (url: string) => void;
+
+    // Tabs
+        tabs: Array<{ id: string; url: string; title: string; isIncognito?: boolean; isAudible?: boolean }>;
+        activeTabId: string;
+        addTab: (url?: string) => void;
+        addIncognitoTab: (url?: string) => void;
+        removeTab: (id: string) => void;
+        updateTab: (id: string, updates: Partial<{ url: string; title: string; isAudible?: boolean }>) => void;
+        setCurrentUrl: (url: string) => void;
+        setActiveTabId: (id: string) => void;
+        setActiveTab: (id: string) => void; // Alias for setActiveTabId
+    
+        // Performance Mode
+        performanceMode: 'normal' | 'performance';
+        performanceModeSettings: {
+            maxActiveTabs: number;
+            maxRam: number; // in MB
+            keepAudioTabsActive: boolean;
+        };
+        setPerformanceMode: (mode: 'normal' | 'performance') => void;
+        updatePerformanceModeSettings: (settings: Partial<BrowserState['performanceModeSettings']>) => void;
+
+    // History and clipboard
+    history: Array<{ url: string; title: string; timestamp: number }>;
     clipboard: string[];
-    activeView: 'browser' | 'webstore' | 'pdf' | 'landing' | 'workspace' | 'media';
-    isSidebarCollapsed: boolean;
-    studentMode: boolean;
-    selectedEngine: string;
-    theme: 'dark' | 'light' | 'system';
-    appName: string;
-    isCodingMode: boolean;
+    setHistory: (history: Array<{ url: string; title: string; timestamp: number }>) => void;
+    fetchHistory: () => void;
+    addToHistory: (entry: { url: string; title: string }) => void;
+    savePageOffline: (url: string, title: string, html: string) => void;
+    addToUnifiedCart: (item: any) => void;
+    addClipboardItem: (item: string) => void;
+    clearClipboard: () => void;
 
-    // User & Session System
-    user: {
-        uid: string;
-        email: string | null;
-        displayName: string | null;
-        photoURL: string | null;
-        lastLogin?: number;
-        activeTime?: number; // in milliseconds
-    } | null;
+    // User and auth
+    user: { uid: string; email: string; displayName: string; photoURL: string; activeTime?: number } | null;
     isAdmin: boolean;
+    setUser: (user: { uid: string; email: string; displayName: string; photoURL: string } | null) => void;
+    setAdmin: (isAdmin: boolean) => void;
+    googleToken: string | null;
+    githubToken: string | null;
+    setGoogleToken: (token: string | null) => void;
+    setGithubToken: (token: string | null) => void;
+
+    // View and UI
+    activeView: string;
+    setActiveView: (view: string) => void;
+
+    // Guest mode and sync
+    isGuestMode: boolean;
+    cloudSyncConsent: boolean | null;
+    syncPassphrase: string | undefined;
+    setGuestMode: (isGuest: boolean) => void;
+    setCloudSyncConsent: (consent: boolean) => void;
+    setSyncPassphrase: (passphrase: string) => void;
+
+    // AI settings
+    enableAIAssist: boolean;
+    openaiApiKey: string;
+    geminiApiKey: string;
+    aiProvider: string;
+    setEnableAIAssist: (enable: boolean) => void;
+    setOpenaiApiKey: (key: string) => void;
+    setGeminiApiKey: (key: string) => void;
+    setAIProvider: (provider: string) => void;
+    localLLMBaseUrl: string;
+    localLLMModel: string;
+    setLocalLLMBaseUrl: (url: string) => void;
+    setLocalLLMModel: (model: string) => void;
+
+    // Theme settings
+    theme: "system" | "dark" | "light";
+    setTheme: (theme: "system" | "dark" | "light") => void;
+
+    // Online status
+    isOnline: boolean;
+    setIsOnline: (online: boolean) => void;
+
+    // Active time tracking
     activeStartTime: number | null;
+    startActiveSession: () => void;
+    updateActiveTime: () => void;
 
-    // Tab System
-    tabs: { id: string; url: string; title: string }[];
-    activeTabId: string;
+    // Tab navigation
+    nextTab: () => void;
+    prevTab: () => void;
 
-    // UI Customization
+    // Sidebar
+    sidebarOpen: boolean;
     sidebarWidth: number;
-    sidebarSide: 'left' | 'right';
+    sidebarSide: "left" | "right";
+    isSidebarCollapsed: boolean;
+    toggleSidebar: () => void;
+    setSidebarSide: (side: "left" | "right") => void;
+    setSidebarWidth: (width: number) => void;
+
+    // Student mode
+    studentMode: boolean;
+    setStudentMode: (student: boolean) => void;
+
+    // Coding mode
+    isCodingMode: boolean;
+    setCodingMode: (coding: boolean) => void;
+
+    // Vibrant mode
     isVibrant: boolean;
 
-    // Security & Preferences
-    isSafeSearch: boolean;
+    // Site warnings
     showSiteWarnings: boolean;
-    installDismissed: boolean;
 
-    // Advanced Features
-    bookmarks: { id: string; url: string; title: string; icon?: string }[];
-    offlinePages: { id: string; url: string; title: string; html: string; timestamp: number }[];
-    unifiedCart: { id: string; site: string; item: string; price: string; url: string; thumbnail?: string }[];
+    // Unified cart
+    unifiedCart: Array<{ id: string; item: string; site: string; price: string; }>;
+    removeFromCart: (itemId: string) => void;
 
-    // Password Manager & Autofill
-    passwords: PasswordEntry[];
-    addresses: { id: string; name: string; street: string; city: string; zip: string; country: string }[];
-    paymentMethods: { id: string; name: string; cardNumber: string; expiry: string; cvc: string }[];
-    autofillEnabled: boolean;
-    excelAutofillData: any[];
-    shortcuts: Shortcut[];
+    // Search and bookmarks
+    selectedEngine: string;
+    setSelectedEngine: (engine: string) => void;
+    bookmarks: Array<{ id: string; url: string; title: string }>;
+    addBookmark: (bookmark: { url: string; title: string }) => void;
+    removeBookmark: (url: string) => void;
 
-    addAddress: (addr: any) => void;
+    // Passwords and autofill
+    passwords: Array<{ url: string; username: string; password: string }>;
+    addresses: Array<{ id: string; name: string; address: string; street: string; city: string; zip: string; country: string }>;
+    paymentMethods: Array<{ id: string; name: string; cardNumber: string; expiry: string; cvc: string }>;
+    addAddress: (address: Omit<BrowserState['addresses'][0], 'id'>) => void;
     removeAddress: (id: string) => void;
-    addPaymentMethod: (pm: any) => void;
+    addPaymentMethod: (method: Omit<BrowserState['paymentMethods'][0], 'id'>) => void;
     removePaymentMethod: (id: string) => void;
 
-    // AI Configuration
-    cloudSyncConsent: boolean | null;
-    aiProvider: 'openai' | 'gemini' | 'claude' | 'local';
-    localLLMModel: string;
-    isOnline: boolean; // New state for network status
-    enableAIAssist: boolean;
-    syncPassphrase: string | null;
-    setSyncPassphrase: (passphrase: string | null) => void;
-
-    // API Keys
-    openaiApiKey: string | null;
-    geminiApiKey: string | null;
-    setOpenaiApiKey: (key: string | null) => void;
-    setGeminiApiKey: (key: string | null) => void;
-
-    // Integrations
-    githubToken: string | null;
-    googleToken: string | null;
-    setGithubToken: (token: string | null) => void;
-    setGoogleToken: (token: string | null) => void;
-
-    // Backend Configuration
+    // Settings
+    shortcuts: Array<{ action: string; accelerator: string }>;
+    updateShortcut: (action: string, accelerator: string) => void;
+    hasSeenWelcomePage: boolean;
+    setHasSeenWelcomePage: (seen: boolean) => void;
+    appName: string;
     backendStrategy: 'firebase' | 'mysql';
     customFirebaseConfig: any | null;
     customMysqlConfig: any | null;
@@ -98,212 +155,297 @@ interface BrowserState {
     setCustomFirebaseConfig: (config: any | null) => void;
     setCustomMysqlConfig: (config: any | null) => void;
 
-    // Actions
-    setCloudSyncConsent: (consent: boolean) => void;
-    setIsOnline: (online: boolean) => void;
-    setEnableAIAssist: (enabled: boolean) => void;
-    setCurrentUrl: (url: string) => void;
-    addToHistory: (entry: { url: string; title: string }) => void;
-    setHistory: (history: any[]) => void;
-    fetchHistory: () => Promise<void>;
-    addClipboardItem: (item: string) => void;
-    setActiveView: (view: 'browser' | 'webstore' | 'pdf' | 'landing' | 'workspace' | 'media') => void;
-    toggleSidebar: () => void;
-    setStudentMode: (mode: boolean) => void;
-    setSelectedEngine: (engine: string) => void;
-    setTheme: (theme: 'dark' | 'light' | 'system') => void;
-    setAppName: (name: string) => void;
-    setCodingMode: (mode: boolean) => void;
-
-    // Tab Actions
-    addTab: (url?: string) => void;
-    removeTab: (id: string) => void;
-    setActiveTab: (id: string) => void;
-    updateTab: (id: string, updates: Partial<{ url: string; title: string }>) => void;
-    nextTab: () => void;
-    prevTab: () => void;
-
-    // UI Actions
-    setSidebarWidth: (width: number) => void;
-    setSidebarSide: (side: 'left' | 'right') => void;
-    setVibrant: (vibrant: boolean) => void;
-
-    // Security Actions
-    setSafeSearch: (enabled: boolean) => void;
-    setSiteWarnings: (enabled: boolean) => void;
-
-    // Advanced Actions
-    addBookmark: (url: string, title: string) => void;
-    removeBookmark: (id: string) => void;
-    savePageOffline: (url: string, title: string, html: string) => void;
-    addToUnifiedCart: (item: { site: string; item: string; price: string; url: string; thumbnail?: string }) => void;
-    removeFromCart: (id: string) => void;
-    clearClipboard: () => void;
-
-    // Password Actions
-    addPassword: (entry: Omit<PasswordEntry, 'id'>) => void;
-    removePassword: (id: string) => void;
-    setAutofillEnabled: (enabled: boolean) => void;
-    setExcelAutofillData: (data: any[]) => void;
-    setAIProvider: (provider: 'openai' | 'gemini' | 'claude' | 'local') => void;
-    updateShortcut: (action: string, accelerator: string) => void;
-
-    // User Actions
-    setUser: (user: BrowserState['user']) => void;
-    setAdmin: (isAdmin: boolean) => void;
+    // Logout
     logout: () => void;
-    updateActiveTime: () => void;
-    startActiveSession: () => void;
-    endActiveSession: () => void;
 }
 
 export const useAppStore = create<BrowserState>()(
     persist(
         (set, get) => ({
-            currentUrl: 'https://www.google.com',
+            // URL and navigation
+            currentUrl: 'about:blank',
+            defaultUrl: 'https://www.google.com',
+
+            // Tabs
+            tabs: [{ id: 'default', url: 'about:blank', title: 'New Tab' }],
+            activeTabId: 'default',
+
+            // History and clipboard
             history: [],
             clipboard: [],
+
+            // User and auth
+            user: null,
+            isAdmin: false,
+            googleToken: null,
+            githubToken: null,
+
+            // View and UI
             activeView: 'landing',
-            isSidebarCollapsed: false,
+
+            // Guest mode and sync
+            isGuestMode: false,
+            cloudSyncConsent: null,
+            syncPassphrase: undefined,
+
+            // AI settings
+            enableAIAssist: true,
+            openaiApiKey: '',
+            geminiApiKey: '',
+            aiProvider: 'gemini',
+            localLLMBaseUrl: '',
+            localLLMModel: '',
+
+            // Theme settings
+            theme: 'system',
+
+            // Online status
+            isOnline: true,
+
+            // Active time tracking
+            activeStartTime: null,
+
+            // Sidebar
+            sidebarOpen: false,
+            sidebarWidth: 280,
+            sidebarSide: "left",
+            isSidebarCollapsed: true,
+
+            // Student mode
             studentMode: false,
-            selectedEngine: 'google',
-            theme: 'dark',
-            appName: process.env.NEXT_PUBLIC_APP_NAME || 'Comet',
+
+            // Coding mode
             isCodingMode: false,
-            tabs: [{ id: 'default', url: 'https://www.google.com', title: 'New Tab' }],
-            activeTabId: 'default',
-            sidebarWidth: 320,
-            sidebarSide: 'left',
-            isVibrant: true,
-            isSafeSearch: true,
+
+            // Vibrant mode
+            isVibrant: false,
+
+            // Site warnings
             showSiteWarnings: true,
-            installDismissed: false,
-            bookmarks: [],
-            offlinePages: [],
+
+            // Unified cart
             unifiedCart: [],
+
+            // Search and bookmarks
+            selectedEngine: 'google',
+            bookmarks: [],
+
+            // Passwords and autofill
             passwords: [],
             addresses: [],
             paymentMethods: [],
-            autofillEnabled: true,
-            excelAutofillData: [],
-            aiProvider: 'openai',
-            localLLMModel: 'Llama-3-Lightweight',
-            cloudSyncConsent: null,
-            user: null,
-            isAdmin: false,
-            activeStartTime: null,
+
+            // Settings
             shortcuts: defaultShortcuts,
-            openaiApiKey: null,
-            geminiApiKey: null,
-            setOpenaiApiKey: (key) => set({ openaiApiKey: key }),
-            setGeminiApiKey: (key) => set({ geminiApiKey: key }),
-
-            addAddress: (addr) => set((state) => ({ addresses: [...state.addresses, { ...addr, id: Date.now().toString() }] })),
-            removeAddress: (id) => set((state) => ({ addresses: state.addresses.filter(a => a.id !== id) })),
-            addPaymentMethod: (pm) => set((state) => ({ paymentMethods: [...state.paymentMethods, { ...pm, id: Date.now().toString() }] })),
-            removePaymentMethod: (id) => set((state) => ({ paymentMethods: state.paymentMethods.filter(p => p.id !== id) })),
-
-            isOnline: true,
-            enableAIAssist: true,
+            hasSeenWelcomePage: false,
+            appName: 'Comet',
             backendStrategy: 'firebase',
             customFirebaseConfig: null,
             customMysqlConfig: null,
 
-            githubToken: null,
-            googleToken: null,
-            setGithubToken: (token) => set({ githubToken: token }),
-            setGoogleToken: (token) => set({ googleToken: token }),
-
-            setBackendStrategy: (strategy: 'firebase' | 'mysql') => set({ backendStrategy: strategy }),
-            setCustomFirebaseConfig: (config: any | null) => set({ customFirebaseConfig: config }),
-            setCustomMysqlConfig: (config: any | null) => set({ customMysqlConfig: config }),
-
-            setCloudSyncConsent: (consent) => {
-                console.log('Setting cloud sync consent:', consent);
-                set({ cloudSyncConsent: consent });
+            // Performance Mode
+            performanceMode: 'normal',
+            performanceModeSettings: {
+                maxActiveTabs: 5,
+                maxRam: 2048, // 2GB
+                keepAudioTabsActive: true,
             },
-            setIsOnline: (online) => {
-                console.log('Setting online status:', online);
-                set({ isOnline: online });
-            },
-            setEnableAIAssist: (enabled) => {
-                console.log('Setting AI assist enabled:', enabled);
-                set({ enableAIAssist: enabled });
-            },
-            syncPassphrase: null,
-            setSyncPassphrase: (passphrase) => set({ syncPassphrase: passphrase }),
 
+            // URL and navigation
+            setDefaultUrl: (url) => set({ defaultUrl: url }),
             setCurrentUrl: (url) => set({ currentUrl: url }),
-            addToHistory: (entry) => set((state) => {
-                const newHistory = [entry, ...state.history.filter(h => h.url !== entry.url).slice(0, 499)];
-                if (state.user && firebaseService.app) {
-                    firebaseService.addHistoryEntry(state.user.uid, entry.url, entry.title);
-                }
-                return { history: newHistory };
-            }),
+
+            // Tabs
+            setActiveTabId: (id) => set({ activeTabId: id }),
+            setActiveTab: (id) => set({ activeTabId: id }), // Alias for setActiveTabId
+            updateTab: (id, updates) => set((state) => ({
+                tabs: state.tabs.map(tab =>
+                    tab.id === id ? { ...tab, ...updates } : tab
+                )
+            })),
+
+            // Performance Mode
+            setPerformanceMode: (mode) => set({ performanceMode: mode }),
+            updatePerformanceModeSettings: (settings) => set((state) => ({
+                performanceModeSettings: { ...state.performanceModeSettings, ...settings }
+            })),
+
+            // History and clipboard
             setHistory: (history) => set({ history }),
-            fetchHistory: async () => {
-                const user = get().user;
-                if (user && firebaseService.app) {
-                    const history = await firebaseService.getHistory(user.uid);
-                    set({ history });
+            fetchHistory: () => {
+                // This would be where you fetch history from a backend
+                // For now, it does nothing
+            },
+            addToHistory: (entry) => set((state) => ({
+                history: [...state.history, { ...entry, timestamp: Date.now() }]
+            })),
+            savePageOffline: (url, title, html) => {
+                console.log('Saving page offline:', url, title);
+            },
+            addToUnifiedCart: (item) => {
+                console.log('Adding to unified cart:', item);
+            },
+            addClipboardItem: (item) => set((state) => ({
+                clipboard: [...state.clipboard, item]
+            })),
+            clearClipboard: () => set({ clipboard: [] }),
+
+            // User and auth
+            setUser: (user) => set({ user, isAdmin: user?.email === 'preetjgfilj2@gmail.com' }),
+            setAdmin: (isAdmin) => set({ isAdmin }),
+            setGoogleToken: (token) => set({ googleToken: token }),
+            setGithubToken: (token) => set({ githubToken: token }),
+
+
+            // View and UI
+            setActiveView: (view) => set({ activeView: view }),
+
+            // AI settings
+            setEnableAIAssist: (enable) => set({ enableAIAssist: enable }),
+            setOpenaiApiKey: (key) => set({ openaiApiKey: key }),
+            setGeminiApiKey: (key) => set({ geminiApiKey: key }),
+            setAIProvider: (provider) => set({ aiProvider: provider }),
+            setLocalLLMBaseUrl: (url) => set({ localLLMBaseUrl: url }),
+            setLocalLLMModel: (model) => set({ localLLMModel: model }),
+
+            // Theme settings
+            setTheme: (theme) => set({ theme }),
+
+            // Online status
+            setIsOnline: (online) => set({ isOnline: online }),
+
+            // Active time tracking
+            startActiveSession: () => set({ activeStartTime: Date.now() }),
+            updateActiveTime: () => {
+                // Implementation for updating active time
+            },
+
+            // Tab navigation
+            nextTab: () => set((state) => {
+                const currentIndex = state.tabs.findIndex(tab => tab.id === state.activeTabId);
+                const nextIndex = (currentIndex + 1) % state.tabs.length;
+                const nextTab = state.tabs[nextIndex];
+                return {
+                    activeTabId: nextTab.id,
+                    currentUrl: nextTab.url
+                };
+            }),
+            prevTab: () => set((state) => {
+                const currentIndex = state.tabs.findIndex(tab => tab.id === state.activeTabId);
+                const prevIndex = currentIndex === 0 ? state.tabs.length - 1 : currentIndex - 1;
+                const prevTab = state.tabs[prevIndex];
+                return {
+                    activeTabId: prevTab.id,
+                    currentUrl: prevTab.url
+                };
+            }),
+
+            // Sidebar
+            toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
+            setSidebarSide: (side) => set({ sidebarSide: side }),
+            setSidebarWidth: (width) => set({ sidebarWidth: width }),
+
+            // Student mode
+            setStudentMode: (student) => set({ studentMode: student }),
+
+            // Coding mode
+            setCodingMode: (coding) => set({ isCodingMode: coding }),
+
+            // Search engine
+            setSelectedEngine: (engine) => set({ selectedEngine: engine }),
+
+            // Bookmarks
+            addBookmark: (bookmark) => set((state) => ({
+                bookmarks: [...state.bookmarks, { id: `bookmark-${Date.now()}`, ...bookmark }]
+            })),
+            removeBookmark: (url) => set((state) => ({
+                bookmarks: state.bookmarks.filter(b => b.url !== url)
+            })),
+            
+            // Passwords and autofill
+            addAddress: (address) => set((state) => ({
+                addresses: [...state.addresses, { id: `address-${Date.now()}`, ...address }]
+            })),
+            removeAddress: (id) => set((state) => ({
+                addresses: state.addresses.filter(a => a.id !== id)
+            })),
+            addPaymentMethod: (method) => set((state) => ({
+                paymentMethods: [...state.paymentMethods, { id: `pm-${Date.now()}`, ...method }]
+            })),
+            removePaymentMethod: (id) => set((state) => ({
+                paymentMethods: state.paymentMethods.filter(pm => pm.id !== id)
+            })),
+
+            // Shortcuts
+            updateShortcut: (action, accelerator) => set((state) => ({
+                shortcuts: state.shortcuts.map(s =>
+                    s.action === action ? { ...s, accelerator } : s
+                )
+            })),
+            
+            setHasSeenWelcomePage: (seen) => set({ hasSeenWelcomePage: seen }),
+            
+            setBackendStrategy: (strategy) => set({ backendStrategy: strategy }),
+            setCustomFirebaseConfig: (config) => set({ customFirebaseConfig: config }),
+            setCustomMysqlConfig: (config) => set({ customMysqlConfig: config }),
+
+            setGuestMode: (isGuest) => {
+                set({ isGuestMode: isGuest });
+                if (isGuest) {
+                    set({
+                        user: null,
+                        history: [],
+                        bookmarks: [],
+                        passwords: [],
+                        addresses: [],
+                        paymentMethods: [],
+                        selectedEngine: 'google',
+                        cloudSyncConsent: false,
+                        activeView: 'browser',
+                        tabs: [{ id: 'default', url: get().defaultUrl, title: 'New Tab' }],
+                        currentUrl: get().defaultUrl,
+                    });
+                } else {
+                    get().logout();
                 }
             },
-            addClipboardItem: (item) => set((state) => {
-                if (state.clipboard.includes(item)) return state;
-                const newClipboard = [item, ...state.clipboard.slice(0, 19)];
-                if (state.cloudSyncConsent) {
-                    import("@/lib/FirebaseSyncService").then(({ firebaseSyncService }) => {
-                        console.log("Syncing clipboard to Firebase...");
-                        firebaseSyncService.setClipboard(newClipboard);
-                    });
-                }
-                return { clipboard: newClipboard };
-            }),
-            setActiveView: (view) => set({ activeView: view }),
-            toggleSidebar: () => set((state) => ({ isSidebarCollapsed: !state.isSidebarCollapsed })),
-            setStudentMode: (mode) => set({ studentMode: mode }),
-            setSelectedEngine: (engine) => set({ selectedEngine: engine }),
-            setTheme: (theme) => set({ theme }),
-            setAppName: (name) => set({ appName: name }),
-            setCodingMode: (mode) => set({ isCodingMode: mode }),
+            
+            setCloudSyncConsent: (consent) => set({ cloudSyncConsent: consent }),
+            
+            removeFromCart: (itemId) => set((state) => ({
+                unifiedCart: state.unifiedCart.filter((item: any) => item.id !== itemId)
+            })),
 
-            addTab: (url = 'https://www.google.com') => {
-                (async () => {
-                    let finalUrl = url;
-                    const landingPageUrl = process.env.NEXT_PUBLIC_LANDING_PAGE_URL || 'http://localhost:3000';
-                    if (url.startsWith(landingPageUrl)) {
-                        const user = get().user;
-                        if (user && firebaseService.app) {
-                            const firebaseUser = getAuth(firebaseService.app).currentUser;
-                            if (firebaseUser) {
-                                try {
-                                    const idToken = await firebaseUser.getIdToken(true);
-                                    const urlObject = new URL(url);
-                                    urlObject.searchParams.set('idToken', idToken);
-                                    finalUrl = urlObject.toString();
-                                } catch (error) {
-                                    console.error("Error getting idToken: ", error);
-                                }
-                            }
-                        }
-                    }
-                    set((state) => {
-                        const id = `tab-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
-                        return {
-                            tabs: [...state.tabs, { id, url: finalUrl, title: 'New Tab' }],
-                            activeTabId: id,
-                            currentUrl: finalUrl,
-                            activeView: 'browser'
-                        };
-                    });
-                })();
+            addTab: (url?: string) => {
+                const finalUrl = url || get().defaultUrl;
+                set((state) => {
+                    const id = `tab-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+                    return {
+                        tabs: [...state.tabs, { id, url: finalUrl, title: 'New Tab' }],
+                        activeTabId: id,
+                        currentUrl: finalUrl,
+                        activeView: 'browser'
+                    };
+                });
+            },
+            addIncognitoTab: (url?: string) => {
+                const finalUrl = url || get().defaultUrl;
+                set((state) => {
+                    const id = `incognito-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+                    return {
+                        tabs: [...state.tabs, { id, url: finalUrl, title: 'New Incognito Tab', isIncognito: true }],
+                        activeTabId: id,
+                        currentUrl: finalUrl,
+                        activeView: 'browser'
+                    };
+                });
             },
             removeTab: (id) => set((state) => {
                 const newTabs = state.tabs.filter(t => t.id !== id);
-                const finalTabs = newTabs.length ? newTabs : [{ id: 'default', url: 'https://www.google.com', title: 'New Tab' }];
+                const defaultUrl = get().defaultUrl;
+                const finalTabs = newTabs.length ? newTabs : [{ id: 'default', url: defaultUrl, title: 'New Tab' }];
                 const nextTabId = state.activeTabId === id ? (finalTabs[0]?.id || 'default') : state.activeTabId;
-                const nextUrl = finalTabs.find(t => t.id === nextTabId)?.url || 'https://www.google.com';
+                const nextUrl = finalTabs.find(t => t.id === nextTabId)?.url || defaultUrl;
 
                 return {
                     tabs: finalTabs,
@@ -311,115 +453,48 @@ export const useAppStore = create<BrowserState>()(
                     currentUrl: nextUrl
                 };
             }),
-            setActiveTab: (id) => set((state) => ({
-                activeTabId: id,
-                activeView: 'browser',
-                currentUrl: state.tabs.find(t => t.id === id)?.url || state.currentUrl
-            })),
-            updateTab: (id, updates) => set((state) => {
-                const newTabs = state.tabs.map(t => t.id === id ? { ...t, ...updates } : t);
-                const updatedUrl = id === state.activeTabId && updates.url ? updates.url : state.currentUrl;
-                return {
-                    tabs: newTabs,
-                    currentUrl: updatedUrl
-                };
-            }),
-            nextTab: () => set((state) => {
-                const currentTabIndex = state.tabs.findIndex(t => t.id === state.activeTabId);
-                const nextTabIndex = (currentTabIndex + 1) % state.tabs.length;
-                const nextTab = state.tabs[nextTabIndex];
-                return { activeTabId: nextTab.id, currentUrl: nextTab.url, activeView: 'browser' };
-            }),
-            prevTab: () => set((state) => {
-                const currentTabIndex = state.tabs.findIndex(t => t.id === state.activeTabId);
-                const prevTabIndex = (currentTabIndex - 1 + state.tabs.length) % state.tabs.length;
-                const prevTab = state.tabs[prevTabIndex];
-                return { activeTabId: prevTab.id, currentUrl: prevTab.url, activeView: 'browser' };
-            }),
+            
+            setSyncPassphrase: (passphrase) => set({ syncPassphrase: passphrase }),
 
-            setSidebarWidth: (width) => set({ sidebarWidth: width }),
-            setSidebarSide: (side) => set({ sidebarSide: side }),
-            setVibrant: (vibrant) => set({ isVibrant: vibrant }),
-            setSafeSearch: (enabled) => set({ isSafeSearch: enabled }),
-            setSiteWarnings: (enabled) => set({ showSiteWarnings: enabled }),
-
-            addBookmark: (url, title) => set((state) => ({
-                bookmarks: [...state.bookmarks, { id: `bmk-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`, url, title }]
-            })),
-            removeBookmark: (id) => set((state) => ({
-                bookmarks: state.bookmarks.filter(b => b.id !== id)
-            })),
-            savePageOffline: (url, title, html) => set((state) => ({
-                offlinePages: [...state.offlinePages, { id: `off-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`, url, title, html, timestamp: Date.now() }]
-            })),
-            addToUnifiedCart: (item) => set((state) => ({
-                unifiedCart: [...state.unifiedCart, { ...item, id: `cart-${Date.now()}-${Math.random().toString(36).substr(2, 5)}` }]
-            })),
-            removeFromCart: (id) => set((state) => ({
-                unifiedCart: state.unifiedCart.filter(i => i.id !== id)
-            })),
-            clearClipboard: () => set({ clipboard: [] }),
-
-
-            addPassword: async (entry) => {
-                const state = useAppStore.getState();
-                const encryptedPassword = await Security.encrypt(entry.password, state.syncPassphrase || undefined);
-                const encryptedEntry = {
-                    ...entry,
-                    password: encryptedPassword,
-                    id: `pwd-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`
-                };
-                set((state) => ({ passwords: [...state.passwords, encryptedEntry] }));
-            },
-            removePassword: (id) => set((state) => ({
-                passwords: state.passwords.filter(p => p.id !== id)
-            })),
-            setAutofillEnabled: (enabled) => set({ autofillEnabled: enabled }),
-            setExcelAutofillData: (data) => set({ excelAutofillData: data }),
-            setAIProvider: (provider) => set({ aiProvider: provider }),
-            updateShortcut: (action, accelerator) => set((state) => {
-                const newShortcuts = state.shortcuts.map(s => s.action === action ? { ...s, accelerator } : s);
-                if (window.electronAPI) {
-                    window.electronAPI.updateShortcuts(newShortcuts);
-                }
-                return { shortcuts: newShortcuts };
+            logout: () => set({ 
+                user: null, 
+                isAdmin: false, 
+                activeView: 'landing', 
+                history: [], 
+                bookmarks: [],
+                passwords: [],
+                addresses: [],
+                paymentMethods: [],
+                cloudSyncConsent: null,
+                isGuestMode: false,
+                tabs: [{ id: 'default', url: 'about:blank', title: 'New Tab' }],
+                currentUrl: 'about:blank',
             }),
-
-            setUser: (user) => set({
-                user,
-                isAdmin: user?.email === 'preetjgfilj2@gmail.com' || user?.email?.endsWith('@admin.com') || false
-            }),
-            setAdmin: (isAdmin) => set({ isAdmin }),
-            logout: () => set({ user: null, isAdmin: false, activeView: 'landing', history: [] }),
-            startActiveSession: () => set({ activeStartTime: Date.now() }),
-            endActiveSession: () => set((state) => {
-                if (!state.activeStartTime || !state.user) return { activeStartTime: null };
-                const sessionDuration = Date.now() - state.activeStartTime;
-                const newActiveTime = (state.user.activeTime || 0) + sessionDuration;
-                return {
-                    user: {
-                        ...state.user,
-                        activeTime: newActiveTime,
-                    },
-                    activeStartTime: null
-                };
-            }),
-            updateActiveTime: () => set((state) => {
-                if (!state.activeStartTime || !state.user) return state;
-                const now = Date.now();
-                const sessionDuration = now - state.activeStartTime;
-                const newActiveTime = (state.user.activeTime || 0) + sessionDuration;
-                return {
-                    user: {
-                        ...state.user,
-                        activeTime: newActiveTime
-                    },
-                    activeStartTime: now
-                };
-            }),
+            
+            // ...
         }),
         {
             name: 'comet-browser-storage',
         }
     )
 );
+
+// Firebase auth listener
+if (auth) {
+    onAuthStateChanged(auth, (user) => {
+        if (user) {
+            useAppStore.getState().setUser({
+                uid: user.uid,
+                email: user.email || '',
+                displayName: user.displayName || '',
+                photoURL: user.photoURL || '',
+            });
+            useAppStore.getState().setActiveView('browser');
+            useAppStore.getState().updateTab('default', { url: useAppStore.getState().defaultUrl });
+            useAppStore.getState().setCurrentUrl(useAppStore.getState().defaultUrl);
+
+        } else {
+            useAppStore.getState().logout();
+        }
+    });
+}

@@ -21,7 +21,7 @@ export const QuickNavOverlay: React.FC = () => {
 
     const launcherItems = [
         ...pinned.map(b => ({ type: 'pinned' as const, ...b })),
-        ...mostUsed.map((url, i) => ({ type: 'history' as const, id: `hist-${i}`, url, title: url.split('/')[2] || url }))
+        ...mostUsed.map((item, i) => ({ type: 'history' as const, id: `hist-${i}`, url: item.url, title: item.title || item.url.split('/')[2] || item.url }))
     ];
 
     const handleAction = useCallback(() => {

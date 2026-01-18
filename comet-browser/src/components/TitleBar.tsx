@@ -2,11 +2,14 @@
 
 import React from 'react';
 import { Minus, Square, X } from 'lucide-react';
+import { VirtualizedTabBar } from './VirtualizedTabBar';
+import { useAppStore } from '@/store/useAppStore';
 
-const TitleBar = () => {
+const TitleBar = ({ isTabSuspended }: { isTabSuspended: (tabId: string) => boolean }) => {
     const handleMinimize = () => window.electronAPI?.minimizeWindow();
     const handleMaximize = () => window.electronAPI?.maximizeWindow();
     const handleClose = () => window.electronAPI?.closeWindow();
+    const store = useAppStore();
 
     return (
         <div className="h-10 bg-[#0D0E1C] border-b border-white/5 flex items-center justify-between px-4 select-none drag-region fixed top-0 left-0 right-0 z-[200]">
@@ -14,7 +17,18 @@ const TitleBar = () => {
                 <div className="w-5 h-5 rounded-lg bg-[#00ffff] flex items-center justify-center shadow-[0_0_15px_rgba(0,255,255,0.3)] p-0.5">
                     <img src="/icon.ico" alt="Comet" className="w-full h-full object-contain" />
                 </div>
-                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">Comet Browser</span>
+                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">Comet</span>
+            </div>
+            <div className="flex-1 min-w-0">
+                <VirtualizedTabBar
+                    tabs={store.tabs}
+                    activeTabId={store.activeTabId}
+                    onTabClick={(tabId) => store.setActiveTabId(tabId)}
+                    onTabClose={(tabId) => store.removeTab(tabId)}
+                    onAddTab={() => store.addTab()}
+                    isTabSuspended={isTabSuspended}
+                    maxVisibleTabs={10}
+                />
             </div>
 
             <div className="flex items-center no-drag-region h-full">

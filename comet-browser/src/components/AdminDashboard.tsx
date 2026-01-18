@@ -1,13 +1,14 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { useAppStore } from '@/store/useAppStore';
 import { motion } from 'framer-motion';
 import { Users, Clock, Activity, ShieldCheck, Mail, User as UserIcon, LogOut, ChevronRight, Zap } from 'lucide-react';
 
 const AdminDashboard = () => {
     const store = useAppStore();
-    const [currentTime, setCurrentTime] = useState(Date.now());
+    const [currentTime, setCurrentTime] = useState(0);
 
     useEffect(() => {
         const timer = setInterval(() => setCurrentTime(Date.now()), 1000);
@@ -31,7 +32,7 @@ const AdminDashboard = () => {
     const users = [
         {
             email: store.user?.email || "unknown@user.com",
-            name: store.user?.name || "Current User",
+            name: store.user?.displayName || "Current User",
             photoURL: store.user?.photoURL || null,
             activeTime: (store.user?.activeTime || 0) + (store.activeStartTime ? (currentTime - store.activeStartTime) : 0),
             status: 'online',
@@ -99,7 +100,7 @@ const AdminDashboard = () => {
                             <div className="flex items-center gap-4">
                                 <div className="relative">
                                     {u.photoURL ? (
-                                        <img src={u.photoURL} alt={u.name} className="w-12 h-12 rounded-2xl border border-white/10" />
+                                        <Image src={u.photoURL} alt={u.name} width={48} height={48} className="w-12 h-12 rounded-2xl border border-white/10" />
                                     ) : (
                                         <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center text-white/20">
                                             <UserIcon size={20} />
@@ -127,7 +128,7 @@ const AdminDashboard = () => {
                                     <p className="text-xs font-mono text-white/60">{formatDuration(u.activeTime)}</p>
                                 </div>
                                 <div className="w-[1px] h-8 bg-white/5 hidden sm:block" />
-                                <button className="p-3 rounded-2xl bg-white/5 text-white/20 hover:text-white hover:bg-white/10 transition-all opacity-0 group-hover:opacity-100">
+                                <button title="View user details" className="p-3 rounded-2xl bg-white/5 text-white/20 hover:text-white hover:bg-white/10 transition-all opacity-0 group-hover:opacity-100">
                                     <ChevronRight size={18} />
                                 </button>
                             </div>

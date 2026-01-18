@@ -1,36 +1,32 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { useAppStore } from '@/store/useAppStore';
 import {
-    Settings as SettingsIcon, Monitor, Shield, Palette,
-    Layout, Type, Globe, Info, Download, Pin,
-    ChevronRight, Check, AlertCircle, Eye, EyeOff, ShieldCheck,
-    Key, Package, FileSpreadsheet, Plus, X, Lock, ExternalLink, Keyboard, Briefcase, ShieldAlert, Database, LogIn, LogOut, History as HistoryIcon
+    Monitor, Shield, Globe, Info, Download,
+    ChevronRight, ShieldCheck, Key, Package, Keyboard, 
+    Briefcase, ShieldAlert, Database, LogIn, LogOut, History as HistoryIcon, User as UserIcon, Zap
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import Link from 'next/link';
+import { motion } from 'framer-motion';
 import SearchEngineSettings from './SearchEngineSettings';
 import KeyboardShortcutSettings from './KeyboardShortcutSettings';
 import UserAgentSettings from './UserAgentSettings';
-import ProxySettings from './ProxySettings';
 import AutofillSettings from './AutofillSettings';
 import AdminDashboard from './AdminDashboard';
 import HistoryPanel from './HistoryPanel';
 import ApiKeysSettings from './ApiKeysSettings';
-import { GoogleAuthProvider } from 'firebase/auth';
+import PerformanceSettings from './PerformanceSettings';
 import firebaseService from '@/lib/FirebaseService';
-import { getAuth } from 'firebase/auth';
-import { User } from 'firebase/auth'; // Import User type
+import { User } from 'firebase/auth';
 
 const SettingsPanel = ({ onClose }: { onClose: () => void }) => {
     const store = useAppStore();
     const fetchHistory = useAppStore((state) => state.fetchHistory);
     const [activeSection, setActiveSection] = React.useState('appearance');
-    const [showAddPwd, setShowAddPwd] = useState(false);
-    const [newPwd, setNewPwd] = useState({ site: '', username: '', password: '' });
-    const [currentUser, setCurrentUser] = useState<User | null>(null); // State to hold the current user
+    const [currentUser, setCurrentUser] = useState<User | null>(null);
     const [licenseKey, setLicenseKey] = useState("");
+    const { isGuestMode, setGuestMode } = useAppStore();
 
     useEffect(() => {
         // Listen for auth state changes to update the UI
@@ -42,50 +38,45 @@ const SettingsPanel = ({ onClose }: { onClose: () => void }) => {
             }
         });
 
-        // Listen for messages from the auth window (landing page)
-        const handleAuthMessage = async (event: MessageEvent) => {
-            // In a production app, event.origin should be strictly checked.
-            // For Electron, the origin might be file:// or null for the main window,
-            // while the opened window (landing page) is on localhost.
-            // A more robust check might involve comparing against a known list of allowed origins.
-            // For now, a permissive check for localhost for development purposes.
-            if (event.origin !== window.location.origin && !event.origin.startsWith('http://localhost')) {
-                console.warn('Received message from unknown origin:', event.origin);
-                return;
+        // Handle the redirect result when the component mounts
+        firebaseService.handleRedirectResult().then(user => {
+            if (user) {
+                setCurrentUser(user);
+                store.setUser({ uid: user.uid, email: user.email || '', displayName: user.displayName || '', photoURL: user.photoURL || '' });
+                fetchHistory();
             }
+        });
 
-            if (event.data && event.data.type === 'auth-success' && event.data.idToken && event.data.firebaseConfig) {
-                console.log('Received idToken and firebaseConfig from landing page.');
-                try {
-                    await firebaseService.initializeFirebase(event.data.firebaseConfig);
-                    const credential = GoogleAuthProvider.credential(event.data.idToken);
-                    await getAuth().signInWithCredential(credential);
-                    console.log('Signed in with credential in desktop app using dynamic config.');
-                } catch (error) {
-                    console.error('Error during dynamic Firebase initialization or sign-in:', error);
+        const handleAuthCallback = (event: any, url: string) => {
+            console.log('auth-callback received in renderer:', url);
+            firebaseService.handleRedirectResult().then(user => {
+                if (user) {
+                    setCurrentUser(user);
+                    store.setUser({ uid: user.uid, email: user.email || '', displayName: user.displayName || '', photoURL: user.photoURL || '' });
+                    fetchHistory();
+                    // close settings panel after successful login
+                    onClose();
                 }
-            }
+            });
         };
 
-        window.addEventListener('message', handleAuthMessage);
+        // Listen for the auth-callback from the main process
+        // if (window.electronAPI) {
+        //     window.electronAPI.onAuthCallback(handleAuthCallback);
+        // }
 
         return () => {
             unsubscribe();
-            window.removeEventListener('message', handleAuthMessage);
         };
-    }, [store, fetchHistory]);
+    }, [store, fetchHistory, onClose]);
 
-    const handleGoogleLogin = () => {
-        if (window.electronAPI) {
-            // Open the landing page's auth callback in a new Electron window
-            // The landing page will handle the Google Sign-In and post back the idToken
-            const authUrl = `${process.env.NEXT_PUBLIC_LANDING_PAGE_URL}/auth?client_id=desktop-app&redirect_uri=${encodeURIComponent(window.location.origin)}`;
-            window.electronAPI.openAuthWindow(authUrl);
-        } else {
-            console.warn('electronAPI not available. Cannot open auth window.');
-            // Fallback for web environment, though this component is client-only for electron
-            window.open(`${process.env.NEXT_PUBLIC_LANDING_PAGE_URL}/auth?client_id=desktop-app&redirect_uri=${encodeURIComponent(window.location.origin)}`, '_blank');
-        }
+    const handleGoogleLogin = async () => {
+        await firebaseService.signInWithGoogle();
+    };
+
+    const handleGuestMode = () => {
+        setGuestMode(true);
+        onClose();
     };
 
     const handleLicenseLogin = async () => {
@@ -126,6 +117,7 @@ const SettingsPanel = ({ onClose }: { onClose: () => void }) => {
 
     const sections = [
         { id: 'appearance', icon: <Monitor size={18} />, label: 'Appearance' },
+        { id: 'performance', icon: <Zap size={18} />, label: 'Performance' },
         { id: 'search', icon: <Globe size={18} />, label: 'Search Engine' },
         { id: 'privacy', icon: <Shield size={18} />, label: 'Privacy & Security' },
         { id: 'vault', icon: <Key size={18} />, label: 'Vault & Autofill' },
@@ -133,28 +125,13 @@ const SettingsPanel = ({ onClose }: { onClose: () => void }) => {
         { id: 'api-keys', icon: <Key size={18} />, label: 'API Keys' },
         { id: 'shortcuts', icon: <Keyboard size={18} />, label: 'Keyboard Shortcuts' },
         { id: 'extensions', icon: <Package size={18} />, label: 'Extensions' },
-        { id: 'tabs', icon: <Layout size={18} />, label: 'Tab Management' },
+        { id: 'tabs', icon: <Monitor size={18} />, label: 'Tab Management' },
         { id: 'integrations', icon: <Briefcase size={18} />, label: 'Integrations' },
         { id: 'mcp', icon: <Globe size={18} />, label: 'MCP Servers' },
         { id: 'system', icon: <Globe size={18} />, label: 'System' },
         ...(store.isAdmin ? [{ id: 'admin', icon: <ShieldAlert size={18} />, label: 'Admin Console' }] : []),
         { id: 'about', icon: <Info size={18} />, label: 'About Comet' },
     ];
-
-    const handleAddPassword = () => {
-        if (!newPwd.site || !newPwd.username || !newPwd.password) return;
-        store.addPassword(newPwd);
-        setNewPwd({ site: '', username: '', password: '' });
-        setShowAddPwd(false);
-    };
-
-    const handleExcelUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            alert(`Parsed ${file.name} for autofill intelligence.`);
-            store.setExcelAutofillData([{ site: 'example.com', data: 'Parsed From Excel' }]);
-        }
-    };
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-12 bg-black/60 backdrop-blur-3xl">
@@ -242,11 +219,14 @@ const SettingsPanel = ({ onClose }: { onClose: () => void }) => {
                                             value={store.sidebarWidth}
                                             onChange={(e) => store.setSidebarWidth(parseInt(e.target.value))}
                                             className="w-full h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer accent-deep-space-accent-neon"
+                                            aria-label="Panel Width"
                                         />
                                     </div>
                                 </div>
                             </div>
                         )}
+                        
+                        {activeSection === 'performance' && <PerformanceSettings />}
 
                         {activeSection === 'search' && <SearchEngineSettings selectedEngine={store.selectedEngine} setSelectedEngine={store.setSelectedEngine} />}
 
@@ -256,7 +236,7 @@ const SettingsPanel = ({ onClose }: { onClose: () => void }) => {
                                     <div className="flex items-center justify-between">
                                         <div>
                                             <p className="font-bold text-white mb-1">AI Overview</p>
-                                            <p className="text-xs text-white/30">Get AI-powered summaries and insights on search results.</p>
+                                            <p className="text-xs text-white/30 mb-6">Get AI-powered summaries and insights on search results.</p>
                                         </div>
                                         <label className="relative inline-flex items-center cursor-pointer">
                                             <input
@@ -288,6 +268,7 @@ const SettingsPanel = ({ onClose }: { onClose: () => void }) => {
                                             onChange={(e) => store.setSyncPassphrase(e.target.value)}
                                             placeholder="Enter your private sync passphrase..."
                                             className="w-full bg-black/40 border border-white/10 rounded-2xl py-3 px-6 text-sm text-white focus:outline-none focus:ring-1 focus:ring-deep-space-accent-neon/50 transition-all placeholder:text-white/10"
+                                            disabled={isGuestMode}
                                         />
                                         <p className="text-[10px] text-orange-400/60 font-medium">⚠️ If you lose this passphrase, you cannot decrypt your cloud data on new devices.</p>
                                     </div>
@@ -299,11 +280,13 @@ const SettingsPanel = ({ onClose }: { onClose: () => void }) => {
                             <div className="space-y-8">
                                 <div className="flex items-center justify-between mb-4">
                                     <h3 className="text-xs font-black text-white/20 uppercase tracking-[0.3em]">Credentials & Vault</h3>
-                                    <button onClick={() => setShowAddPwd(true)} className="px-4 py-2 bg-deep-space-accent-neon text-black rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">Add Password</button>
+                                    <button className="px-4 py-2 bg-deep-space-accent-neon text-black rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">Add Password</button>
                                 </div>
                                 <AutofillSettings />
                             </div>
                         )}
+
+                        {activeSection === 'history' && <HistoryPanel />}
 
                         {activeSection === 'shortcuts' && <KeyboardShortcutSettings />}
 
@@ -324,6 +307,7 @@ const SettingsPanel = ({ onClose }: { onClose: () => void }) => {
                                                     key={strategy}
                                                     onClick={() => store.setBackendStrategy(strategy as 'firebase' | 'mysql')}
                                                     className={`p-6 rounded-2xl border transition-all text-left group ${store.backendStrategy === strategy ? 'bg-deep-space-accent-neon/10 border-deep-space-accent-neon/40' : 'bg-white/5 border-white/5 hover:bg-white/10'}`}
+                                                    disabled={isGuestMode}
                                                 >
                                                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-4 ${store.backendStrategy === strategy ? 'bg-deep-space-accent-neon text-deep-space-bg' : 'bg-white/5 text-white/40'}`}>
                                                         {strategy === 'firebase' ? <Globe size={20} /> : <Database size={20} />}
@@ -338,11 +322,11 @@ const SettingsPanel = ({ onClose }: { onClose: () => void }) => {
 
                                         {store.backendStrategy === 'firebase' && (
                                             <div className="pt-6 border-t border-white/5 space-y-4">
-                                                {currentUser ? (
+                                                {currentUser && !isGuestMode ? (
                                                     <div className="flex items-center justify-between bg-white/5 rounded-xl p-4">
                                                         <div className="flex items-center gap-3">
                                                             {currentUser.photoURL && (
-                                                                <img src={currentUser.photoURL} alt="User Avatar" className="w-8 h-8 rounded-full" />
+                                                                <Image src={currentUser.photoURL} alt="User Avatar" width={32} height={32} className="rounded-full" />
                                                             )}
                                                             <div>
                                                                 <p className="text-sm font-medium text-white">{currentUser.displayName || currentUser.email}</p>
@@ -359,36 +343,48 @@ const SettingsPanel = ({ onClose }: { onClose: () => void }) => {
                                                     </div>
                                                 ) : (
                                                     <>
+                                                        {!isGuestMode && (
+                                                            <>
+                                                                <button
+                                                                    onClick={handleGoogleLogin}
+                                                                    className="w-full flex items-center justify-center gap-3 px-6 py-3 bg-deep-space-accent-neon/10 border border-deep-space-accent-neon/30 text-deep-space-accent-neon rounded-xl text-sm font-black uppercase tracking-widest hover:bg-deep-space-accent-neon hover:text-deep-space-bg transition-all"
+                                                                >
+                                                                    <LogIn size={20} />
+                                                                    Sign in with Google
+                                                                </button>
+                                                                <div className="relative flex py-2 items-center">
+                                                                    <div className="flex-grow border-t border-white/10"></div>
+                                                                    <span className="flex-shrink mx-4 text-white/40 text-xs uppercase">Or</span>
+                                                                    <div className="flex-grow border-t border-white/10"></div>
+                                                                </div>
+                                                                <div className="space-y-4">
+                                                                    <div className="relative">
+                                                                        <input
+                                                                            type="password"
+                                                                            value={licenseKey}
+                                                                            onChange={(e) => setLicenseKey(e.target.value)}
+                                                                            placeholder="Enter your License Key"
+                                                                            aria-label="License Key"
+                                                                            className="w-full bg-black/40 border border-white/10 rounded-2xl py-3 px-6 text-sm text-white focus:outline-none focus:ring-1 focus:ring-deep-space-accent-neon/50 transition-all placeholder:text-white/20"
+                                                                        />
+                                                                    </div>
+                                                                    <button
+                                                                        onClick={handleLicenseLogin}
+                                                                        className="w-full flex items-center justify-center gap-3 px-6 py-3 bg-white/10 border border-white/20 text-white rounded-xl text-sm font-black uppercase tracking-widest hover:bg-white/20 transition-all"
+                                                                    >
+                                                                        <Key size={20} />
+                                                                        Login with License Key
+                                                                    </button>
+                                                                </div>
+                                                            </>
+                                                        )}
                                                         <button
-                                                            onClick={handleGoogleLogin}
-                                                            className="w-full flex items-center justify-center gap-3 px-6 py-3 bg-deep-space-accent-neon/10 border border-deep-space-accent-neon/30 text-deep-space-accent-neon rounded-xl text-sm font-black uppercase tracking-widest hover:bg-deep-space-accent-neon hover:text-deep-space-bg transition-all"
+                                                            onClick={handleGuestMode}
+                                                            className="w-full flex items-center justify-center gap-3 px-6 py-3 bg-white/10 border border-white/20 text-white rounded-xl text-sm font-black uppercase tracking-widest hover:bg-white/20 transition-all"
                                                         >
-                                                            <LogIn size={20} />
-                                                            Sign in with Google
+                                                            <UserIcon size={20} />
+                                                            Continue as Guest
                                                         </button>
-                                                        <div className="relative flex py-2 items-center">
-                                                            <div className="flex-grow border-t border-white/10"></div>
-                                                            <span className="flex-shrink mx-4 text-white/40 text-xs uppercase">Or</span>
-                                                            <div className="flex-grow border-t border-white/10"></div>
-                                                        </div>
-                                                        <div className="space-y-4">
-                                                            <div className="relative">
-                                                                <input
-                                                                    type="password"
-                                                                    value={licenseKey}
-                                                                    onChange={(e) => setLicenseKey(e.target.value)}
-                                                                    placeholder="Enter your License Key"
-                                                                    className="w-full bg-black/40 border border-white/10 rounded-2xl py-3 px-6 text-sm text-white focus:outline-none focus:ring-1 focus:ring-deep-space-accent-neon/50 transition-all placeholder:text-white/20"
-                                                                />
-                                                            </div>
-                                                            <button
-                                                                onClick={handleLicenseLogin}
-                                                                className="w-full flex items-center justify-center gap-3 px-6 py-3 bg-white/10 border border-white/20 text-white rounded-xl text-sm font-black uppercase tracking-widest hover:bg-white/20 transition-all"
-                                                            >
-                                                                <Key size={20} />
-                                                                Login with License Key
-                                                            </button>
-                                                        </div>
                                                     </>
                                                 )}
 
@@ -409,8 +405,9 @@ const SettingsPanel = ({ onClose }: { onClose: () => void }) => {
                                                         try {
                                                             const config = JSON.parse(e.target.value);
                                                             store.setCustomFirebaseConfig(config);
-                                                        } catch (err) { }
+                                                        } catch { }
                                                     }}
+                                                    disabled={isGuestMode}
                                                 />
                                             </div>
                                         )}
@@ -421,12 +418,15 @@ const SettingsPanel = ({ onClose }: { onClose: () => void }) => {
                                                 <div className="grid grid-cols-2 gap-4">
                                                     {['host', 'port', 'user', 'database'].map((field) => (
                                                         <div key={field} className="space-y-1">
-                                                            <p className="text-[9px] font-black uppercase tracking-widest text-white/20 px-1">{field}</p>
+                                                            <label htmlFor={field} className="text-[9px] font-black uppercase tracking-widest text-white/20 px-1">{field}</label>
                                                             <input
+                                                                id={field}
                                                                 type="text"
+                                                                placeholder={`Enter ${field}`}
                                                                 className="w-full bg-black/40 border border-white/5 rounded-xl px-4 py-2 text-xs text-white outline-none focus:border-deep-space-accent-neon/30"
                                                                 value={store.customMysqlConfig?.[field] || ''}
                                                                 onChange={(e) => store.setCustomMysqlConfig({ ...store.customMysqlConfig, [field]: e.target.value })}
+                                                                disabled={isGuestMode}
                                                             />
                                                         </div>
                                                     ))}
@@ -434,15 +434,45 @@ const SettingsPanel = ({ onClose }: { onClose: () => void }) => {
                                                         <p className="text-[9px] font-black uppercase tracking-widest text-white/20 px-1">password</p>
                                                         <input
                                                             type="password"
+                                                            placeholder="Enter database password"
                                                             className="w-full bg-black/40 border border-white/5 rounded-xl px-4 py-2 text-xs text-white outline-none focus:border-deep-space-accent-neon/30"
                                                             value={store.customMysqlConfig?.password || ''}
                                                             onChange={(e) => store.setCustomMysqlConfig({ ...store.customMysqlConfig, password: e.target.value })}
+                                                            disabled={isGuestMode}
                                                         />
                                                     </div>
                                                 </div>
                                             </div>
                                         )}
                                     </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {activeSection === 'extensions' && (
+                            <div className="p-8 rounded-[2rem] bg-white/[0.03] border border-white/5 space-y-8">
+                                <div className="text-center py-12">
+                                    <Package size={48} className="mx-auto mb-4 text-white/20" />
+                                    <p className="text-white/40">Extensions management coming soon</p>
+                                </div>
+                            </div>
+                        )}
+
+                        {activeSection === 'tabs' && (
+                            <div className="p-8 rounded-[2rem] bg-white/[0.03] border border-white/5 space-y-8">
+                                <div className="text-center py-12">
+                                    <Monitor size={48} className="mx-auto mb-4 text-white/20" />
+                                    <p className="text-white/40">Tab management settings coming soon</p>
+                                </div>
+                            </div>
+                        )}
+
+                        {activeSection === 'mcp' && (
+                            <div className="p-8 rounded-[2rem] bg-white/[0.03] border border-white/5 space-y-8">
+                                <div className="text-center py-12">
+                                    <Globe size={48} className="mx-auto mb-4 text-white/20" />
+                                    <p className="text-white/40">MCP Servers configuration coming soon</p>
+
                                 </div>
                             </div>
                         )}
@@ -466,8 +496,8 @@ const SettingsPanel = ({ onClose }: { onClose: () => void }) => {
                         )}
                     </div>
                 </div>
-            </motion.div >
-        </div >
+            </motion.div>
+        </div>
     );
 };
 

@@ -29,6 +29,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAiMemory: () => ipcRenderer.invoke('get-ai-memory'),
   addAiMemory: (entry) => ipcRenderer.send('add-ai-memory', entry),
 
+  // Auth
+  openAuthWindow: (url) => ipcRenderer.send('open-auth-window', url),
+  onAuthCallback: (callback) => {
+    const subscription = (event, url) => callback(event, url);
+    ipcRenderer.on('auth-callback', subscription);
+    return () => ipcRenderer.removeListener('auth-callback', subscription);
+  },
+
   // Dev-MCP & Analytics
   sendMcpCommand: (command, data) => ipcRenderer.invoke('mcp-command', { command, data }),
   shareDeviceFolder: () => ipcRenderer.invoke('share-device-folder'),
@@ -84,4 +92,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('execute-shortcut', subscription);
   },
   updateShortcuts: (shortcuts) => ipcRenderer.send('update-shortcuts', shortcuts),
+
+  // Tab Optimization APIs
+  suspendTab: (tabId) => ipcRenderer.send('suspend-tab', tabId),
+  resumeTab: (tabId) => ipcRenderer.send('resume-tab', tabId),
+  getMemoryUsage: () => ipcRenderer.invoke('get-memory-usage'),
 });

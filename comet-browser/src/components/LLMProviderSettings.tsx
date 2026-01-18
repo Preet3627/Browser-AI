@@ -136,13 +136,24 @@ const LLMProviderSettings: React.FC<LLMProviderSettingsProps> = (props) => {
                         <span className="text-[10px] font-black uppercase tracking-widest">Local Neural Engine</span>
                       </div>
                       <p className="text-[10px] text-white/30 uppercase tracking-widest leading-relaxed">
-                        Using on-device TensorFlow.js & WebGPU. No data leaves your machine.
-                        High privacy, low latency.
+                        Connect to a local LLM instance (e.g., Ollama).
                       </p>
-                      <div className="flex items-center gap-2 py-2 px-3 bg-white/5 rounded-lg border border-white/5">
-                        <Shield size={10} className="text-green-400" />
-                        <span className="text-[9px] font-bold text-white/60 uppercase">E2E Privacy Verified</span>
-                      </div>
+                      <input
+                        type="text"
+                        name="baseUrl"
+                        placeholder="Local LLM Base URL (e.g., http://localhost:11434)"
+                        className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2.5 text-xs text-white placeholder:text-white/10 focus:border-deep-space-accent-neon/30 outline-none transition-all"
+                        value={store.localLLMBaseUrl || ''}
+                        onChange={(e) => store.setLocalLLMBaseUrl(e.target.value)}
+                      />
+                      <input
+                        type="text"
+                        name="model"
+                        placeholder="Local LLM Model (e.g., llama2)"
+                        className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2.5 text-xs text-white placeholder:text-white/10 focus:border-deep-space-accent-neon/30 outline-none transition-all"
+                        value={store.localLLMModel || ''}
+                        onChange={(e) => store.setLocalLLMModel(e.target.value)}
+                      />
                     </div>
                   ) : (
                     <div className="space-y-3">
