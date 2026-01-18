@@ -7,12 +7,14 @@
 ## ✨ Core Features
 
 - 🤖 **Native AI Orchestration:** Seamlessly switch between Google Gemini, OpenAI, Claude, and Local LLMs (via Ollama/TensorFlow.js).
-- 🔒 **Privacy-First Workspace:** Military-grade local encryption (AES-256) for your vault and personal data.
+- 🔒 **Quantum E2EE Privacy:** Industry-standard **AES-GCM (256-bit)** local-first encryption. Your data is encrypted with your private passphrase *before* syncing. **Zero-Knowledge Architecture**—not even the developers can see your data.
+- 🛡️ **AI Fortress:** Proactive real-time scanner that detects and masks sensitive keys (Gemini, OpenAI, Anthropic) or secrets in AI chats before they reach the cloud.
+- 🌐 **Cloud Dashboard:** A web-native portal (`browser.ponsrischool.in`) for managing your synced history and clipboard from any device.
 - 📁 **Hardware-Isolated Tabs:** Persistent sessions with high-fidelity isolation and custom volume/priority controls.
 - 🛒 **Unified Shopping Engine:** AI-powered cross-site cart management that automatically scans pages for items.
 - 📄 **Advanced PDF Workspace:** Built-in OCR text extraction (Tesseract.js) and annotation tools.
 - 🧩 **Chrome Extension Support:** Load and manage your local development plugins with ease.
-- 🔄 **Master Sync Core:** Persistent synchronization of bookmarks, history, and AI memory via MySQL.
+- 🔄 **Master Sync Core:** Persistent synchronization of bookmarks, history, and AI memory via Firebase/MySQL.
 
 ## 🚀 Quick Start (Development)
 
@@ -53,16 +55,19 @@ This project was born out of a desire to create a browsing workspace that feels 
 The desktop application initializes by loading the internal **Login/Landing Site** bundled within the distribution.
 - **Local Route:** The app points to `out/index.html`, which serves the `LandingPage` component.
 - **Authentication:** We use **Firebase Google OAuth** for persistent sessions. Once logged in, the app transitions seamlessly to the Browser Workspace.
+- **Portal Integration:** Syncing is powered by `browser.ponsrischool.in`, which serves as the central hub for your decentralized data.
+
+### 🛡️ Security System: The "Fortress"
+Comet implements a three-tier security model:
+1.  **Local Isolation:** Tabs run in isolated contexts with randomized IDs.
+2.  **Quantum E2EE:** User-provided passphrases generate unique AES-GCM keys for all cloud-synced metadata.
+3.  **AI Fortress:** A regex-based proactive interceptor that prevents PII (Personally Identifiable Information) and API secrets from being leaked to LLM providers during chat sessions.
 
 ### 🔄 Multi-Layer Sync System
-Comet uses a hybrid synchronization model to ensure data is always available while keeping security at the forefront:
-
-1.  **Cloud Sync (Firebase):** sensitive data like **API Keys**, **Autofill data (Vault)**, and **Settings** are securely stored in Firebase. This ensures you can move across devices and have your "Intelligence" follow you instantly.
-2.  **P2P Direct Sync:** For large files, folders, and real-time clipboard sharing, Comet utilizes a **Direct Device-to-Device (P2P)** system via WebRTC.
-3.  **Relay & Queue (Temporary Server):**
-    *   If a direct P2P connection cannot be established (e.g., one device is offline), Comet automatically uploads a **temporary encrypted file** to our relay server.
-    *   The file remains queued until the destination device comes online.
-    *   **Privacy Guarantee:** Once the sync is confirmed complete, the temporary file is **permanently deleted** from our server.
+Comet uses a hybrid synchronization model:
+1.  **Cloud Sync (Firebase):** Encrypted **API Keys**, **Vault data**, and **History** are stored in Firebase.
+2.  **P2P Direct Sync:** Large files and real-time clipboard sharing use **Direct Device-to-Device (P2P)** via WebRTC.
+3.  **Relay & Queue:** Temporary encrypted file uploads for offline-queued syncs, with **automated deletion** upon completion.
 
 ## 🛠️ Tech Stack & Credits
 

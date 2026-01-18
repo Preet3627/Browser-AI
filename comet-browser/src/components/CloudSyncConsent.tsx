@@ -18,10 +18,10 @@ const CloudSyncConsent = () => {
           <Cloud size={48} className="text-indigo-400" />
         </div>
         <h2 className="text-2xl font-bold mb-4">Enable Cloud Sync?</h2>
-        <p className="text-gray-400 mb-8">
-          Sync your browsing data across all your devices. This includes your
-          history, bookmarks, passwords, and autofill data. You can disable this
-          at any time in the settings.
+        <p className="text-gray-400 mb-8 text-sm">
+          Warning: Enabling sync will send your history, bookmarks, and encrypted passwords to <strong>Firebase Cloud Storage</strong>.
+          This allows you to access your data on any device.
+          Your sensitive data is encrypted locally before transmission.
         </p>
         <div className="flex justify-center gap-4">
           <button

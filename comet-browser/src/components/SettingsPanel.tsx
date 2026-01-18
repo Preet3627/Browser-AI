@@ -6,7 +6,7 @@ import {
     Settings as SettingsIcon, Monitor, Shield, Palette,
     Layout, Type, Globe, Info, Download, Pin,
     ChevronRight, Check, AlertCircle, Eye, EyeOff, ShieldCheck,
-    Key, Package, FileSpreadsheet, Plus, X, Lock, ExternalLink, Keyboard, Briefcase, ShieldAlert
+    Key, Package, FileSpreadsheet, Plus, X, Lock, ExternalLink, Keyboard, Briefcase, ShieldAlert, Database
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
@@ -165,6 +165,29 @@ const SettingsPanel = ({ onClose }: { onClose: () => void }) => {
                                             <div className="relative w-11 h-6 bg-white/10 rounded-full peer peer-checked:after:translate-x-full peer peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-deep-space-accent-neon" />
                                         </label>
                                     </div>
+
+                                    <div className="h-[1px] bg-white/5 w-full" />
+
+                                    <div className="space-y-4">
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <p className="font-bold text-white mb-1">E2EE Sync Passphrase</p>
+                                                <p className="text-xs text-white/30 tracking-tight">Your data is encrypted locally with this key before syncing. **Developers cannot see your data.**</p>
+                                            </div>
+                                            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-cyan-400/10 border border-cyan-400/20">
+                                                <ShieldCheck size={12} className="text-cyan-400" />
+                                                <span className="text-[10px] font-black uppercase tracking-widest text-cyan-400">Quantum Grade</span>
+                                            </div>
+                                        </div>
+                                        <input
+                                            type="password"
+                                            value={store.syncPassphrase || ''}
+                                            onChange={(e) => store.setSyncPassphrase(e.target.value)}
+                                            placeholder="Enter your private sync passphrase..."
+                                            className="w-full bg-black/40 border border-white/10 rounded-2xl py-3 px-6 text-sm text-white focus:outline-none focus:ring-1 focus:ring-deep-space-accent-neon/50 transition-all placeholder:text-white/10"
+                                        />
+                                        <p className="text-[10px] text-orange-400/60 font-medium">⚠️ If you lose this passphrase, you cannot decrypt your cloud data on new devices.</p>
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -182,6 +205,90 @@ const SettingsPanel = ({ onClose }: { onClose: () => void }) => {
                         {activeSection === 'shortcuts' && <KeyboardShortcutSettings />}
 
                         {activeSection === 'system' && <UserAgentSettings />}
+
+                        {activeSection === 'integrations' && (
+                            <div className="space-y-8">
+                                <div className="p-8 rounded-[2rem] bg-white/[0.03] border border-white/5 space-y-8">
+                                    <div className="space-y-6">
+                                        <div>
+                                            <h3 className="text-lg font-bold text-white mb-2">Backend Strategy</h3>
+                                            <p className="text-xs text-white/30 mb-6">Choose how your data is synchronized and stored.</p>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-4">
+                                            {['firebase', 'mysql'].map((strategy) => (
+                                                <button
+                                                    key={strategy}
+                                                    onClick={() => store.setBackendStrategy(strategy as 'firebase' | 'mysql')}
+                                                    className={`p-6 rounded-2xl border transition-all text-left group ${store.backendStrategy === strategy ? 'bg-deep-space-accent-neon/10 border-deep-space-accent-neon/40' : 'bg-white/5 border-white/5 hover:bg-white/10'}`}
+                                                >
+                                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-4 ${store.backendStrategy === strategy ? 'bg-deep-space-accent-neon text-deep-space-bg' : 'bg-white/5 text-white/40'}`}>
+                                                        {strategy === 'firebase' ? <Globe size={20} /> : <Database size={20} />}
+                                                    </div>
+                                                    <p className={`font-bold capitalize ${store.backendStrategy === strategy ? 'text-white' : 'text-white/60'}`}>{strategy}</p>
+                                                    <p className="text-[10px] text-white/30 mt-1 uppercase tracking-widest font-black">
+                                                        {strategy === 'firebase' ? 'Google Cloud Backend' : 'Self-Hosted SQL'}
+                                                    </p>
+                                                </button>
+                                            ))}
+                                        </div>
+
+                                        {store.backendStrategy === 'firebase' && (
+                                            <div className="pt-6 border-t border-white/5 space-y-4">
+                                                <div className="flex items-center justify-between">
+                                                    <p className="text-xs font-bold text-white/60 uppercase tracking-widest">Custom Firebase Config</p>
+                                                    <button
+                                                        onClick={() => store.setCustomFirebaseConfig(null)}
+                                                        className="text-[10px] text-deep-space-accent-neon hover:underline"
+                                                    >
+                                                        Reset to Default
+                                                    </button>
+                                                </div>
+                                                <textarea
+                                                    className="w-full bg-black/40 border border-white/5 rounded-xl p-4 text-xs font-mono text-deep-space-accent-neon placeholder:text-white/10 h-32 outline-none focus:border-deep-space-accent-neon/30"
+                                                    placeholder='{ "apiKey": "...", "authDomain": "...", ... }'
+                                                    value={store.customFirebaseConfig ? JSON.stringify(store.customFirebaseConfig, null, 2) : ''}
+                                                    onChange={(e) => {
+                                                        try {
+                                                            const config = JSON.parse(e.target.value);
+                                                            store.setCustomFirebaseConfig(config);
+                                                        } catch (err) { }
+                                                    }}
+                                                />
+                                            </div>
+                                        )}
+
+                                        {store.backendStrategy === 'mysql' && (
+                                            <div className="pt-6 border-t border-white/5">
+                                                <p className="text-xs font-bold text-white/60 uppercase tracking-widest mb-4">SQL Connection Details</p>
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    {['host', 'port', 'user', 'database'].map((field) => (
+                                                        <div key={field} className="space-y-1">
+                                                            <p className="text-[9px] font-black uppercase tracking-widest text-white/20 px-1">{field}</p>
+                                                            <input
+                                                                type="text"
+                                                                className="w-full bg-black/40 border border-white/5 rounded-xl px-4 py-2 text-xs text-white outline-none focus:border-deep-space-accent-neon/30"
+                                                                value={store.customMysqlConfig?.[field] || ''}
+                                                                onChange={(e) => store.setCustomMysqlConfig({ ...store.customMysqlConfig, [field]: e.target.value })}
+                                                            />
+                                                        </div>
+                                                    ))}
+                                                    <div className="col-span-2 space-y-1">
+                                                        <p className="text-[9px] font-black uppercase tracking-widest text-white/20 px-1">password</p>
+                                                        <input
+                                                            type="password"
+                                                            className="w-full bg-black/40 border border-white/5 rounded-xl px-4 py-2 text-xs text-white outline-none focus:border-deep-space-accent-neon/30"
+                                                            value={store.customMysqlConfig?.password || ''}
+                                                            onChange={(e) => store.setCustomMysqlConfig({ ...store.customMysqlConfig, password: e.target.value })}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
                         {activeSection === 'admin' && <AdminDashboard />}
 

@@ -3,6 +3,7 @@ import { initializeApp, getApp, getApps } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut as firebaseSignOut, onAuthStateChanged as firebaseOnAuthStateChanged, User } from 'firebase/auth'; // Added imports
 import { getFirestore, collection, addDoc, serverTimestamp } from 'firebase/firestore'; // Added imports
 import { firebaseConfig } from './firebase.config';
+import { useAppStore } from '@/store/useAppStore';
 
 class FirebaseService {
   app;
@@ -13,7 +14,10 @@ class FirebaseService {
   constructor() {
     // Initialize Firebase only if it hasn't been initialized yet
     if (!getApps().length) {
-      this.app = initializeApp(firebaseConfig);
+      // Check for custom config in store
+      const storeState = useAppStore.getState();
+      const configToUse = storeState?.customFirebaseConfig || firebaseConfig;
+      this.app = initializeApp(configToUse);
     } else {
       this.app = getApp();
     }

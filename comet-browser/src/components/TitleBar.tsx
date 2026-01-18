@@ -9,9 +9,9 @@ const TitleBar = () => {
     const handleClose = () => window.electronAPI?.closeWindow();
 
     return (
-        <div className="h-10 bg-black/80 backdrop-blur-md border-b border-white/5 flex items-center justify-between px-4 select-none drag-region fixed top-0 left-0 right-0 z-[200]">
+        <div className="h-10 bg-[#0D0E1C] border-b border-white/5 flex items-center justify-between px-4 select-none drag-region fixed top-0 left-0 right-0 z-[200]">
             <div className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded-full bg-deep-space-accent-neon flex items-center justify-center text-[10px] font-black text-deep-space-bg">
+                <div className="w-5 h-5 rounded-lg bg-cyan-400 flex items-center justify-center text-[11px] font-black text-black shadow-[0_0_15px_rgba(34,211,238,0.3)]">
                     C
                 </div>
                 <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">Comet Browser</span>

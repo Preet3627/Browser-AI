@@ -76,6 +76,8 @@ declare global {
             startEmailListener: () => Promise<boolean>;
             syncOTP: (otp: any) => Promise<void>;
             requestSMSPermission: () => Promise<boolean>;
+            onShortcut: (callback: (action: string) => void) => () => void;
+            updateShortcuts: (shortcuts: { action: string; accelerator: string }[]) => void;
         };
     }
 }

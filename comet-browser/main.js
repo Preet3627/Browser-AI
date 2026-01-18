@@ -1,9 +1,7 @@
-// main.js
-const { app, BrowserWindow, ipcMain, session, shell, clipboard, BrowserView, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, session, shell, clipboard, BrowserView, dialog, globalShortcut } = require('electron');
 const fs = require('fs');
 const path = require('path');
-const isDev = require('electron-is-dev');
-const { keyboardShortcutService } = require('./src/lib/KeyboardShortcutService');
+const isDev = !app.isPackaged;
 
 let mainWindow;
 let browserView;
@@ -47,15 +45,19 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
+    frame: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: false
     },
-    titleBarStyle: 'hiddenInset',
-    backgroundColor: '#0D0E1C'
+    titleBarStyle: 'hidden',
+    backgroundColor: '#0D0E1C',
+    icon: path.join(__dirname, 'icon.ico')
   });
+
+  mainWindow.setMenuBarVisibility(false);
 
   const url = isDev
     ? 'http://localhost:3000'
@@ -235,9 +237,45 @@ ipcMain.handle('export-chat-txt', async (event, messages) => {
 
 ipcMain.handle('get-extension-path', () => extensionsPath);
 
+ipcMain.on('update-shortcuts', (event, shortcuts) => {
+  globalShortcut.unregisterAll();
+  shortcuts.forEach(s => {
+    try {
+      globalShortcut.register(s.accelerator, () => {
+        if (mainWindow) mainWindow.webContents.send('execute-shortcut', s.action);
+      });
+    } catch (e) {
+      console.error(`Failed to register shortcut ${s.accelerator}:`, e);
+    }
+  });
+});
+
 app.whenReady().then(() => {
   createWindow();
-  keyboardShortcutService.registerAll();
+
+  // Register Global Shortcuts
+  const shortcuts = [
+    { accelerator: 'CommandOrControl+T', action: 'new-tab' },
+    { accelerator: 'CommandOrControl+W', action: 'close-tab' },
+    { accelerator: 'CommandOrControl+Tab', action: 'next-tab' },
+    { accelerator: 'CommandOrControl+Shift+Tab', action: 'prev-tab' },
+    { accelerator: 'CommandOrControl+B', action: 'toggle-sidebar' },
+    { accelerator: 'CommandOrControl+,', action: 'open-settings' },
+  ];
+
+  shortcuts.forEach(s => {
+    try {
+      globalShortcut.register(s.accelerator, () => {
+        if (mainWindow) mainWindow.webContents.send('execute-shortcut', s.action);
+      });
+    } catch (e) {
+      console.error(`Failed to register shortcut ${s.accelerator}:`, e);
+    }
+  });
+});
+
+app.on('will-quit', () => {
+  globalShortcut.unregisterAll();
 });
 
 app.on('window-all-closed', () => {

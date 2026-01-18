@@ -20,7 +20,6 @@
     "@tensorflow/tfjs": "^4.22.0",
     "cross-fetch": "^4.1.0",
     "electron-context-menu": "^4.1.1",
-    "electron-is-dev": "^3.0.1",
     "firebase": "^12.7.0",
     "framer-motion": "^12.23.26",
     "lucide-react": "^0.562.0",
@@ -56,7 +55,8 @@
       "main.js",
       "preload.js",
       "package.json",
-      "LICENSE.txt"
+      "LICENSE.txt",
+      "icon.ico"
     ],
     "nsis": {
       "oneClick": false,
@@ -67,6 +67,7 @@
       "shortcutName": "Comet Browser"
     },
     "win": {
+      "icon": "icon.ico",
       "target": [
         "nsis"
       ]

@@ -11,7 +11,8 @@ import { useAppStore } from '@/store/useAppStore';
 import { Sparkles, Terminal, Code2, Image as ImageIcon, Maximize2, Minimize2, FileText, Download, Wifi, WifiOff, X } from 'lucide-react';
 import MediaSuggestions from './MediaSuggestions';
 import { offlineChatbot } from '@/lib/OfflineChatbot';
-import { LogOut, User as UserIcon, ShieldAlert } from 'lucide-react';
+import { LogOut, User as UserIcon, ShieldAlert, ShieldCheck } from 'lucide-react';
+import { Security } from '@/lib/Security';
 
 interface AIChatSidebarProps {
   studentMode: boolean;
@@ -91,14 +92,22 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = (props) => {
     const contentToUse = customContent || inputMessage.trim();
     if (!contentToUse && attachments.length === 0) return;
 
-    const attachmentData = attachments.map(a => a.data); // Just sending base64 for now
+    const attachmentData = attachments.map(a => a.data);
+
+    // AI Fortress protection
+    const { content: protectedContent, wasProtected } = Security.fortress(contentToUse);
+    const contentToUseFinal = protectedContent;
 
     // Construct user message
     const userMessage: ChatMessage & { attachments?: string[] } = {
       role: 'user',
-      content: contentToUse + (attachments.length > 0 ? `\n[Attached ${attachments.length} files]` : ''),
+      content: contentToUseFinal + (attachments.length > 0 ? `\n[Attached ${attachments.length} files]` : ''),
       attachments: attachmentData
     };
+
+    if (wasProtected) {
+      setMessages(prev => [...prev, { role: 'model', content: "🛡️ **AI Fortress Active**: I've automatically protected sensitive keys/secrets in your message to prevent them from reaching the cloud." }]);
+    }
 
     setMessages(prev => [...prev, userMessage]);
 

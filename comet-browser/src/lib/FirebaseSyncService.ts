@@ -25,27 +25,54 @@ class FirebaseSyncService {
     if (!this.userId) return;
 
     const clipboardRef = ref(db, "clipboard/" + this.userId);
-    onValue(clipboardRef, (snapshot) => {
+    onValue(clipboardRef, async (snapshot) => {
       const data = snapshot.val();
-      if (data) {
-        useAppStore.getState().setExcelAutofillData(Object.values(data));
+      if (data && Array.isArray(data)) {
+        const store = useAppStore.getState();
+        const decrypted = await Promise.all(
+          data.map(item => Security.decrypt(item, store.syncPassphrase || undefined))
+        );
+        store.setExcelAutofillData(decrypted);
       }
     });
   }
 
   public async setClipboard(clipboard: any[]) {
     if (!this.userId) return;
+    const store = useAppStore.getState();
+    const encrypted = await Promise.all(
+      clipboard.map(item => Security.encrypt(String(item), store.syncPassphrase || undefined))
+    );
 
     const clipboardRef = ref(db, "clipboard/" + this.userId);
-    set(clipboardRef, clipboard);
+    set(clipboardRef, encrypted);
   }
 
   public async syncHistory() {
-    // ... to be implemented
+    if (!this.userId) return;
+
+    const historyRef = ref(db, "history/" + this.userId);
+    onValue(historyRef, async (snapshot) => {
+      const data = snapshot.val();
+      if (data && Array.isArray(data)) {
+        const store = useAppStore.getState();
+        const decrypted = await Promise.all(
+          data.map(item => Security.decrypt(item, store.syncPassphrase || undefined))
+        );
+        // We could update store history here if needed
+      }
+    });
   }
 
-  public async setHistory(history: any[]) {
-    // ... to be implemented
+  public async setHistory(history: string[]) {
+    if (!this.userId) return;
+    const store = useAppStore.getState();
+    const encrypted = await Promise.all(
+      history.map(item => Security.encrypt(item, store.syncPassphrase || undefined))
+    );
+
+    const historyRef = ref(db, "history/" + this.userId);
+    set(historyRef, encrypted);
   }
 
   public async syncApiKeys() {
@@ -54,8 +81,8 @@ class FirebaseSyncService {
 
   public async setApiKeys(apiKeys: any) {
     if (!this.userId) return;
-
-    const encryptedKeys = Security.encrypt(JSON.stringify(apiKeys));
+    const store = useAppStore.getState();
+    const encryptedKeys = await Security.encrypt(JSON.stringify(apiKeys), store.syncPassphrase || undefined);
     const apiKeysRef = ref(db, "apiKeys/" + this.userId);
     set(apiKeysRef, encryptedKeys);
   }

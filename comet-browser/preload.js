@@ -78,4 +78,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   startEmailListener: () => ipcRenderer.invoke('start-email-listener'),
   syncOTP: (otp) => ipcRenderer.invoke('sync-otp', otp),
   requestSMSPermission: () => ipcRenderer.invoke('request-sms-permission'),
+  onShortcut: (callback) => {
+    const subscription = (event, action) => callback(action);
+    ipcRenderer.on('execute-shortcut', subscription);
+    return () => ipcRenderer.removeListener('execute-shortcut', subscription);
+  },
+  updateShortcuts: (shortcuts) => ipcRenderer.send('update-shortcuts', shortcuts),
 });

@@ -76,13 +76,23 @@ interface BrowserState {
     aiProvider: 'openai' | 'gemini' | 'claude' | 'local';
     localLLMModel: string;
     isOnline: boolean; // New state for network status
-    enableAIAssist: boolean; // New state for AI overview
+    enableAIAssist: boolean;
+    syncPassphrase: string | null;
+    setSyncPassphrase: (passphrase: string | null) => void;
 
     // Integrations
     githubToken: string | null;
     googleToken: string | null;
     setGithubToken: (token: string | null) => void;
     setGoogleToken: (token: string | null) => void;
+
+    // Backend Configuration
+    backendStrategy: 'firebase' | 'mysql';
+    customFirebaseConfig: any | null;
+    customMysqlConfig: any | null;
+    setBackendStrategy: (strategy: 'firebase' | 'mysql') => void;
+    setCustomFirebaseConfig: (config: any | null) => void;
+    setCustomMysqlConfig: (config: any | null) => void;
 
     // Actions
     setCloudSyncConsent: (consent: boolean) => void;
@@ -134,6 +144,7 @@ interface BrowserState {
 
     // User Actions
     setUser: (user: BrowserState['user']) => void;
+    setAdmin: (isAdmin: boolean) => void;
     logout: () => void;
     updateActiveTime: () => void;
     startActiveSession: () => void;
@@ -182,13 +193,20 @@ export const useAppStore = create<BrowserState>()(
             addPaymentMethod: (pm) => set((state) => ({ paymentMethods: [...state.paymentMethods, { ...pm, id: Date.now().toString() }] })),
             removePaymentMethod: (id) => set((state) => ({ paymentMethods: state.paymentMethods.filter(p => p.id !== id) })),
 
-            isOnline: true, // Initialize as online
-            enableAIAssist: true, // Initialize AI assist as enabled
+            isOnline: true,
+            enableAIAssist: true,
+            backendStrategy: 'firebase',
+            customFirebaseConfig: null,
+            customMysqlConfig: null,
 
             githubToken: null,
             googleToken: null,
             setGithubToken: (token) => set({ githubToken: token }),
             setGoogleToken: (token) => set({ googleToken: token }),
+
+            setBackendStrategy: (strategy: 'firebase' | 'mysql') => set({ backendStrategy: strategy }),
+            setCustomFirebaseConfig: (config: any | null) => set({ customFirebaseConfig: config }),
+            setCustomMysqlConfig: (config: any | null) => set({ customMysqlConfig: config }),
 
             setCloudSyncConsent: (consent) => {
                 console.log('Setting cloud sync consent:', consent);
@@ -202,9 +220,17 @@ export const useAppStore = create<BrowserState>()(
                 console.log('Setting AI assist enabled:', enabled);
                 set({ enableAIAssist: enabled });
             },
+            syncPassphrase: null,
+            setSyncPassphrase: (passphrase) => set({ syncPassphrase: passphrase }),
 
             setCurrentUrl: (url) => set({ currentUrl: url }),
-            addToHistory: (url) => set((state) => ({ history: [url, ...state.history.slice(0, 50)] })),
+            addToHistory: (url) => set((state) => {
+                const newHistory = [url, ...state.history.slice(0, 49)];
+                if (state.cloudSyncConsent) {
+                    firebaseSyncService.setHistory(newHistory);
+                }
+                return { history: newHistory };
+            }),
             addClipboardItem: (item) => set((state) => {
                 if (state.clipboard.includes(item)) return state;
                 const newClipboard = [item, ...state.clipboard.slice(0, 19)];
@@ -293,28 +319,35 @@ export const useAppStore = create<BrowserState>()(
             clearClipboard: () => set({ clipboard: [] }),
 
 
-            addPassword: (entry) => set((state) => {
+            addPassword: async (entry) => {
+                const state = useAppStore.getState();
+                const encryptedPassword = await Security.encrypt(entry.password, state.syncPassphrase || undefined);
                 const encryptedEntry = {
                     ...entry,
-                    password: Security.encrypt(entry.password),
+                    password: encryptedPassword,
                     id: `pwd-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`
                 };
-                return { passwords: [...state.passwords, encryptedEntry] };
-            }),
+                set((state) => ({ passwords: [...state.passwords, encryptedEntry] }));
+            },
             removePassword: (id) => set((state) => ({
                 passwords: state.passwords.filter(p => p.id !== id)
             })),
             setAutofillEnabled: (enabled) => set({ autofillEnabled: enabled }),
             setExcelAutofillData: (data) => set({ excelAutofillData: data }),
             setAIProvider: (provider) => set({ aiProvider: provider }),
-            updateShortcut: (action, accelerator) => set((state) => ({
-                shortcuts: state.shortcuts.map(s => s.action === action ? { ...s, accelerator } : s)
-            })),
+            updateShortcut: (action, accelerator) => set((state) => {
+                const newShortcuts = state.shortcuts.map(s => s.action === action ? { ...s, accelerator } : s);
+                if (window.electronAPI) {
+                    window.electronAPI.updateShortcuts(newShortcuts);
+                }
+                return { shortcuts: newShortcuts };
+            }),
 
             setUser: (user) => set({
                 user,
                 isAdmin: user?.email === 'preetjgfilj2@gmail.com' || user?.email?.endsWith('@admin.com') || false
             }),
+            setAdmin: (isAdmin) => set({ isAdmin }),
             logout: () => set({ user: null, isAdmin: false, activeView: 'landing' }),
             startActiveSession: () => set({ activeStartTime: Date.now() }),
             endActiveSession: () => set((state) => {
