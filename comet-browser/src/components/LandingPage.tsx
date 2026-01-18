@@ -49,6 +49,40 @@ const LandingPage = () => {
         };
 
         handleExternalAuthReturn();
+
+        // Listen for postMessage from auth popup
+        const handleMessage = (event: MessageEvent) => {
+            // Verify origin for security (in production, check event.origin)
+            if (event.data && event.data.type === 'auth-success') {
+                const { email, name, photo } = event.data.data;
+                const isAdminEmail = email.endsWith('@ponsrischool.in');
+
+                store.setUser({
+                    email: email,
+                    name: name || 'User',
+                    photoURL: photo || null,
+                    lastLogin: Date.now(),
+                    activeTime: 0
+                });
+
+                if (isAdminEmail) {
+                    store.setAdmin(true);
+                }
+
+                // If on desktop, go to browser. If on web, stay on dashboard.
+                if (window.electronAPI) {
+                    store.setActiveView('browser');
+                } else {
+                    setView('dashboard');
+                }
+
+                store.startActiveSession();
+                setIsLoading(false);
+            }
+        };
+
+        window.addEventListener('message', handleMessage);
+        return () => window.removeEventListener('message', handleMessage);
     }, []);
 
     const handleLogin = () => {
