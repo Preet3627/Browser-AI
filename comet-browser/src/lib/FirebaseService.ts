@@ -1,43 +1,40 @@
 // src/lib/FirebaseService.ts
-import { initializeApp, getApp, getApps } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut as firebaseSignOut, onAuthStateChanged as firebaseOnAuthStateChanged, User } from 'firebase/auth'; // Added imports
-import { getFirestore, collection, addDoc, serverTimestamp } from 'firebase/firestore'; // Added imports
-import { firebaseConfig } from './firebase.config';
+import { initializeApp, getApp, getApps, FirebaseApp, deleteApp } from 'firebase/app';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut as firebaseSignOut, onAuthStateChanged as firebaseOnAuthStateChanged, User, Auth } from 'firebase/auth';
+import { getFirestore, collection, addDoc, serverTimestamp, Firestore } from 'firebase/firestore';
+
 class FirebaseService {
-  app;
-  auth;
-  firestore;
-  private googleProvider;
+  app: FirebaseApp | null = null;
+  auth: Auth | null = null;
+  firestore: Firestore | null = null;
+  private googleProvider: GoogleAuthProvider;
 
   constructor() {
-    // Initialize with default config first
-    // We will re-initialize if custom config is found later, or use a lazy getter
-    const apps = getApps();
-    if (!apps.length) {
-      this.app = initializeApp(firebaseConfig);
-    } else {
-      this.app = getApp();
-    }
-
-    this.auth = getAuth(this.app);
-    this.firestore = getFirestore(this.app);
     this.googleProvider = new GoogleAuthProvider();
   }
 
-  /**
-   * Re-initializes Firebase with a custom configuration if provided.
-   * This can be called after the store is initialized.
-   */
-  async reinitializeWithCustomConfig(config: any) {
-    if (this.app) {
-      // Note: Re-initializing an existing app is tricky in Firebase.
-      // Usually you'd delete the old one or initialize a named app.
-      // For simplicity, we'll try to initialize if not matches.
+  async initializeFirebase(config: any, appName: string = 'cometBrowserApp') {
+    // Check if an app with this name already exists
+    const existingApp = getApps().find(app => app.name === appName);
+
+    if (existingApp) {
+      // If an app with the same name exists, delete it before re-initializing
+      // This is crucial to prevent re-initialization errors if the config changes
+      await deleteApp(existingApp);
     }
+
+    this.app = initializeApp(config, appName);
+    this.auth = getAuth(this.app);
+    this.firestore = getFirestore(this.app);
+    console.log(`Firebase app '${appName}' initialized/re-initialized.`);
   }
 
   // Sign in with Google
   async signInWithGoogle(): Promise<User | null> {
+    if (!this.auth) {
+      console.error("Firebase Auth not initialized.");
+      return null;
+    }
     try {
       const result = await signInWithPopup(this.auth, this.googleProvider);
       return result.user;
@@ -49,6 +46,10 @@ class FirebaseService {
 
   // Sign out
   async signOut(): Promise<void> {
+    if (!this.auth) {
+      console.error("Firebase Auth not initialized.");
+      return;
+    }
     try {
       await firebaseSignOut(this.auth);
     } catch (error) {
@@ -58,11 +59,20 @@ class FirebaseService {
 
   // Listen for auth state changes
   onAuthStateChanged(callback: (user: User | null) => void) {
+    if (!this.auth) {
+      console.error("Firebase Auth not initialized.");
+      // Return a no-op unsubscribe function
+      return () => {};
+    }
     return firebaseOnAuthStateChanged(this.auth, callback);
   }
 
   // Add a new history entry for a user
   async addHistoryEntry(userId: string, url: string, title: string): Promise<void> {
+    if (!this.firestore) {
+      console.error("Firebase Firestore not initialized.");
+      return;
+    }
     try {
       if (!userId) {
         throw new Error("User ID is required to add a history entry.");
@@ -80,5 +90,4 @@ class FirebaseService {
 }
 
 const firebaseService = new FirebaseService();
-export const app = firebaseService.app;
 export default firebaseService;

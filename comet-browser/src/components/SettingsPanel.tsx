@@ -1,12 +1,12 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAppStore } from '@/store/useAppStore';
 import {
     Settings as SettingsIcon, Monitor, Shield, Palette,
     Layout, Type, Globe, Info, Download, Pin,
     ChevronRight, Check, AlertCircle, Eye, EyeOff, ShieldCheck,
-    Key, Package, FileSpreadsheet, Plus, X, Lock, ExternalLink, Keyboard, Briefcase, ShieldAlert, Database
+    Key, Package, FileSpreadsheet, Plus, X, Lock, ExternalLink, Keyboard, Briefcase, ShieldAlert, Database, LogIn, LogOut
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
@@ -16,12 +16,79 @@ import UserAgentSettings from './UserAgentSettings';
 import ProxySettings from './ProxySettings';
 import AutofillSettings from './AutofillSettings';
 import AdminDashboard from './AdminDashboard';
+import { GoogleAuthProvider } from 'firebase/auth';
+import firebaseService from '@/lib/FirebaseService';
+import { getAuth } from 'firebase/auth';
+import { User } from 'firebase/auth'; // Import User type
 
 const SettingsPanel = ({ onClose }: { onClose: () => void }) => {
     const store = useAppStore();
     const [activeSection, setActiveSection] = React.useState('appearance');
     const [showAddPwd, setShowAddPwd] = useState(false);
     const [newPwd, setNewPwd] = useState({ site: '', username: '', password: '' });
+    const [currentUser, setCurrentUser] = useState<User | null>(null); // State to hold the current user
+
+    useEffect(() => {
+        // Listen for auth state changes to update the UI
+        const unsubscribe = firebaseService.onAuthStateChanged((user) => {
+            setCurrentUser(user);
+            store.setUser(user ? { uid: user.uid, email: user.email || '', displayName: user.displayName || '', photoURL: user.photoURL || '' } : null);
+        });
+
+        // Listen for messages from the auth window (landing page)
+        const handleAuthMessage = async (event: MessageEvent) => {
+            // In a production app, event.origin should be strictly checked.
+            // For Electron, the origin might be file:// or null for the main window,
+            // while the opened window (landing page) is on localhost.
+            // A more robust check might involve comparing against a known list of allowed origins.
+            // For now, a permissive check for localhost for development purposes.
+            if (event.origin !== window.location.origin && !event.origin.startsWith('http://localhost')) {
+                console.warn('Received message from unknown origin:', event.origin);
+                return;
+            }
+
+            if (event.data && event.data.type === 'auth-success' && event.data.idToken && event.data.firebaseConfig) {
+                console.log('Received idToken and firebaseConfig from landing page.');
+                try {
+                    await firebaseService.initializeFirebase(event.data.firebaseConfig);
+                    const credential = GoogleAuthProvider.credential(event.data.idToken);
+                    await getAuth().signInWithCredential(credential);
+                    console.log('Signed in with credential in desktop app using dynamic config.');
+                } catch (error) {
+                    console.error('Error during dynamic Firebase initialization or sign-in:', error);
+                }
+            }
+        };
+
+        window.addEventListener('message', handleAuthMessage);
+
+        return () => {
+            unsubscribe();
+            window.removeEventListener('message', handleAuthMessage);
+        };
+    }, [store]);
+
+    const handleGoogleLogin = () => {
+        if (window.electronAPI) {
+            // Open the landing page's auth callback in a new Electron window
+            // The landing page will handle the Google Sign-In and post back the idToken
+            const authUrl = `${window.location.origin}/auth?client_id=desktop-app&redirect_uri=${encodeURIComponent(window.location.origin)}`;
+            window.electronAPI.openAuthWindow(authUrl);
+        } else {
+            console.warn('electronAPI not available. Cannot open auth window.');
+            // Fallback for web environment, though this component is client-only for electron
+            window.open(`${window.location.origin}/auth?client_id=desktop-app&redirect_uri=${encodeURIComponent(window.location.origin)}`, '_blank');
+        }
+    };
+
+    const handleGoogleSignOut = async () => {
+        try {
+            await firebaseService.signOut();
+            console.log('Signed out from Firebase');
+        } catch (error) {
+            console.error('Error signing out:', error);
+        }
+    };
 
     const sections = [
         { id: 'appearance', icon: <Monitor size={18} />, label: 'Appearance' },
@@ -235,6 +302,35 @@ const SettingsPanel = ({ onClose }: { onClose: () => void }) => {
 
                                         {store.backendStrategy === 'firebase' && (
                                             <div className="pt-6 border-t border-white/5 space-y-4">
+                                                {currentUser ? (
+                                                    <div className="flex items-center justify-between bg-white/5 rounded-xl p-4">
+                                                        <div className="flex items-center gap-3">
+                                                            {currentUser.photoURL && (
+                                                                <img src={currentUser.photoURL} alt="User Avatar" className="w-8 h-8 rounded-full" />
+                                                            )}
+                                                            <div>
+                                                                <p className="text-sm font-medium text-white">{currentUser.displayName || currentUser.email}</p>
+                                                                <p className="text-xs text-white/50">{currentUser.email}</p>
+                                                            </div>
+                                                        </div>
+                                                        <button
+                                                            onClick={handleGoogleSignOut}
+                                                            className="flex items-center gap-2 px-4 py-2 bg-red-500/10 border border-red-500/30 text-red-400 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all"
+                                                        >
+                                                            <LogOut size={16} />
+                                                            Sign Out
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <button
+                                                        onClick={handleGoogleLogin}
+                                                        className="w-full flex items-center justify-center gap-3 px-6 py-3 bg-deep-space-accent-neon/10 border border-deep-space-accent-neon/30 text-deep-space-accent-neon rounded-xl text-sm font-black uppercase tracking-widest hover:bg-deep-space-accent-neon hover:text-deep-space-bg transition-all"
+                                                    >
+                                                        <LogIn size={20} />
+                                                        Sign in with Google
+                                                    </button>
+                                                )}
+
                                                 <div className="flex items-center justify-between">
                                                     <p className="text-xs font-bold text-white/60 uppercase tracking-widest">Custom Firebase Config</p>
                                                     <button

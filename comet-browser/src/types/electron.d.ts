@@ -48,6 +48,7 @@ declare global {
             minimizeWindow: () => void;
             maximizeWindow: () => void;
             closeWindow: () => void;
+            openAuthWindow: (url: string) => void;
 
             // Chat & File Export
             exportChatAsTxt: (messages: ChatMessage[]) => Promise<boolean>;

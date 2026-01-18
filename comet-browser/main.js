@@ -161,6 +161,38 @@ ipcMain.on('close-window', () => {
   if (mainWindow) mainWindow.close();
 });
 
+ipcMain.on('open-auth-window', (event, authUrl) => {
+  let authWindow = new BrowserWindow({
+    width: 800,
+    height: 700,
+    show: false, // Don't show until ready
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      // We need to allow window.opener to post messages back to the main window
+      // via the main window's renderer process.
+      // The preload script should expose a way for the auth window to communicate.
+      preload: path.join(__dirname, 'preload.js')
+    },
+    parent: mainWindow, // Make it a child of the main window
+    modal: true,
+    frame: true, // Show frame so user can close it
+    autoHideMenuBar: true
+  });
+
+  authWindow.loadURL(authUrl);
+
+  authWindow.once('ready-to-show', () => {
+    authWindow.show();
+  });
+
+  // Handle successful authentication: when the auth window closes,
+  // it might have already sent a message back to the main window.
+  authWindow.on('closed', () => {
+    authWindow = null; // Dereference the window object
+  });
+});
+
 ipcMain.on('set-browser-view-bounds', (event, bounds) => {
   if (browserView && mainWindow) {
     browserView.setBounds({
