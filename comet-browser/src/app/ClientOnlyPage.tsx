@@ -93,6 +93,7 @@ export default function Home() {
   const [showClipboard, setShowClipboard] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [settingsSection, setSettingsSection] = useState('profile');
   const [showCart, setShowCart] = useState(false);
   const [urlPrediction, setUrlPrediction] = useState<string | null>(null);
   const [isTyping, setIsTyping] = useState(false);
@@ -683,6 +684,7 @@ export default function Home() {
                 label="Extensions"
                 active={false}
                 onClick={() => {
+                  setSettingsSection('extensions');
                   setShowSettings(true);
                 }}
                 collapsed={true}
@@ -890,7 +892,13 @@ export default function Home() {
             {/* Feature Overlays */}
             <AnimatePresence>
               {showSettings && (
-                <SettingsPanel onClose={() => setShowSettings(false)} />
+                <SettingsPanel
+                  onClose={() => {
+                    setShowSettings(false);
+                    setSettingsSection('profile');
+                  }}
+                  defaultSection={settingsSection}
+                />
               )}
 
               {showCart && (
