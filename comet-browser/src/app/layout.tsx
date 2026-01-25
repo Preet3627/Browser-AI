@@ -4,6 +4,7 @@ import "./globals.css";
 import TitleBar from "@/components/TitleBar";
 
 
+
 export const metadata: Metadata = {
   title: "Comet Browser",
   description: "An AI-integrated browser application",

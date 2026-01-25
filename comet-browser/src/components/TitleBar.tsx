@@ -5,18 +5,31 @@ import { Minus, Square, X } from 'lucide-react';
 import { VirtualizedTabBar } from './VirtualizedTabBar';
 import { useAppStore } from '@/store/useAppStore';
 
-const TitleBar = ({ isTabSuspended }: { isTabSuspended: (tabId: string) => boolean }) => {
+const TitleBar = () => {
     const handleMinimize = () => window.electronAPI?.minimizeWindow();
     const handleMaximize = () => window.electronAPI?.maximizeWindow();
     const handleClose = () => window.electronAPI?.closeWindow();
     const store = useAppStore();
 
+    const isTabSuspended = (tabId: string) => {
+        const tab = store.tabs.find((t) => t.id === tabId);
+        return tab?.isSuspended || false;
+    };
+
     return (
         <div className="h-10 bg-[#0D0E1C] border-b border-white/5 flex items-center justify-between px-4 select-none drag-region fixed top-0 left-0 right-0 z-[200]">
-            <div className="flex items-center gap-2">
-                <div className="w-5 h-5 rounded-lg bg-[#00ffff] flex items-center justify-center shadow-[0_0_15px_rgba(0,255,255,0.3)] p-0.5">
-                    <img src="/icon.ico" alt="Comet" className="w-full h-full object-contain" />
-                </div>
+            <div className="flex items-center gap-3">
+                {store.user?.photoURL ? (
+                    <img
+                        src={store.user.photoURL}
+                        alt="Profile"
+                        className="w-6 h-6 rounded-full border border-white/10"
+                    />
+                ) : (
+                    <div className="w-5 h-5 flex items-center justify-center">
+                        <img src="icon.ico" alt="Comet" className="w-full h-full object-contain opacity-80" />
+                    </div>
+                )}
                 <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">Comet</span>
             </div>
             <div className="flex-1 min-w-0">

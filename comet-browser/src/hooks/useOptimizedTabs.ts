@@ -20,64 +20,65 @@ export const useOptimizedTabs = () => {
   // Get tabs that should be kept loaded (active + recent)
   const activeTabIds = useMemo(() => {
     if (performanceMode === 'performance') {
-        const sortedTabs = tabs.slice().sort((a, b) => ((b as any).lastAccessed || 0) - ((a as any).lastAccessed || 0));
-        let activeTabs = [activeTabId];
-        let currentRam = 0;
+      const sortedTabs = tabs.slice().sort((a, b) => ((b as any).lastAccessed || 0) - ((a as any).lastAccessed || 0));
+      let activeTabs = [activeTabId];
+      let currentRam = 0;
 
-        for (const tab of sortedTabs) {
-            if (activeTabs.length >= performanceModeSettings.maxActiveTabs) break;
-            if (activeTabs.includes(tab.id)) continue;
+      for (const tab of sortedTabs) {
+        if (activeTabs.length >= performanceModeSettings.maxActiveTabs) break;
+        if (activeTabs.includes(tab.id)) continue;
 
-            const tabRam = tabOptimizer.estimateMemoryUsage({
-                ...tab,
-                isSuspended: false,
-                lastAccessed: (tab as any).lastAccessed || Date.now(),
-                priority: (tab as any).priority || 'normal',
-            });
-            if (currentRam + tabRam > performanceModeSettings.maxRam) continue;
+        const tabRam = tabOptimizer.estimateMemoryUsage({
+          ...tab,
+          isSuspended: false,
+          lastAccessed: (tab as any).lastAccessed || Date.now(),
+          priority: (tab as any).priority || 'normal',
+        });
+        if (currentRam + tabRam > performanceModeSettings.maxRam) continue;
 
-            if (performanceModeSettings.keepAudioTabsActive && tab.isAudible) {
-                activeTabs.push(tab.id);
-                currentRam += tabRam;
-            }
+        if (performanceModeSettings.keepAudioTabsActive && tab.isAudible) {
+          activeTabs.push(tab.id);
+          currentRam += tabRam;
         }
-        
-        for (const tab of sortedTabs) {
-            if (activeTabs.length >= performanceModeSettings.maxActiveTabs) break;
-            if (activeTabs.includes(tab.id)) continue;
+      }
 
-            const tabRam = tabOptimizer.estimateMemoryUsage({
-                ...tab,
-                isSuspended: false,
-                lastAccessed: (tab as any).lastAccessed || Date.now(),
-                priority: (tab as any).priority || 'normal',
-            });
-            if (currentRam + tabRam > performanceModeSettings.maxRam) continue;
+      for (const tab of sortedTabs) {
+        if (activeTabs.length >= performanceModeSettings.maxActiveTabs) break;
+        if (activeTabs.includes(tab.id)) continue;
 
-            activeTabs.push(tab.id);
-            currentRam += tabRam;
-        }
+        const tabRam = tabOptimizer.estimateMemoryUsage({
+          ...tab,
+          isSuspended: false,
+          lastAccessed: (tab as any).lastAccessed || Date.now(),
+          priority: (tab as any).priority || 'normal',
+        });
+        if (currentRam + tabRam > performanceModeSettings.maxRam) continue;
 
-        return activeTabs;
+        activeTabs.push(tab.id);
+        currentRam += tabRam;
+      }
+
+      return activeTabs;
     }
     return tabOptimizer.getActiveTabs(activeTabId, tabs, recentTabIds);
   }, [activeTabId, tabs, recentTabIds, performanceMode, performanceModeSettings]);
 
   // Suspend inactive tabs automatically
   useEffect(() => {
-    if (tabs.length < 2) return; 
+    if (tabs.length < 2) return;
 
-    const tabsToSuspend = tabs.filter(t => !activeTabIds.includes(t.id)).map(t => t.id);
-
-    // Mark tabs as suspended (in Electron, this would actually suspend the BrowserView)
-    tabsToSuspend.forEach(tabId => {
-      const tab = tabs.find(t => t.id === tabId);
-      if (tab && !(tab as any).isSuspended && window.electronAPI) {
-        // Notify main process to suspend tab
-        // window.electronAPI.suspendTab?.(tabId);
+    tabs.forEach(tab => {
+      const shouldBeActive = activeTabIds.includes(tab.id);
+      if (shouldBeActive && tab.isSuspended) {
+        store.updateTab(tab.id, { isSuspended: false });
+        if (window.electronAPI) window.electronAPI.resumeTab?.(tab.id);
+      } else if (!shouldBeActive && !tab.isSuspended) {
+        // Suspend if not in active tabs list
+        store.updateTab(tab.id, { isSuspended: true });
+        if (window.electronAPI) window.electronAPI.suspendTab?.(tab.id);
       }
     });
-  }, [tabs, activeTabIds]);
+  }, [tabs, activeTabIds, store]);
 
   // Only render active tab (others are suspended/unloaded)
   const shouldRenderTab = useCallback((tabId: string) => {
@@ -87,17 +88,9 @@ export const useOptimizedTabs = () => {
   // Update tab last accessed time when switched
   const handleTabSwitch = useCallback((tabId: string) => {
     store.setActiveTab(tabId);
-    // Update last accessed timestamp
-    const tab = tabs.find(t => t.id === tabId);
-    if (tab) {
-      (tab as any).lastAccessed = Date.now();
-      if ((tab as any).isSuspended && window.electronAPI) {
-        // Resume tab when switching to it
-        // window.electronAPI.resumeTab?.(tabId);
-        (tab as any).isSuspended = false;
-      }
-    }
-  }, [store, tabs]);
+    // Note: setActiveTab now updates lastAccessed and isSuspended in the store
+    if (window.electronAPI) window.electronAPI.resumeTab?.(tabId);
+  }, [store]);
 
   // Check if tab is suspended
   const isTabSuspended = useCallback((tabId: string) => {

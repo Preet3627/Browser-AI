@@ -4,6 +4,7 @@ export interface LLMProviderOptions {
   apiKey?: string;
   baseUrl?: string;
   model?: string;
+  type?: string;
   // Add other common options as needed
 }
 

@@ -3,8 +3,8 @@
 import React from 'react';
 
 interface BackendSettingsProps {
-  backend: string;
-  setBackend: (backend: string) => void;
+  backend: 'firebase' | 'mysql';
+  setBackend: (backend: 'firebase' | 'mysql') => void;
   mysqlConfig: any;
   setMysqlConfig: (config: any) => void;
 }
@@ -32,13 +32,13 @@ const BackendSettings: React.FC<BackendSettingsProps> = ({ backend, setBackend, 
       <div className="space-y-2">
         <label className="block text-[10px] uppercase font-bold tracking-widest text-white/40">Data Strategy</label>
         <div className="grid grid-cols-2 gap-2">
-          {['firebase', 'mysql'].map((b) => (
+          {(['firebase', 'mysql'] as const).map((b) => (
             <button
               key={b}
               onClick={() => setBackend(b)}
               className={`py-1.5 rounded-lg border text-[10px] uppercase font-bold tracking-wider transition-all ${backend === b
-                  ? 'bg-deep-space-accent-neon/20 border-deep-space-accent-neon/40 text-deep-space-accent-neon'
-                  : 'bg-white/5 border-white/5 text-white/30 hover:bg-white/10'
+                ? 'bg-deep-space-accent-neon/20 border-deep-space-accent-neon/40 text-deep-space-accent-neon'
+                : 'bg-white/5 border-white/5 text-white/30 hover:bg-white/10'
                 }`}
             >
               {b}

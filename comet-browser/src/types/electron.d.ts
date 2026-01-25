@@ -6,6 +6,11 @@ declare global {
             // BrowserView related APIs
             getIsOnline: () => Promise<boolean>;
             onAiQueryDetected: (callback: (query: string) => void) => () => void;
+            createView: (args: { tabId: string; url: string }) => void;
+            activateView: (args: { tabId: string; bounds: { x: number; y: number; width: number; height: number } }) => void;
+            destroyView: (tabId: string) => void;
+            onBrowserViewUrlChanged: (callback: (data: { tabId: string; url: string }) => void) => () => void;
+            navigateBrowserView: (args: { tabId: string; url: string }) => void;
             navigateTo: (url: string) => void;
             goBack: () => void;
             goForward: () => void;
@@ -20,6 +25,8 @@ declare global {
             capturePage: () => Promise<string>;
             sendInputEvent: (input: any) => Promise<void>;
             openDevTools: () => void;
+            changeZoom: (deltaY: number) => void;
+            onAudioStatusChanged: (callback: (isPlaying: boolean) => void) => () => void;
 
             // LLM & Memory APIs
             getAvailableLLMProviders: () => Promise<{ id: string; name: string }[]>;
@@ -52,6 +59,7 @@ declare global {
             // Auth
             openAuthWindow: (url: string) => void;
             onAuthCallback: (callback: (event: any, url: string) => void) => () => void;
+            onAuthTokenReceived: (callback: (token: string) => void) => () => void;
 
             // Chat & File Export
             exportChatAsTxt: (messages: ChatMessage[]) => Promise<boolean>;
@@ -82,6 +90,19 @@ declare global {
             requestSMSPermission: () => Promise<boolean>;
             onShortcut: (callback: (action: string) => void) => () => void;
             updateShortcuts: (shortcuts: { action: string; accelerator: string }[]) => void;
+
+            // Tab Optimization
+            suspendTab: (tabId: string) => void;
+            resumeTab: (tabId: string) => void;
+            getMemoryUsage: () => Promise<any>;
+            // RAG Persistence & Ollama
+            saveVectorStore: (data: any[]) => Promise<boolean>;
+            loadVectorStore: () => Promise<any[]>;
+            getOllamaModels: () => Promise<{ name: string; modified_at: string }[]>;
+            pullOllamaModel: (model: string, callback: (data: any) => void) => () => void;
+            importOllamaModel: (data: { modelName: string; filePath: string }) => Promise<{ success: boolean; error?: string }>;
+            selectLocalFile: () => Promise<string | null>;
+            executeJavaScript: (code: string) => Promise<any>;
         };
     }
 }

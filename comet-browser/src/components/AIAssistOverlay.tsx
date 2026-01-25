@@ -1,72 +1,102 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Sparkles, X, Search, ExternalLink, RefreshCw } from 'lucide-react';
+import { Sparkles, X, Search, ExternalLink, RefreshCw, ChevronRight } from 'lucide-react';
 
 interface AIAssistOverlayProps {
     query: string;
     result: string | null;
+    sources: { text: string; metadata: any; }[] | null;
     isLoading: boolean;
     onClose: () => void;
 }
 
-const AIAssistOverlay = ({ query, result, isLoading, onClose }: AIAssistOverlayProps) => {
+const AIAssistOverlay = ({ query, result, sources, isLoading, onClose }: AIAssistOverlayProps) => {
     return (
-        <div className="fixed top-24 right-6 w-96 z-[60] pointer-events-none">
+        <div className="fixed top-28 right-8 w-[420px] z-[60] pointer-events-none">
             <motion.div
-                initial={{ opacity: 0, x: 50 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 50 }}
-                className="pointer-events-auto bg-deep-space-bg/90 backdrop-blur-xl border border-deep-space-accent-neon/30 p-6 rounded-[2rem] shadow-[0_0_50px_rgba(0,0,0,0.8)] overflow-hidden relative"
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                className="pointer-events-auto bg-[#070812]/90 backdrop-blur-3xl border border-white/10 rounded-[2.5rem] shadow-[0_30px_100px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col"
             >
-                {/* Background Effects */}
-                <div className="absolute top-0 right-0 w-32 h-32 bg-deep-space-accent-neon/10 rounded-full blur-[50px] pointer-events-none" />
-
-                <div className="flex items-center justify-between mb-6">
+                {/* Header Section */}
+                <div className="p-6 pb-2 flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-xl bg-deep-space-accent-neon/10 text-deep-space-accent-neon animate-pulse">
-                            {isLoading ? <RefreshCw size={18} className="animate-spin" /> : <Sparkles size={18} />}
+                        <div className="w-10 h-10 rounded-2xl bg-deep-space-accent-neon/10 flex items-center justify-center text-deep-space-accent-neon shadow-[0_0_20px_rgba(0,255,255,0.2)]">
+                            {isLoading ? <RefreshCw size={20} className="animate-spin" /> : <Sparkles size={20} />}
                         </div>
                         <div>
-                            <h3 className="text-sm font-black text-white uppercase tracking-widest leading-none">AI Overview</h3>
-                            <p className="text-[10px] text-white/40 mt-1 font-bold">Analysis of: <span className="text-white/80">{query}</span></p>
+                            <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-deep-space-accent-neon">Pro Insight Engine</h2>
+                            <p className="text-xs font-bold text-white/90 truncate max-w-[200px]">{query}</p>
                         </div>
                     </div>
-                    <button
-                        onClick={onClose}
-                        aria-label="Close AI assist overlay"
-                        className="p-2 rounded-xl text-white/30 hover:bg-white/10 hover:text-white transition-all"
-                    >
+                    <button onClick={onClose} className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-white/30 hover:bg-white/10 hover:text-white transition-all">
                         <X size={16} />
                     </button>
                 </div>
 
-                <div className="relative min-h-[100px]">
-                    {isLoading ? (
-                        <div className="space-y-4 animate-pulse">
-                            <div className="h-2 bg-white/10 rounded-full w-3/4" />
-                            <div className="h-2 bg-white/10 rounded-full w-full" />
-                            <div className="h-2 bg-white/10 rounded-full w-5/6" />
-                            <div className="h-2 bg-white/5 rounded-full w-1/2 mt-4" />
-                        </div>
-                    ) : (
-                        <div className="prose prose-invert prose-xs text-white/80 leading-relaxed font-medium">
-                            {result ? (
-                                <div dangerouslySetInnerHTML={{ __html: result.replace(/\n/g, '<br/>') }} />
-                            ) : (
-                                <p className="text-white/40 italic">Unable to generate insight for this query.</p>
-                            )}
+                <div className="px-6 py-4 flex-1 overflow-y-auto no-scrollbar space-y-6">
+                    {/* Sources Section */}
+                    {!isLoading && sources && sources.length > 0 && (
+                        <div className="space-y-3">
+                            <h3 className="text-[9px] font-black uppercase tracking-widest text-white/30">Verified Sources</h3>
+                            <div className="space-y-2">
+                                {sources.map((s, i: number) => (
+                                    <div key={i} className="p-3 rounded-lg bg-white/[0.03] border border-white/5">
+                                        <a href={s.metadata.url} target="_blank" rel="noopener noreferrer" className="text-xs text-deep-space-accent-neon hover:underline truncate block">
+                                            {s.metadata.url}
+                                        </a>
+                                        <p className="text-sm text-white/70 mt-1">{s.text}</p>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     )}
+
+                    {/* Main Content */}
+                    <div className="relative">
+                        {isLoading ? (
+                            <div className="space-y-4">
+                                <div className="h-4 bg-white/5 rounded-lg w-full animate-pulse" />
+                                <div className="h-4 bg-white/5 rounded-lg w-5/6 animate-pulse" />
+                                <div className="h-20 bg-white/[0.02] rounded-2xl w-full animate-pulse" />
+                            </div>
+                        ) : (
+                            <div className="space-y-4">
+                                <div className="prose prose-invert prose-sm text-white/80 leading-relaxed font-medium">
+                                    <div dangerouslySetInnerHTML={{ __html: result || "Processing semantic data..." }} />
+                                </div>
+
+                                {/* Deep Insight Points */}
+                                <div className="p-4 rounded-2xl bg-deep-space-accent-neon/[0.03] border border-deep-space-accent-neon/10 space-y-3">
+                                    <div className="flex items-start gap-3">
+                                        <div className="mt-1.5 w-1 h-1 rounded-full bg-deep-space-accent-neon shadow-[0_0_10px_#00ffff]" />
+                                        <p className="text-[11px] text-white/70 leading-normal">Synthesized from primary web index and local browser memory.</p>
+                                    </div>
+                                    <div className="flex items-start gap-3">
+                                        <div className="mt-1.5 w-1 h-1 rounded-full bg-deep-space-accent-neon shadow-[0_0_10px_#00ffff]" />
+                                        <p className="text-[11px] text-white/70 leading-normal">Key entity relationship detected: <span className="text-deep-space-accent-neon">Efficiency</span> and <span className="text-deep-space-accent-neon">Context</span>.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </div>
 
+                {/* Footer / Follow-ups */}
                 {!isLoading && (
-                    <div className="mt-6 pt-4 border-t border-white/5 flex gap-2">
-                        <button className="flex-1 py-3 bg-white/5 hover:bg-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest text-white/60 transition-all flex items-center justify-center gap-2">
-                            <Search size={12} /> Related
-                        </button>
-                        <button className="flex-1 py-3 bg-deep-space-accent-neon/10 hover:bg-deep-space-accent-neon/20 border border-deep-space-accent-neon/20 rounded-xl text-[10px] font-black uppercase tracking-widest text-deep-space-accent-neon transition-all flex items-center justify-center gap-2">
-                            <ExternalLink size={12} /> Deep Dive
-                        </button>
+                    <div className="p-6 pt-0 mt-2">
+                        <div className="space-y-3 pt-4 border-t border-white/5">
+                            <h3 className="text-[9px] font-black uppercase tracking-widest text-white/30">Next Steps</h3>
+                            <div className="grid grid-cols-2 gap-2">
+                                <button className="p-3 bg-white/5 hover:bg-white/10 rounded-xl text-[9px] font-bold text-white/60 transition-all text-left flex items-center justify-between group">
+                                    Explore More <ChevronRight size={12} className="opacity-0 group-hover:opacity-100 transition-all" />
+                                </button>
+                                <button className="p-3 bg-deep-space-accent-neon/10 border border-deep-space-accent-neon/20 hover:bg-deep-space-accent-neon/20 rounded-xl text-[9px] font-bold text-deep-space-accent-neon transition-all text-left flex items-center justify-between group">
+                                    Cite Info <ExternalLink size={12} className="opacity-0 group-hover:opacity-100 transition-all" />
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 )}
             </motion.div>

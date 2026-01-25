@@ -7,7 +7,9 @@ import { AnimatePresence, motion } from 'framer-motion';
 import {
   ShoppingBag, FileText, Globe, Plus, Bookmark, ChevronLeft, ChevronRight,
   RotateCw, AlertTriangle, ShieldCheck, DownloadCloud, ShoppingCart, Copy as CopyIcon,
-  Terminal, Settings as GhostSettings, FolderOpen, Sparkles, ScanLine, Search, X
+  Terminal, Settings as GhostSettings, FolderOpen, Sparkles, ScanLine, Search, X,
+  Puzzle, Code2, Briefcase, Image as ImageIcon, User as UserIcon, Maximize2, Minimize2, RefreshCcw, Download as DownloadIcon,
+  Layout, MoreVertical, CreditCard
 } from 'lucide-react';
 import AIChatSidebar from '@/components/AIChatSidebar';
 import LandingPage from '@/components/LandingPage';
@@ -17,22 +19,70 @@ import CodingDashboard from '@/components/CodingDashboard';
 import ClipboardManager from '@/components/ClipboardManager';
 import PhoneCamera from '@/components/PhoneCamera';
 import SettingsPanel from '@/components/SettingsPanel';
-import BrowserViewContainer from '@/components/BrowserViewContainer';
 import { searchEngines } from '@/components/SearchEngineSettings';
 import UnifiedCartPanel from '@/components/UnifiedCartPanel';
 import WorkspaceDashboard from '@/components/WorkspaceDashboard';
 import MediaStudio from '@/components/MediaStudio';
 
 import CloudSyncConsent from "@/components/CloudSyncConsent";
-import NoNetworkGame from "@/components/NoNetworkGame"; // Import NoNetworkGame
+import NoNetworkGame from "@/components/NoNetworkGame";
 import AIAssistOverlay from "@/components/AIAssistOverlay";
 
 import { firebaseSyncService } from "@/lib/FirebaseSyncService";
-import { Briefcase, Image as ImageIcon } from 'lucide-react';
+import firebaseService from '@/lib/FirebaseService';
 import { QuickNavOverlay } from '@/components/QuickNavOverlay';
 import TitleBar from '@/components/TitleBar';
 import { useOptimizedTabs } from '@/hooks/useOptimizedTabs';
 import { VirtualizedTabBar } from '@/components/VirtualizedTabBar';
+import { TabSwitcherOverlay } from '@/components/TabSwitcherOverlay';
+
+const SidebarIcon = ({ icon, label, active, onClick, collapsed }: { icon: React.ReactNode, label: string, active: boolean, onClick: () => void, collapsed: boolean }) => (
+  <button
+    onClick={onClick}
+    className={`group relative flex items-center justify-center w-12 h-12 rounded-2xl transition-all duration-300 ${active ? 'bg-deep-space-accent-neon text-deep-space-bg shadow-[0_0_20px_rgba(0,255,255,0.4)]' : 'text-white/40 hover:bg-white/5 hover:text-white'}`}
+  >
+    {icon}
+    {collapsed && (
+      <div className="absolute left-full ml-4 px-3 py-1.5 bg-black/90 border border-white/10 rounded-lg text-[10px] font-black uppercase tracking-widest text-white opacity-0 group-hover:opacity-100 transition-all pointer-events-none whitespace-nowrap z-[100] shadow-2xl">
+        {label}
+      </div>
+    )}
+    {!collapsed && (
+      <span className="absolute left-full ml-4 text-[10px] font-bold uppercase tracking-[0.2em] text-white/40 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+        {label}
+      </span>
+    )}
+  </button>
+);
+
+const MusicVisualizer = ({ color = 'rgb', isPlaying = false }: { color?: string, isPlaying: boolean }) => {
+  if (!isPlaying) return null;
+
+  return (
+    <div className="flex gap-[2px] items-center h-3">
+      {[...Array(5)].map((_, i) => (
+        <motion.div
+          key={i}
+          animate={{
+            height: [4, 12, 6, 10, 4],
+            backgroundColor: color === 'rgb'
+              ? ['#00ffff', '#ff00ff', '#00ff00', '#ffff00', '#00ffff']
+              : [color, color, color]
+          }}
+          transition={{
+            duration: 0.5 + Math.random() * 0.5,
+            repeat: Infinity,
+            ease: "easeInOut",
+            delay: i * 0.1,
+            backgroundColor: { duration: 3, repeat: Infinity, ease: "linear" }
+          }}
+          className="w-[2px] bg-deep-space-accent-neon rounded-full"
+          style={{ boxShadow: color === 'rgb' ? '0 0 8px rgba(0, 255, 255, 0.5)' : `0 0 8px ${color}80` }}
+        />
+      ))}
+    </div>
+  );
+};
 
 export default function Home() {
   const store = useAppStore();
@@ -44,23 +94,118 @@ export default function Home() {
   const [urlPrediction, setUrlPrediction] = useState<string | null>(null);
   const [isTyping, setIsTyping] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, visible: boolean } | null>(null);
-  const [aiOverview, setAiOverview] = useState<{ query: string, result: string | null, isLoading: boolean } | null>(null);
+  const [aiOverview, setAiOverview] = useState<{ query: string, result: string | null, sources: { text: string; metadata: any; }[] | null, isLoading: boolean } | null>(null);
+  const [showTabSwitcher, setShowTabSwitcher] = useState(false);
+  const [railVisible, setRailVisible] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showContextMenu, setShowContextMenu] = useState<{ x: number, y: number } | null>(null);
+  const [isAudioPlaying, setIsAudioPlaying] = useState(false);
+  const [aiPickColor, setAiPickColor] = useState('rgb'); // 'rgb' or a hex string
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen();
+      setIsFullscreen(true);
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+        setIsFullscreen(false);
+      }
+    }
+  };
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setShowContextMenu({ x: e.clientX, y: e.clientY });
+  };
+
+  const isBookmarked = store.bookmarks.some(b => b.url === store.currentUrl);
+
+  const handleBookmark = () => {
+    const activeTab = store.tabs.find(t => t.id === store.activeTabId);
+    if (activeTab) {
+      if (isBookmarked) {
+        store.removeBookmark(activeTab.url);
+      } else {
+        store.addBookmark({ url: activeTab.url, title: activeTab.title || activeTab.url });
+      }
+    }
+  };
+
+  // Tab Switching logic (Alt + Tab and Alt + Scroll)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.altKey && e.key === 'Tab') {
+        e.preventDefault();
+        setShowTabSwitcher(true);
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === 'Alt') {
+        setShowTabSwitcher(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleWheel = (e: WheelEvent) => {
+      if (e.ctrlKey) {
+        e.preventDefault();
+        if (window.electronAPI) {
+          window.electronAPI.changeZoom(e.deltaY);
+        }
+      } else if (e.altKey) {
+        e.preventDefault();
+        if (e.deltaY > 0) store.nextTab();
+        else store.prevTab();
+      }
+    };
+    window.addEventListener('wheel', handleWheel, { passive: false });
+    return () => window.removeEventListener('wheel', handleWheel);
+  }, [store]);
 
   const triggerAIAnalysis = async (query: string) => {
     if (!store.enableAIAssist) return;
-    setAiOverview({ query, result: null, isLoading: true });
+    setAiOverview({ query, result: null, sources: null, isLoading: true });
     try {
       if (window.electronAPI) {
-        const result = await window.electronAPI.generateChatContent([
-          { role: 'user', content: `Provide a concise, 2-paragraph summary and 3 key insights for the search query: "${query}". Format as HTML with bold terms.` }
-        ], { provider: 'gemini' });
+        const localContext = await BrowserAI.retrieveContext(query);
+        const contextString = localContext.map(c => c.text).join('\n\n');
 
-        setAiOverview(prev => prev ? { ...prev, result: result.text || result.error || "No response", isLoading: false } : null);
+        const result = await window.electronAPI.generateChatContent([
+          {
+            role: 'user',
+            content: `Synthesize a comprehensive, Perplexity-style answer for: \"${query}\". 
+            Include:
+            1. A clear direct answer (2 paragraphs max).
+            2. 3 deep insights.
+            3. Contextual relevance to the user's local data.${contextString}
+            Format with HTML bolding and clear sections.`
+          }
+        ], { provider: store.aiProvider });
+
+        setAiOverview(prev => prev ? { ...prev, result: result.text || result.error || "Neural link stable, but no data returned.", sources: localContext, isLoading: false } : null);
       } else {
-        setTimeout(() => setAiOverview(prev => prev ? { ...prev, result: "AI unavailable in this environment.", isLoading: false } : null), 1000);
+        setTimeout(() => setAiOverview(prev => prev ? { ...prev, result: "AI Engine not connected in this environment.", sources: null, isLoading: false } : null), 1000);
       }
     } catch (e) {
-      setAiOverview(prev => prev ? { ...prev, result: "Failed to analyze.", isLoading: false } : null);
+      setAiOverview(prev => prev ? { ...prev, result: "Analysis failed due to local connectivity issues.", sources: null, isLoading: false } : null);
     }
   };
 
@@ -132,6 +277,23 @@ export default function Home() {
     }
   }, [store.cloudSyncConsent]);
 
+  // Audio Playback Listener
+  useEffect(() => {
+    if (window.electronAPI) {
+      const cleanup = window.electronAPI.onAudioStatusChanged((isPlaying) => {
+        setIsAudioPlaying(isPlaying);
+
+        // "AI" Color Picker - select a premium color when audio starts
+        if (isPlaying) {
+          const premiumColors = ['rgb', '#00E5FF', '#FF00E5', '#7000FF', '#00FF94', '#FFD600'];
+          const randomColor = premiumColors[Math.floor(Math.random() * premiumColors.length)];
+          setAiPickColor(randomColor);
+        }
+      });
+      return cleanup;
+    }
+  }, []);
+
   // Handle Global Shortcuts from Main Process
   useEffect(() => {
     if (window.electronAPI) {
@@ -154,36 +316,31 @@ export default function Home() {
     let url = store.currentUrl.trim();
     if (!url) return;
 
-    if (url.startsWith('/')) {
-      const command = url.split(' ')[0];
-      switch (command) {
-        case '/settings': store.toggleSidebar(); break;
-        case '/student': store.setStudentMode(!store.studentMode); break;
-        case '/store': store.setActiveView('webstore'); break;
-        case '/pdf': store.setActiveView('pdf'); break;
-        case '/browser': store.setActiveView('browser'); break;
-        case '/workspace': store.setActiveView('workspace'); break;
-        case '/landing':
-        case '/web': store.setActiveView('landing'); break;
-        case '/code': store.setCodingMode(!store.isCodingMode); break;
-      }
-      store.setCurrentUrl('');
-      return;
+    if (/^[0-9+\-*/().\s]+$/.test(url)) {
+      try {
+        const result = eval(url);
+        const searchUrl = `${searchEngines[store.selectedEngine as keyof typeof searchEngines].url}${encodeURIComponent(url + " = " + result)}`;
+        if (window.electronAPI) {
+          window.electronAPI.navigateBrowserView({ tabId: store.activeTabId, url: searchUrl });
+        }
+        return;
+      } catch (e) { }
     }
 
-    if (url.includes('.') && !url.includes(' ')) {
-      if (!url.startsWith('http')) url = `https://${url}`;
-    } else {
+    if (url.startsWith('/')) {
+      // ... command logic
+    }
+
+    if (url.includes('.') && !url.includes(' ') && !url.startsWith('http')) {
+      url = `https://${url}`;
+    } else if (!url.startsWith('http')) {
       url = `${searchEngines[store.selectedEngine as keyof typeof searchEngines].url}${encodeURIComponent(url)}`;
       if (store.enableAIAssist) triggerAIAnalysis(store.currentUrl.trim());
     }
 
-    store.setActiveView('browser');
-    store.updateTab(store.activeTabId, { url, title: url.split('/')[2] || 'New Tab' });
-    store.setCurrentUrl(url);
-    setUrlPrediction(null);
-    setIsTyping(false);
-    store.addToHistory({ url, title: url.split('/')[2] || 'New Tab' });
+    if (window.electronAPI) {
+      window.electronAPI.navigateBrowserView({ tabId: store.activeTabId, url });
+    }
   };
 
   const handleOfflineSave = async () => {
@@ -198,268 +355,279 @@ export default function Home() {
 
   const handleCartScan = async () => {
     if (!window.electronAPI) return;
-    const html = await window.electronAPI.capturePageHtml();
-    const item = BrowserAI.scanForCartItems(html);
-    if (item) {
-      store.addToUnifiedCart({ ...item, url: store.tabs.find(t => t.id === store.activeTabId)?.url || "" });
-      setShowCart(true);
+    try {
+      const result = await window.electronAPI.executeJavaScript(`
+        (function() {
+          const items = [];
+          const priceRegex = /\\$[0-9,]+(\\.[0-9]{2})?/;
+          
+          document.querySelectorAll('h1, h2, .product-title, .product-name').forEach(el => {
+            const text = el.innerText.trim();
+            if (text.length > 5 && text.length < 100) {
+              const priceMatch = document.body.innerText.match(priceRegex);
+              items.push({
+                id: Math.random().toString(36).substr(2, 9),
+                item: text,
+                site: window.location.hostname,
+                price: priceMatch ? priceMatch[0] : '$???'
+              });
+            }
+          });
+          return items.slice(0, 1); // Just take the most prominent one for now
+        })()
+      `);
+      if (result && result.length > 0) {
+        result.forEach((item: any) => store.addToUnifiedCart(item));
+        setShowCart(true);
+      }
+    } catch (e) {
+      console.error("Cart scan failed:", e);
     }
   };
 
-  const calculateAndSetBounds = useCallback(() => {
-    if (!window.electronAPI) return;
-    const sidebarWidth = store.isSidebarCollapsed ? 80 : store.sidebarWidth;
-    const headerHeight = 112; // Adjusted for tab bar
-
+  const calculateBounds = useCallback(() => {
+    const sidebarWidth = !store.sidebarOpen ? 0 : (store.isSidebarCollapsed ? 70 : (store.sidebarWidth + 70));
+    const headerHeight = 40 + 56; // TitleBar (40) + Toolbar (56)
     const x = store.sidebarSide === 'left' ? sidebarWidth : 0;
     const width = window.innerWidth - sidebarWidth;
+    const safeWidth = Math.max(0, Math.round(width));
+    const safeHeight = Math.max(0, window.innerHeight - headerHeight);
+    const safeX = Math.round(x);
+    return { x: safeX, y: headerHeight, width: safeWidth, height: safeHeight };
+  }, [store.sidebarOpen, store.isSidebarCollapsed, store.sidebarWidth, store.sidebarSide]);
 
-    if (store.activeView === 'browser' && !showSettings && !showClipboard && !showCamera && !showCart) {
-      const bounds = {
-        x: Math.round(x),
-        y: headerHeight,
-        width: Math.round(width),
-        height: window.innerHeight - headerHeight
-      };
-      console.log('[ClientOnlyPage] Calculating bounds for browser view:', bounds);
+  useEffect(() => {
+    if (window.electronAPI) {
+      const bounds = calculateBounds();
       window.electronAPI.setBrowserViewBounds(bounds);
-    } else {
-      console.log('[ClientOnlyPage] Hiding BrowserView - activeView:', store.activeView, 'overlays:', {
-        showSettings, showClipboard, showCamera, showCart
-      });
-      window.electronAPI.setBrowserViewBounds({ x: 0, y: 0, width: 0, height: 0 });
     }
-  }, [store.isSidebarCollapsed, store.sidebarWidth, store.sidebarSide, store.activeView, showSettings, showClipboard, showCamera, showCart]);
+    window.addEventListener('resize', calculateBounds);
+    return () => window.removeEventListener('resize', calculateBounds);
+  }, [calculateBounds]);
 
+  // View Management Effects
   useEffect(() => {
-    calculateAndSetBounds();
-    window.addEventListener('resize', calculateAndSetBounds);
-    return () => window.removeEventListener('resize', calculateAndSetBounds);
-  }, [calculateAndSetBounds]);
-
-  // Handle Global Clipboard Sync
-  useEffect(() => {
-    const handleCopy = () => {
-      navigator.clipboard.readText().then(text => {
-        if (text) store.addClipboardItem(text);
+    if (window.electronAPI) {
+      store.tabs.forEach(tab => {
+        window.electronAPI.createView({ tabId: tab.id, url: tab.url });
       });
-    };
-    window.addEventListener('focus', handleCopy);
-    return () => window.removeEventListener('focus', handleCopy);
+
+      if (store.activeTabId) {
+        const bounds = calculateBounds();
+        window.electronAPI.activateView({ tabId: store.activeTabId, bounds });
+      }
+    }
   }, []);
 
-  // Only show landing page if user is not signed in and not in guest mode
-  if ((store.activeView === 'landing' || (!store.user && !store.isGuestMode)) && !store.user && !store.isGuestMode) {
-    return (
-      <div className="flex flex-col h-screen">
-        <TitleBar />
-        <div className="flex-1 overflow-hidden relative">
-          <LandingPage />
-        </div>
-      </div>
-    );
-  }
+  useEffect(() => {
+    if (window.electronAPI && store.activeTabId) {
+      const bounds = calculateBounds();
+      window.electronAPI.activateView({ tabId: store.activeTabId, bounds });
+    }
+  }, [store.activeTabId, calculateBounds]);
 
-  // If user is signed in or in guest mode, ensure browser view is active
-  if ((store.user || store.isGuestMode) && store.activeView === 'landing') {
-    store.setActiveView('browser');
-  }
+  useEffect(() => {
+    if (window.electronAPI) {
+      const cleanup = window.electronAPI.onBrowserViewUrlChanged(({ tabId, url }) => {
+        if (store.tabs.find(t => t.id === tabId)) {
+          store.updateTab(tabId, { url });
+          if (tabId === store.activeTabId) {
+            store.setCurrentUrl(url);
+          }
+        }
+      });
+      return cleanup;
+    }
+  }, [store.activeTabId, store.tabs]);
 
 
-  if (!store.isOnline) {
-    return <NoNetworkGame />;
+
+  useEffect(() => {
+    if (window.electronAPI) {
+      const cleanup = window.electronAPI.onAuthTokenReceived((token: string) => {
+        console.log("Auth token received from deep link:", token);
+        store.loginWithGoogleToken(token);
+      });
+      return cleanup;
+    }
+  }, [store]);
+
+  if (!store.user && !store.hasSeenWelcomePage) {
+    return <LandingPage />;
   }
 
   return (
     <div className={`flex flex-col h-screen w-full bg-deep-space-bg overflow-hidden relative font-sans text-white transition-all duration-700 ${store.isVibrant ? 'bg-vibrant-mesh' : ''}`}>
       <TitleBar />
-      <div className="flex flex-1 overflow-hidden relative">
-        {store.cloudSyncConsent === null && !store.isGuestMode && <CloudSyncConsent />}
-        <QuickNavOverlay />
-        {/* Sidebar - Positionable & Resizable */}
-        {store.sidebarOpen && (
-          <aside
-            style={{
-              width: store.isSidebarCollapsed ? 80 : store.sidebarWidth,
-              order: store.sidebarSide === 'left' ? -1 : 1
-            }}
-            className={`z-50 glass-vibrant border-white/5 transition-all duration-500 ease-in-out flex flex-col ${store.sidebarSide === 'left' ? 'border-r' : 'border-l'}`}
-          >
-            <div className="p-6 flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden relative pt-10" onContextMenu={handleContextMenu}>
+        {/* Navigation Sidebar (Rail) */}
+        <AnimatePresence>
+          {railVisible && (
+            <motion.div
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 70, opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              className="flex flex-col items-center py-6 gap-6 z-30 border-r border-white/5 bg-black/20 backdrop-blur-xl"
+            >
+              <SidebarIcon
+                icon={<Globe size={20} />}
+                label="Browser"
+                active={store.activeView === 'browser'}
+                onClick={() => store.setActiveView('browser')}
+                collapsed={true}
+              />
+              <SidebarIcon
+                icon={<Briefcase size={20} />}
+                label="Workspace"
+                active={store.activeView === 'workspace'}
+                onClick={() => store.setActiveView('workspace')}
+                collapsed={true}
+              />
+              <SidebarIcon
+                icon={<ShoppingBag size={20} />}
+                label="Web Store"
+                active={store.activeView === 'webstore'}
+                onClick={() => store.setActiveView('webstore')}
+                collapsed={true}
+              />
+              <SidebarIcon
+                icon={<FileText size={20} />}
+                label="PDF Studio"
+                active={store.activeView === 'pdf'}
+                onClick={() => store.setActiveView('pdf')}
+                collapsed={true}
+              />
+              <SidebarIcon
+                icon={<ImageIcon size={20} />}
+                label="Media Lab"
+                active={store.activeView === 'media'}
+                onClick={() => store.setActiveView('media')}
+                collapsed={true}
+              />
+              <SidebarIcon
+                icon={<Code2 size={20} />}
+                label="Dev Mode"
+                active={store.activeView === 'coding'}
+                onClick={() => store.setActiveView('coding')}
+                collapsed={true}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {store.sidebarOpen && (
+            <motion.div
+              drag="x"
+              dragConstraints={{ left: 0, right: 0 }}
+              onDragEnd={(e, info) => {
+                if (info.offset.x > 100 && store.sidebarSide === 'left') store.setSidebarSide('right');
+                if (info.offset.x < -100 && store.sidebarSide === 'right') store.setSidebarSide('left');
+              }}
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: store.isSidebarCollapsed ? 70 : store.sidebarWidth, opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ duration: 0.5, ease: 'easeInOut' }}
+              className={`h-full border-r border-white/5 cursor-grab active:cursor-grabbing ${store.sidebarSide === 'left' ? 'order-first' : 'order-last'}`}
+            >
               <AIChatSidebar
-                studentMode={store.studentMode} toggleStudentMode={() => store.setStudentMode(!store.studentMode)}
-                isCollapsed={store.isSidebarCollapsed} toggleCollapse={store.toggleSidebar}
-                selectedEngine={store.selectedEngine} setSelectedEngine={store.setSelectedEngine}
-                theme={store.theme} setTheme={store.setTheme}
+                studentMode={store.studentMode}
+                toggleStudentMode={() => store.setStudentMode(!store.studentMode)}
+                isCollapsed={store.isSidebarCollapsed}
+                toggleCollapse={store.toggleSidebarCollapse}
+                selectedEngine={store.selectedEngine}
+                setSelectedEngine={store.setSelectedEngine}
+                theme={store.theme}
+                setTheme={store.setTheme}
+                backgroundImage=""
+                setBackgroundImage={() => { }}
+                backend={store.backendStrategy}
+                setBackend={store.setBackendStrategy}
+                mysqlConfig={store.customMysqlConfig}
+                setMysqlConfig={store.setCustomMysqlConfig}
                 side={store.sidebarSide}
-                // Background and backend are handled by store now if needed, passing dummies for component compatibility
-                backgroundImage="" setBackgroundImage={() => { }}
-                backend="firebase" setBackend={() => { }}
-                mysqlConfig={{}} setMysqlConfig={() => { }}
               />
-            </div>
-
-            {!store.isSidebarCollapsed && (
-              <div className="p-4 grid grid-cols-2 gap-2 border-t border-white/5 bg-black/10">
-                <button
-                  onClick={() => store.setActiveView('webstore')}
-                  className={`flex items-center gap-2 p-3 rounded-2xl transition-all ${store.activeView === 'webstore' ? 'bg-deep-space-accent-neon/10 text-deep-space-accent-neon' : 'hover:bg-white/5 text-white/40'}`}
-                >
-                  <ShoppingBag size={18} />
-                  <span className="text-xs font-bold uppercase tracking-widest">Store</span>
-                </button>
-                <button
-                  onClick={() => store.setActiveView('pdf')}
-                  className={`flex items-center gap-2 p-3 rounded-2xl transition-all ${store.activeView === 'pdf' ? 'bg-deep-space-accent-neon/10 text-deep-space-accent-neon' : 'hover:bg-white/5 text-white/40'}`}
-                >
-                  <FileText size={18} />
-                  <span className="text-xs font-bold uppercase tracking-widest">Docs</span>
-                </button>
-                <button
-                  onClick={() => store.setActiveView('workspace')}
-                  className={`flex items-center gap-2 p-3 rounded-2xl transition-all ${store.activeView === 'workspace' ? 'bg-deep-space-accent-neon/10 text-deep-space-accent-neon' : 'hover:bg-white/5 text-white/40'}`}
-                >
-                  <Briefcase size={18} />
-                  <span className="text-xs font-bold uppercase tracking-widest">Work</span>
-                </button>
-                <button
-                  onClick={() => store.setActiveView('media')}
-                  className={`flex items-center gap-2 p-3 rounded-2xl transition-all ${store.activeView === 'media' ? 'bg-deep-space-accent-neon/10 text-deep-space-accent-neon' : 'hover:bg-white/5 text-white/40'}`}
-                >
-                  <ImageIcon size={18} />
-                  <span className="text-xs font-bold uppercase tracking-widest">Media</span>
-                </button>
-              </div>
-            )}
-          </aside>
-        )}
-
-        {/* Main Container */}
+            </motion.div>
+          )}
+        </AnimatePresence>
         <main className="flex-1 flex flex-col relative overflow-hidden bg-black/5">
-          {/* Tab Bar - Top Tier (Hidden in Coding or specialized views) - Virtualized for 50+ tabs */}
-          <TitleBar />
+          {store.activeView === 'browser' && (
+            <header className="h-[56px] flex items-center px-4 gap-4 border-b border-white/5 bg-black/20 backdrop-blur-3xl z-40">
+              <div className="flex items-center gap-1">
+                <button onClick={() => setRailVisible(!railVisible)} className={`p-2 rounded-xl transition-all ${railVisible ? 'text-white/40' : 'bg-deep-space-accent-neon text-deep-space-bg'}`} title="Toggle Tools Rail">
+                  <Layout size={18} />
+                </button>
+                <button onClick={() => store.toggleSidebar()} className="p-2 rounded-xl hover:bg-white/10 text-white/40 hover:text-white transition-all" title="AI Analyst">
+                  <Sparkles size={18} />
+                </button>
+                <div className="w-[1px] h-4 bg-white/10 mx-1" />
+                <button onClick={() => window.electronAPI?.goBack()} className="p-2 rounded-xl hover:bg-white/10 text-white/40 hover:text-white transition-all"><ChevronLeft size={18} /></button>
+                <button onClick={() => window.electronAPI?.goForward()} className="p-2 rounded-xl hover:bg-white/10 text-white/40 hover:text-white transition-all"><ChevronRight size={18} /></button>
+                <button onClick={() => window.electronAPI?.reload()} className="p-2 rounded-xl hover:bg-white/10 text-white/40 hover:text-white transition-all"><RotateCw size={18} /></button>
+              </div>
+              <div className="flex-1 max-w-4xl relative group flex items-center gap-3">
+                <div className="flex-1 relative">
+                  <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
+                    <Search size={14} className="text-white/20 group-focus-within:text-deep-space-accent-neon transition-colors" />
+                  </div>
+                  <input
+                    type="text"
+                    value={store.currentUrl === 'about:blank' ? '' : store.currentUrl}
+                    onChange={(e) => store.setCurrentUrl(e.target.value)}
+                    onFocus={() => setIsTyping(true)}
+                    onBlur={() => setIsTyping(false)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleGo()}
+                    placeholder="Search with Comet or enter URL..."
+                    className="w-full bg-white/5 border border-white/5 rounded-2xl py-2 pl-11 pr-4 text-xs text-white/80 placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-deep-space-accent-neon/30 focus:bg-white/10 transition-all font-medium"
+                  />
+                  <div className="absolute top-0 left-0 right-0 h-[2px] overflow-hidden pointer-events-none rounded-t-2xl">
+                    <motion.div animate={{ x: ['-100%', '100%'] }} transition={{ duration: 3, repeat: Infinity, ease: 'linear' }} className="w-1/2 h-full bg-gradient-to-r from-transparent via-deep-space-accent-neon/40 to-transparent" />
+                  </div>
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                    <MusicVisualizer color={aiPickColor} isPlaying={isAudioPlaying} />
+                  </div>
+                </div>
 
-          {/* Bookmarks Bar */}
-          <div className="h-9 flex items-center px-6 gap-4 bg-black/20 border-b border-white/5 overflow-x-auto no-scrollbar">
-            <div className="flex items-center gap-1.5 text-deep-space-accent-neon mr-4">
-              <Bookmark size={12} />
-              <span className="text-[10px] font-black uppercase tracking-widest opacity-60">Library</span>
-            </div>
-            {store.bookmarks.map((b) => (
-              <button
-                key={b.id}
-                onClick={() => { store.setCurrentUrl(b.url); handleGo(); }}
-                className="flex items-center gap-2 px-3 py-1 rounded-lg hover:bg-white/5 transition-all group"
-              >
-                <Globe size={10} className="text-white/20 group-hover:text-deep-space-accent-neon" />
-                <span className="text-[10px] font-medium text-white/40 group-hover:text-white truncate max-w-[120px]">{b.title}</span>
-              </button>
-            ))}
-          </div>
-
-          {/* Toolbar */}
-          <header className="h-[72px] flex items-center px-6 gap-6 border-b border-white/5 bg-black/20 backdrop-blur-3xl z-40">
-            <div className="flex items-center gap-1.5">
-              <button onClick={() => store.toggleSidebar()} className="p-2 rounded-xl hover:bg-white/10 text-white/40 hover:text-white transition-all">
-                <Sparkles size={20} />
-              </button>
-              <button onClick={() => window.electronAPI?.goBack()} className="p-2 rounded-xl hover:bg-white/10 text-white/40 hover:text-white transition-all"><ChevronLeft size={20} /></button>
-              <button onClick={() => window.electronAPI?.goForward()} className="p-2 rounded-xl hover:bg-white/10 text-white/40 hover:text-white transition-all"><ChevronRight size={20} /></button>
-              <button onClick={() => window.electronAPI?.reload()} className="p-2 rounded-xl hover:bg-white/10 text-white/40 hover:text-white transition-all"><RotateCw size={18} /></button>
-            </div>
-
-            <div className="flex-1 relative max-w-3xl mx-auto group">
-              <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
-                {store.showSiteWarnings && !store.currentUrl.startsWith('https') ? (
-                  <AlertTriangle size={14} className="text-yellow-500 animate-pulse" />
-                ) : (
-                  <ShieldCheck size={14} className="text-deep-space-accent-neon" />
-                )}
+                <div className="flex items-center gap-1.5 px-2 bg-white/5 rounded-xl border border-white/5 h-9">
+                  <button onClick={() => setShowClipboard(!showClipboard)} className={`p-1.5 rounded-lg transition-all ${showClipboard ? 'text-deep-space-accent-neon bg-white/10' : 'text-white/30 hover:text-white'}`} title="Clipboard">
+                    <CopyIcon size={14} />
+                  </button>
+                  <button onClick={handleCartScan} className={`p-1.5 rounded-lg transition-all ${showCart ? 'text-deep-space-accent-neon bg-white/10' : 'text-white/30 hover:text-white'}`} title="Scan Shopping Cart">
+                    <ShoppingCart size={14} />
+                  </button>
+                  <button className="p-1.5 text-white/30 hover:text-white transition-all" title="Extensions">
+                    <Puzzle size={14} />
+                  </button>
+                </div>
               </div>
 
-              <input
-                type="text"
-                value={store.currentUrl}
-                onChange={(e) => { store.setCurrentUrl(e.target.value); setIsTyping(true); }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleGo();
-                  if (e.key === 'Tab' && urlPrediction) {
-                    e.preventDefault();
-                    store.setCurrentUrl(urlPrediction);
-                    setUrlPrediction(null);
-                  }
-                }}
-                onBlur={() => setTimeout(() => setUrlPrediction(null), 200)}
-                placeholder="Search safely or enter URL..."
-                className="w-full bg-black/40 border border-white/10 rounded-2xl py-2.5 pl-11 pr-4 text-sm text-white focus:outline-none focus:ring-1 focus:ring-deep-space-accent-neon/30 transition-all placeholder:text-white/20 font-medium"
-              />
+              <div className="flex items-center gap-2">
+                <button onClick={toggleFullscreen} className="p-2 rounded-xl hover:bg-white/10 text-white/40 hover:text-white transition-all" title="Toggle Fullscreen">
+                  {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+                </button>
+                <button onClick={handleOfflineSave} className="p-2 rounded-xl hover:bg-white/10 text-white/40 hover:text-white transition-all" title="Download Page">
+                  <DownloadIcon size={18} />
+                </button>
 
-              {urlPrediction && (
-                <div className="absolute left-11 top-1/2 -translate-y-1/2 text-white/20 pointer-events-none text-sm font-medium">
-                  <span className="invisible">{store.currentUrl}</span>
-                  <span>{urlPrediction.slice(store.currentUrl.length)}</span>
-                  <span className="ml-2 text-[8px] bg-white/5 px-1.5 py-0.5 rounded uppercase tracking-widest text-white/40 border border-white/5">Tab to prefill</span>
-                </div>
-              )}
-            </div>
+                <div className="w-[1px] h-6 bg-white/10 mx-1" />
 
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleOfflineSave}
-                className="p-2.5 rounded-xl text-white/30 hover:bg-white/5 hover:text-deep-space-accent-neon transition-all"
-                title="Save Page Offline"
-              >
-                <DownloadCloud size={18} />
-              </button>
-              <button
-                onClick={() => setShowCart(!showCart)}
-                className={`p-2.5 rounded-xl transition-all relative ${showCart ? 'bg-deep-space-accent-neon/10 text-deep-space-accent-neon' : 'text-white/30 hover:bg-white/5 hover:text-white'}`}
-              >
-                <ShoppingCart size={18} />
-                {store.unifiedCart.length > 0 && (
-                  <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-deep-space-accent-neon rounded-full shadow-[0_0_8px_rgba(0,255,255,0.6)]" />
-                )}
-              </button>
+                <button onClick={() => setShowSettings(true)} className="p-1 rounded-2xl hover:scale-105 transition-all outline-none">
+                  {store.user?.photoURL ? (
+                    <img src={store.user.photoURL} alt="Profile" className="w-8 h-8 rounded-xl border border-white/10" />
+                  ) : (
+                    <div className="w-8 h-8 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/40">
+                      <UserIcon size={16} />
+                    </div>
+                  )}
+                </button>
 
-              <button
-                onClick={() => setShowClipboard(!showClipboard)}
-                className={`p-2.5 rounded-xl transition-all ${showClipboard ? 'bg-deep-space-accent-neon/10 text-deep-space-accent-neon' : 'text-white/30 hover:bg-white/5 hover:text-white'}`}
-              >
-                <CopyIcon size={18} />
-              </button>
-              <button
-                onClick={() => window.electronAPI?.openDevTools()}
-                className="p-2.5 rounded-xl text-white/30 hover:bg-white/5 hover:text-red-400 transition-all"
-                title="Open DevTools"
-              >
-                <Terminal size={18} />
-              </button>
-              <button
-                onClick={() => setShowSettings(true)}
-                className="p-2.5 rounded-xl text-white/30 hover:bg-white/5 hover:text-white transition-all"
-                title="Browser Settings"
-              >
-                <GhostSettings size={18} />
-              </button>
-              <div className="w-[1px] h-8 bg-white/5 mx-2" />
-              <button
-                onClick={() => window.electronAPI?.shareDeviceFolder()}
-                className="p-2.5 rounded-xl text-white/30 hover:bg-white/5 hover:text-white transition-all"
-                title="Share Device Folder"
-              >
-                <FolderOpen size={18} />
-              </button>
-              <button
-                className={`p-2.5 rounded-xl transition-all ${store.isCodingMode ? 'bg-deep-space-accent-neon/10 text-deep-space-accent-neon' : 'text-white/30 hover:bg-white/5 hover:text-white'}`}
-                onClick={() => store.setCodingMode(!store.isCodingMode)}
-                title="Developer Mode"
-              >
-                <Terminal size={18} />
-              </button>
-            </div>
-          </header>
+                <button onClick={(e) => handleContextMenu(e as any)} className="p-2 rounded-xl hover:bg-white/10 text-white/40 hover:text-white transition-all" title="More">
+                  <MoreVertical size={18} />
+                </button>
+              </div>
+            </header>
+          )}
 
-          {/* Content Views */}
           <div className="flex-1 relative">
             <AnimatePresence mode="wait">
               {store.activeView === 'workspace' && (
@@ -472,22 +640,7 @@ export default function Home() {
                 <motion.div key="browser" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0">
                   <div className={`h-full flex ${store.studentMode ? 'p-4 gap-4' : ''}`}>
                     <div className={`flex-[3] relative ${store.studentMode ? 'rounded-2xl overflow-hidden border border-white/10 shadow-3xl' : ''}`}>
-                      {/* Only render BrowserViewContainer for active tab to save memory */}
-                      {shouldRenderTab(store.activeTabId) && (
-                        <BrowserViewContainer
-                          key={store.activeTabId}
-                          omnibarUrl={store.tabs.find(t => t.id === store.activeTabId)?.url || 'https://www.google.com'}
-                          onUrlChange={(url) => store.updateTab(store.activeTabId, { url })}
-                        />
-                      )}
-                      {!shouldRenderTab(store.activeTabId) && (
-                        <div className="w-full h-full flex items-center justify-center bg-[#050510] text-white/40">
-                          <div className="text-center">
-                            <p className="text-sm mb-2">Tab suspended to save memory</p>
-                            <p className="text-xs">Click the tab to resume</p>
-                          </div>
-                        </div>
-                      )}
+                      {/* This area is now intentionally blank. The BrowserView is managed by the main process. */}
                     </div>
                     {store.studentMode && (
                       <div className="flex-1 glass-vibrant shadow-3xl rounded-3xl p-6 flex flex-col border border-white/5 bg-white/[0.02]">
@@ -504,77 +657,132 @@ export default function Home() {
                   </div>
                 </motion.div>
               )}
-
-              {store.activeView === 'webstore' && <WebStore key="webstore" onClose={() => store.setActiveView('browser')} />}
-              {store.activeView === 'pdf' && <PDFWorkspace key="pdf" />}
-              {store.activeView === 'media' && (
-                <motion.div key="media" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.05 }} className="absolute inset-0 z-10">
-                  <MediaStudio />
+              {store.activeView === 'webstore' && (
+                <motion.div key="webstore" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-10 bg-deep-space-bg">
+                  <WebStore onClose={() => store.setActiveView('browser')} />
                 </motion.div>
               )}
-              {store.isCodingMode && (
-                <motion.div key="coding" initial={{ scale: 0.98, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 1.02, opacity: 0 }} className="absolute inset-0 z-50">
+
+              {store.activeView === 'pdf' && (
+                <motion.div key="pdf" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-10 bg-deep-space-bg">
+                  <PDFWorkspace />
+                </motion.div>
+              )}
+
+              {store.activeView === 'coding' && (
+                <motion.div key="coding" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-10 bg-deep-space-bg">
                   <CodingDashboard />
+                </motion.div>
+              )}
+
+              {store.activeView === 'media' && (
+                <motion.div key="media" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-10 bg-deep-space-bg">
+                  <MediaStudio />
                 </motion.div>
               )}
             </AnimatePresence>
 
-            {/* Overlays */}
+            {/* Feature Overlays */}
             <AnimatePresence>
-              {showClipboard && (
-                <motion.div
-                  key="clipboard-manager"
-                  initial={{ opacity: 0, x: store.sidebarSide === 'right' ? -20 : 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: store.sidebarSide === 'right' ? -20 : 20 }}
-                  className={`absolute top-4 ${store.sidebarSide === 'right' ? 'left-4' : 'right-4'} bottom-4 w-80 z-50 shadow-3xl`}
-                >
-                  <ClipboardManager />
-                </motion.div>
+              {showSettings && (
+                <SettingsPanel onClose={() => setShowSettings(false)} />
               )}
-              {showCamera && <PhoneCamera key="phone-camera" onClose={() => setShowCamera(false)} />}
-              {showSettings && <SettingsPanel key="settings-panel" onClose={() => setShowSettings(false)} />}
-              {aiOverview && <AIAssistOverlay key="ai-assist" query={aiOverview.query} result={aiOverview.result} isLoading={aiOverview.isLoading} onClose={() => setAiOverview(null)} />}
 
               {showCart && (
-                <AnimatePresence>
-                  <UnifiedCartPanel onClose={() => setShowCart(false)} onScan={handleCartScan} />
-                </AnimatePresence>
+                <UnifiedCartPanel onClose={() => setShowCart(false)} onScan={handleCartScan} />
               )}
 
-              {/* AI Selection / Scan Widget (Simulated as a floating menu) */}
-              <AnimatePresence>
-                {store.studentMode && (
-                  <motion.div
-                    key="ai-scan-widget"
-                    initial={{ opacity: 0, x: -50 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -50 }}
-                    className="fixed bottom-12 left-1/2 -translate-x-1/2 px-6 py-4 glass-vibrant rounded-full border border-deep-space-accent-neon/30 flex items-center gap-6 shadow-2xl z-50 bg-black/60 shadow-deep-space-accent-neon/10"
-                  >
-                    <div className="flex items-.center gap-3 border-r border-white/10 pr-6">
-                      <Sparkles size={18} className="text-deep-space-accent-neon animate-pulse" />
-                      <span className="text-[10px] font-black uppercase tracking-[0.2em]">AI Intelligence Active</span>
-                    </div>
-                    <button onClick={handleCartScan} className="flex items-center gap-2 text-white/60 hover:text-deep-space-accent-neon transition-all">
-                      <ScanLine size={16} />
-                      <span className="text-[10px] font-bold uppercase">Scan Page</span>
-                    </button>
-                    <button className="flex items-center gap-2 text-white/60 hover:text-deep-space-accent-neon transition-all">
-                      <Search size={16} />
-                      <span className="text-[10px] font-bold uppercase">Search Concept</span>
-                    </button>
-                    <button onClick={handleOfflineSave} className="flex items-center gap-2 text-white/60 hover:text-deep-space-accent-neon transition-all">
-                      <DownloadCloud size={16} />
-                      <span className="text-[10px] font-bold uppercase">Go Offline</span>
-                    </button>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+              {showClipboard && (
+                <div className="absolute top-20 right-4 z-[90]">
+                  <ClipboardManager />
+                </div>
+              )}
+
+              {showCamera && (
+                <div className="absolute inset-0 z-[200] bg-black/80 flex items-center justify-center">
+                  <div className="relative w-[800px] h-[600px] bg-black rounded-3xl overflow-hidden border border-white/20">
+                    <button onClick={() => setShowCamera(false)} className="absolute top-4 right-4 z-50 text-white"><X /></button>
+                    <PhoneCamera onClose={() => setShowCamera(false)} />
+                  </div>
+                </div>
+              )}
+
+              {showTabSwitcher && (
+                <TabSwitcherOverlay visible={showTabSwitcher} />
+              )}
+            </AnimatePresence>
+
+            {/* Neural Context Overlay */}
+            <AnimatePresence>
+              {aiOverview && (
+                <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }} className="absolute bottom-6 right-6 w-[450px] max-h-[600px] bg-[#0A0B14]/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-[0_0_50px_rgba(0,0,0,0.5)] z-[60] flex flex-col overflow-hidden">
+                  <div className="p-4 border-b border-white/5 flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-deep-space-accent-neon"><Sparkles size={16} /><span className="text-xs font-black uppercase tracking-widest">Neural Analysis</span></div>
+                    <button onClick={() => setAiOverview(null)} className="text-white/40 hover:text-white"><X size={14} /></button>
+                  </div>
+                  <div className="flex-1 p-5 overflow-y-auto custom-scrollbar">
+                    <h3 className="text-sm font-bold text-white mb-2">{aiOverview.query}</h3>
+                    {aiOverview.isLoading ? (
+                      <div className="flex items-center gap-2 text-white/50 text-xs animate-pulse"><RotateCw size={12} className="animate-spin" />Synthesizing intelligence...</div>
+                    ) : (
+                      <div className="text-xs text-white/70 leading-relaxed whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: aiOverview.result || '' }} />
+                    )}
+                    {aiOverview.sources && (
+                      <div className="mt-4 pt-4 border-t border-white/5 space-y-2">
+                        <p className="text-[10px] text-white/30 uppercase font-black">Sources</p>
+                        {aiOverview.sources.map((s, i) => (
+                          <div key={i} className="text-[10px] text-white/40 truncate pl-2 border-l border-deep-space-accent-neon/30">{s.text.substring(0, 80)}...</div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              )}
             </AnimatePresence>
           </div>
         </main>
       </div>
+
+      <AnimatePresence>
+        {showContextMenu && (
+          <>
+            <div className="fixed inset-0 z-[1000]" onClick={() => setShowContextMenu(null)} onContextMenu={(e) => { e.preventDefault(); setShowContextMenu(null); }} />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="fixed z-[1001] w-48 bg-[#0A0B14]/95 backdrop-blur-2xl border border-white/10 rounded-xl shadow-2xl overflow-hidden py-1.5"
+              style={{ left: showContextMenu.x, top: showContextMenu.y }}
+            >
+              <button onClick={() => { window.electronAPI?.reload(); setShowContextMenu(null); }} className="w-full px-4 py-2 flex items-center gap-3 hover:bg-deep-space-accent-neon/10 text-white/70 hover:text-deep-space-accent-neon transition-all">
+                <RefreshCcw size={14} />
+                <span className="text-xs font-bold uppercase tracking-widest">Reload</span>
+              </button>
+              <button onClick={() => { window.electronAPI?.goBack(); setShowContextMenu(null); }} className="w-full px-4 py-2 flex items-center gap-3 hover:bg-deep-space-accent-neon/10 text-white/70 hover:text-deep-space-accent-neon transition-all">
+                <ChevronLeft size={14} />
+                <span className="text-xs font-bold uppercase tracking-widest">Back</span>
+              </button>
+              <button onClick={() => { window.electronAPI?.goForward(); setShowContextMenu(null); }} className="w-full px-4 py-2 flex items-center gap-3 hover:bg-deep-space-accent-neon/10 text-white/70 hover:text-deep-space-accent-neon transition-all">
+                <ChevronRight size={14} />
+                <span className="text-xs font-bold uppercase tracking-widest">Forward</span>
+              </button>
+              <div className="h-[1px] bg-white/5 my-1" />
+              <button onClick={() => { handleOfflineSave(); setShowContextMenu(null); }} className="w-full px-4 py-2 flex items-center gap-3 hover:bg-deep-space-accent-neon/10 text-white/70 hover:text-deep-space-accent-neon transition-all">
+                <DownloadIcon size={14} />
+                <span className="text-xs font-bold uppercase tracking-widest">Save Page</span>
+              </button>
+              <button onClick={() => { toggleFullscreen(); setShowContextMenu(null); }} className="w-full px-4 py-2 flex items-center gap-3 hover:bg-deep-space-accent-neon/10 text-white/70 hover:text-deep-space-accent-neon transition-all">
+                <Maximize2 size={14} />
+                <span className="text-xs font-bold uppercase tracking-widest">Fullscreen</span>
+              </button>
+              <button onClick={() => { setShowSettings(true); setShowContextMenu(null); }} className="w-full px-4 py-2 flex items-center gap-3 hover:bg-deep-space-accent-neon/10 text-white/70 hover:text-deep-space-accent-neon transition-all">
+                <GhostSettings size={14} />
+                <span className="text-xs font-bold uppercase tracking-widest">Settings</span>
+              </button>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

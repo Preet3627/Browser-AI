@@ -4,7 +4,7 @@ import { Security } from '@/lib/Security';
 import { defaultShortcuts, Shortcut } from '@/lib/constants';
 import firebaseService from '@/lib/FirebaseService';
 import { auth } from '@/lib/firebase';
-import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from 'firebase/auth';
+import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signInWithCredential } from 'firebase/auth';
 
 // ... (rest of the interfaces are the same)
 
@@ -14,13 +14,22 @@ interface BrowserState {
     defaultUrl: string;
     setDefaultUrl: (url: string) => void;
 
-    // Tabs
-    tabs: Array<{ id: string; url: string; title: string; isIncognito?: boolean; isAudible?: boolean }>;
+    tabs: Array<{
+        id: string;
+        url: string;
+        title: string;
+        isIncognito?: boolean;
+        isAudible?: boolean;
+        lastAccessed?: number;
+        isSuspended?: boolean;
+        priority?: 'low' | 'normal' | 'high';
+        keepAlive?: boolean;
+    }>;
     activeTabId: string;
     addTab: (url?: string) => void;
     addIncognitoTab: (url?: string) => void;
     removeTab: (id: string) => void;
-    updateTab: (id: string, updates: Partial<{ url: string; title: string; isAudible?: boolean }>) => void;
+    updateTab: (id: string, updates: Partial<{ url: string; title: string; isAudible?: boolean; isSuspended?: boolean; priority?: 'low' | 'normal' | 'high'; keepAlive?: boolean }>) => void;
     setCurrentUrl: (url: string) => void;
     setActiveTabId: (id: string) => void;
     setActiveTab: (id: string) => void; // Alias for setActiveTabId
@@ -55,6 +64,7 @@ interface BrowserState {
     githubToken: string | null;
     setGoogleToken: (token: string | null) => void;
     setGithubToken: (token: string | null) => void;
+    loginWithGoogleToken: (token: string) => void;
 
     // View and UI
     activeView: string;
@@ -73,10 +83,18 @@ interface BrowserState {
     openaiApiKey: string;
     geminiApiKey: string;
     aiProvider: string;
+    ollamaBaseUrl: string;
+    ollamaModel: string;
+    anthropicApiKey: string;
+    groqApiKey: string;
     setEnableAIAssist: (enable: boolean) => void;
     setOpenaiApiKey: (key: string) => void;
     setGeminiApiKey: (key: string) => void;
+    setAnthropicApiKey: (key: string) => void;
+    setGroqApiKey: (key: string) => void;
     setAIProvider: (provider: string) => void;
+    setOllamaBaseUrl: (url: string) => void;
+    setOllamaModel: (model: string) => void;
     localLLMBaseUrl: string;
     localLLMModel: string;
     setLocalLLMBaseUrl: (url: string) => void;
@@ -105,6 +123,7 @@ interface BrowserState {
     sidebarSide: "left" | "right";
     isSidebarCollapsed: boolean;
     toggleSidebar: () => void;
+    toggleSidebarCollapse: () => void;
     setSidebarSide: (side: "left" | "right") => void;
     setSidebarWidth: (width: number) => void;
 
@@ -164,7 +183,7 @@ export const useAppStore = create<BrowserState>()(
         (set, get) => ({
             // URL and navigation
             currentUrl: 'about:blank',
-            defaultUrl: 'https://www.google.com',
+            defaultUrl: 'about:blank',
 
             // Tabs
             tabs: [{ id: 'default', url: 'about:blank', title: 'New Tab' }],
@@ -192,7 +211,11 @@ export const useAppStore = create<BrowserState>()(
             enableAIAssist: true,
             openaiApiKey: '',
             geminiApiKey: '',
-            aiProvider: 'gemini',
+            anthropicApiKey: '',
+            groqApiKey: '',
+            aiProvider: 'ollama',
+            ollamaBaseUrl: 'http://localhost:11434',
+            ollamaModel: 'deepseek-r1:1.5b',
             localLLMBaseUrl: '',
             localLLMModel: '',
 
@@ -260,14 +283,16 @@ export const useAppStore = create<BrowserState>()(
                 const newTab = state.tabs.find(t => t.id === id);
                 return {
                     activeTabId: id,
-                    currentUrl: newTab?.url || state.currentUrl
+                    currentUrl: newTab?.url || state.currentUrl,
+                    tabs: state.tabs.map(t => t.id === id ? { ...t, lastAccessed: Date.now(), isSuspended: false } : t)
                 };
             }),
             setActiveTab: (id) => set((state) => {
                 const newTab = state.tabs.find(t => t.id === id);
                 return {
                     activeTabId: id,
-                    currentUrl: newTab?.url || state.currentUrl
+                    currentUrl: newTab?.url || state.currentUrl,
+                    tabs: state.tabs.map(t => t.id === id ? { ...t, lastAccessed: Date.now(), isSuspended: false } : t)
                 };
             }),
             updateTab: (id, updates) => set((state) => ({
@@ -307,6 +332,13 @@ export const useAppStore = create<BrowserState>()(
             setAdmin: (isAdmin) => set({ isAdmin }),
             setGoogleToken: (token) => set({ googleToken: token }),
             setGithubToken: (token) => set({ githubToken: token }),
+            loginWithGoogleToken: (token) => {
+                const credential = GoogleAuthProvider.credential(token);
+                if (!auth) return;
+                signInWithCredential(auth, credential).catch((error) => {
+                    console.error("Deep link sign-in error:", error);
+                });
+            },
 
 
             // View and UI
@@ -316,7 +348,11 @@ export const useAppStore = create<BrowserState>()(
             setEnableAIAssist: (enable) => set({ enableAIAssist: enable }),
             setOpenaiApiKey: (key) => set({ openaiApiKey: key }),
             setGeminiApiKey: (key) => set({ geminiApiKey: key }),
+            setAnthropicApiKey: (key) => set({ anthropicApiKey: key }),
+            setGroqApiKey: (key) => set({ groqApiKey: key }),
             setAIProvider: (provider) => set({ aiProvider: provider }),
+            setOllamaBaseUrl: (url) => set({ ollamaBaseUrl: url }),
+            setOllamaModel: (model) => set({ ollamaModel: model }),
             setLocalLLMBaseUrl: (url) => set({ localLLMBaseUrl: url }),
             setLocalLLMModel: (model) => set({ localLLMModel: model }),
 
@@ -354,6 +390,7 @@ export const useAppStore = create<BrowserState>()(
 
             // Sidebar
             toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
+            toggleSidebarCollapse: () => set((state) => ({ isSidebarCollapsed: !state.isSidebarCollapsed })),
             setSidebarSide: (side) => set({ sidebarSide: side }),
             setSidebarWidth: (width) => set({ sidebarWidth: width }),
 
@@ -394,7 +431,6 @@ export const useAppStore = create<BrowserState>()(
                     s.action === action ? { ...s, accelerator } : s
                 )
             })),
-
             setHasSeenWelcomePage: (seen) => set({ hasSeenWelcomePage: seen }),
 
             setBackendStrategy: (strategy) => set({ backendStrategy: strategy }),
@@ -430,10 +466,41 @@ export const useAppStore = create<BrowserState>()(
 
             addTab: (url?: string) => {
                 const finalUrl = url || get().defaultUrl;
+                const id = `tab-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+
+                if (window.electronAPI) {
+                    window.electronAPI.createView({ tabId: id, url: finalUrl });
+                }
+
                 set((state) => {
-                    const id = `tab-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+                    let newTabs = [...state.tabs, {
+                        id,
+                        url: finalUrl,
+                        title: 'New Tab',
+                        lastAccessed: Date.now(),
+                        priority: 'high' as const
+                    }];
+
+                    // Enforce 50 tab limit
+                    if (newTabs.length > 50) {
+                        const tabsToKeep = newTabs.filter(t => t.id === id || t.keepAlive || t.id === state.activeTabId);
+                        const others = newTabs.filter(t => !tabsToKeep.find(tk => tk.id === t.id));
+                        others.sort((a, b) => {
+                            const priorityOrder = { low: 0, normal: 1, high: 2 };
+                            const diff = (priorityOrder[a.priority || 'normal'] as number) - (priorityOrder[b.priority || 'normal'] as number);
+                            if (diff !== 0) return diff;
+                            return (a.lastAccessed || 0) - (b.lastAccessed || 0);
+                        });
+                        const toRemoveCount = newTabs.length - 50;
+                        const removedIds = others.slice(0, toRemoveCount).map(t => t.id);
+                        removedIds.forEach(id => {
+                            if (window.electronAPI) window.electronAPI.destroyView(id);
+                        });
+                        newTabs = newTabs.filter(t => !removedIds.includes(t.id));
+                    }
+
                     return {
-                        tabs: [...state.tabs, { id, url: finalUrl, title: 'New Tab' }],
+                        tabs: newTabs,
                         activeTabId: id,
                         currentUrl: finalUrl,
                         activeView: 'browser'
@@ -444,27 +511,61 @@ export const useAppStore = create<BrowserState>()(
                 const finalUrl = url || get().defaultUrl;
                 set((state) => {
                     const id = `incognito-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+                    let newTabs = [...state.tabs, {
+                        id,
+                        url: finalUrl,
+                        title: 'New Incognito Tab',
+                        isIncognito: true,
+                        lastAccessed: Date.now(),
+                        priority: 'high' as const
+                    }];
+
+                    if (newTabs.length > 50) {
+                        const others = newTabs.filter(t => t.id !== id && !t.keepAlive && t.id !== state.activeTabId);
+                        others.sort((a, b) => {
+                            const priorityOrder = { low: 0, normal: 1, high: 2 };
+                            const diff = (priorityOrder[a.priority || 'normal'] as number) - (priorityOrder[b.priority || 'normal'] as number);
+                            if (diff !== 0) return diff;
+                            return (a.lastAccessed || 0) - (b.lastAccessed || 0);
+                        });
+                        const toRemoveCount = newTabs.length - 50;
+                        const removedIds = others.slice(0, toRemoveCount).map(t => t.id);
+                        newTabs = newTabs.filter(t => !removedIds.includes(t.id));
+                    }
+
                     return {
-                        tabs: [...state.tabs, { id, url: finalUrl, title: 'New Incognito Tab', isIncognito: true }],
+                        tabs: newTabs,
                         activeTabId: id,
                         currentUrl: finalUrl,
                         activeView: 'browser'
                     };
                 });
             },
-            removeTab: (id) => set((state) => {
-                const newTabs = state.tabs.filter(t => t.id !== id);
-                const defaultUrl = get().defaultUrl;
-                const finalTabs = newTabs.length ? newTabs : [{ id: 'default', url: defaultUrl, title: 'New Tab' }];
-                const nextTabId = state.activeTabId === id ? (finalTabs[0]?.id || 'default') : state.activeTabId;
-                const nextUrl = finalTabs.find(t => t.id === nextTabId)?.url || defaultUrl;
+            removeTab: (id) => {
+                if (window.electronAPI) {
+                    window.electronAPI.destroyView(id);
+                }
+                set((state) => {
+                    const newTabs = state.tabs.filter(t => t.id !== id);
+                    const defaultUrl = get().defaultUrl;
+                    let finalTabs = newTabs.length ? newTabs : [{ id: 'default', url: defaultUrl, title: 'New Tab' }];
 
-                return {
-                    tabs: finalTabs,
-                    activeTabId: nextTabId,
-                    currentUrl: nextUrl
-                };
-            }),
+                    if (newTabs.length === 0) {
+                        if (window.electronAPI) {
+                            window.electronAPI.createView({ tabId: 'default', url: defaultUrl });
+                        }
+                    }
+
+                    const nextTabId = state.activeTabId === id ? (finalTabs[0]?.id || 'default') : state.activeTabId;
+                    const nextUrl = finalTabs.find(t => t.id === nextTabId)?.url || defaultUrl;
+
+                    return {
+                        tabs: finalTabs,
+                        activeTabId: nextTabId,
+                        currentUrl: nextUrl
+                    };
+                });
+            },
 
             setSyncPassphrase: (passphrase) => set({ syncPassphrase: passphrase }),
 
@@ -494,19 +595,31 @@ export const useAppStore = create<BrowserState>()(
 // Firebase auth listener
 if (auth) {
     onAuthStateChanged(auth, (user) => {
-        if (user) {
-            useAppStore.getState().setUser({
-                uid: user.uid,
-                email: user.email || '',
-                displayName: user.displayName || '',
-                photoURL: user.photoURL || '',
-            });
-            useAppStore.getState().setActiveView('browser');
-            useAppStore.getState().updateTab('default', { url: useAppStore.getState().defaultUrl });
-            useAppStore.getState().setCurrentUrl(useAppStore.getState().defaultUrl);
+        const { user: currentUser, defaultUrl, tabs, activeTabId } = useAppStore.getState();
 
+        if (user) {
+            // Set user info, but only if it's a new user logging in
+            if (!currentUser || currentUser.uid !== user.uid) {
+                useAppStore.getState().setUser({
+                    uid: user.uid,
+                    email: user.email || '',
+                    displayName: user.displayName || '',
+                    photoURL: user.photoURL || '',
+                });
+                useAppStore.getState().setActiveView('browser');
+
+                // Only set the URL if the current tab is still blank
+                const activeTab = tabs.find(t => t.id === activeTabId);
+                if (activeTab && (activeTab.url === 'about:blank' || activeTab.url === '')) {
+                    useAppStore.getState().updateTab(activeTab.id, { url: defaultUrl });
+                    useAppStore.getState().setCurrentUrl(defaultUrl);
+                }
+            }
         } else {
-            useAppStore.getState().logout();
+            // If the user logs out, and there was a user before, then log out fully.
+            if (currentUser) {
+                useAppStore.getState().logout();
+            }
         }
     });
 }

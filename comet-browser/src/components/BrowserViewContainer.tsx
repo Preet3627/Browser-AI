@@ -29,6 +29,22 @@ const BrowserViewContainer: React.FC<BrowserViewContainerProps> = ({ initialUrl 
             if (url && url !== currentUrl) {
               setCurrentUrl(url);
               onUrlChange?.(url);
+
+              // Neural Indexing - Delay to ensure page load
+              setTimeout(async () => {
+                if (window.electronAPI) {
+                  const extraction = await window.electronAPI.extractPageContent();
+                  if (extraction.content) {
+                    const { BrowserAI } = await import('@/lib/BrowserAI');
+                    await BrowserAI.addToVectorMemory(extraction.content, {
+                      url,
+                      timestamp: Date.now(),
+                      type: 'page_content'
+                    });
+                    console.log(`[Neural Index] Synchronized: ${url}`);
+                  }
+                }
+              }, 3000);
             }
           } catch (e) {
             console.error("Error polling URL:", e);
@@ -49,18 +65,33 @@ const BrowserViewContainer: React.FC<BrowserViewContainerProps> = ({ initialUrl 
     }
   }, [initialUrl, onUrlChange]);
 
+  const prevOmnibarUrl = useRef(omnibarUrl);
+
+  const normalizeUrl = (url: string) => {
+    try {
+      const u = new URL(url);
+      return u.origin + u.pathname + (u.search || '');
+    } catch (e) {
+      return url.replace(/\/$/, '');
+    }
+  };
+
   useEffect(() => {
-    if (omnibarUrl && omnibarUrl !== currentUrl) {
+    const normalizedOmni = normalizeUrl(omnibarUrl);
+    const normalizedCurrent = normalizeUrl(currentUrl);
+
+    if (omnibarUrl && normalizedOmni !== normalizedCurrent && omnibarUrl !== prevOmnibarUrl.current) {
+      prevOmnibarUrl.current = omnibarUrl;
+      console.log(`[BrowserView] Omnibar Navigation: ${omnibarUrl}`);
       if (window.electronAPI) {
         window.electronAPI.navigateTo(omnibarUrl);
         setIsLoading(true);
-        setTimeout(() => setIsLoading(false), 500);
+        setTimeout(() => setIsLoading(false), 800);
       } else {
-        // Just update state for iframe
         setCurrentUrl(omnibarUrl);
       }
     }
-  }, [omnibarUrl]);
+  }, [omnibarUrl, currentUrl]);
 
   return (
     <div className="w-full h-full relative overflow-hidden bg-[#050510]">

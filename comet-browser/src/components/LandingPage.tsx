@@ -65,6 +65,7 @@ const LandingPage = () => {
                 // Always go to browser after sign in
 
                 store.setActiveView('browser');
+                store.setHasSeenWelcomePage(true);
 
                 store.startActiveSession();
 
@@ -197,6 +198,7 @@ const LandingPage = () => {
 
                         // Always go to browser after sign in
                         store.setActiveView('browser');
+                        store.setHasSeenWelcomePage(true);
                         store.startActiveSession();
 
                         setIsLoading(false);
@@ -267,19 +269,12 @@ const LandingPage = () => {
                 <div className="max-w-6xl mx-auto space-y-12 relative z-10 pt-20">
 
                     {/* Header */}
-
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-
                         <div className="flex items-center gap-6">
-
-                            <div className="w-20 h-20 rounded-3xl bg-cyan-400/10 border border-cyan-400/20 flex items-center justify-center overflow-hidden">
-
-                                {store.user.photoURL ? <Image src={store.user.photoURL} alt="Profile" width={80} height={80} className="w-full h-full object-cover" /> : <Layers size={32} className="text-cyan-400" />}
-
+                            <div className="w-20 h-20 rounded-3xl bg-white/5 border border-white/10 flex items-center justify-center overflow-hidden backdrop-blur-xl">
+                                {store.user.photoURL ? <Image src={store.user.photoURL} alt="Profile" width={80} height={80} className="w-full h-full object-cover" /> : <img src="/icon.ico" className="w-10 h-10 object-contain" />}
                             </div>
-
                             <div>
-
                                 <h1 className="text-4xl font-black uppercase tracking-tight">{store.user.displayName}</h1>
 
                                 <p className="text-white/40 font-bold uppercase tracking-widest text-xs mt-1">{store.user.email}</p>
@@ -438,7 +433,7 @@ const LandingPage = () => {
             <nav className="fixed top-10 left-0 right-0 z-[100] bg-black/50 backdrop-blur-xl border-b border-white/5">
                 <div className="max-w-7xl mx-auto px-8 py-4 flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 bg-[#00ffff] rounded-2xl flex items-center justify-center shadow-[0_0_25px_rgba(0,255,255,0.5)] p-1.5">
+                        <div className="w-10 h-10 bg-white/5 rounded-2xl flex items-center justify-center border border-white/10 p-1.5 backdrop-blur-xl">
                             <Image src="/icon.ico" alt="Comet" width={64} height={64} className="w-full h-full object-contain" />
                         </div>
                         <span className="text-2xl font-black uppercase tracking-tighter text-white">COMET</span>
@@ -471,13 +466,13 @@ const LandingPage = () => {
                 >
                     <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-cyan-400/10 border border-cyan-400/20 mb-8">
                         <Sparkles size={14} className="text-cyan-400" />
-                        <span className="text-[10px] font-black uppercase tracking-widest text-cyan-400">v0.6.5 Stability Update</span>
+                        <span className="text-[10px] font-black uppercase tracking-widest text-cyan-400">v0.1.3 Stable Release</span>
                     </div>
                     <h1 className="text-7xl md:text-8xl font-black tracking-tight leading-[0.9] mb-8 uppercase">
                         The Next <br /> <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">Frontier</span> <br /> of Browsing.
                     </h1>
                     <p className="text-xl text-white/40 max-w-lg mb-12 leading-relaxed font-medium">
-                        A performance-hardened Chromium workspace with native AI orchestration, hardware isolation, and decentralized sync enabled via Secure Cloud Auth.
+                        A custom-hardened Chromium workspace with native Deepseek AI orchestration, RAG Memory, and decentralized sync enabled via Secure Cloud Auth.
                     </p>
                     <div className="flex flex-wrap gap-4">
                         <button
@@ -490,6 +485,7 @@ const LandingPage = () => {
                             <button
                                 onClick={() => {
                                     store.setGuestMode(true);
+                                    store.setHasSeenWelcomePage(true);
                                 }}
                                 className="px-10 py-5 bg-white/5 border border-white/10 font-black rounded-3xl text-sm uppercase tracking-widest hover:bg-white/10 transition-all flex items-center gap-3"
                             >
@@ -632,7 +628,7 @@ const LandingPage = () => {
                     </div>
                 </div>
             </footer>
-        </div>
+        </div >
     );
 };
 

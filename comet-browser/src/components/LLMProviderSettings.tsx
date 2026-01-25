@@ -17,8 +17,8 @@ interface LLMProviderSettingsProps {
   setTheme: (theme: 'dark' | 'light' | 'system') => void;
   backgroundImage: string;
   setBackgroundImage: (imageUrl: string) => void;
-  backend: string;
-  setBackend: (backend: string) => void;
+  backend: 'firebase' | 'mysql';
+  setBackend: (backend: 'firebase' | 'mysql') => void;
   mysqlConfig: any;
   setMysqlConfig: (config: any) => void;
 }
@@ -54,7 +54,11 @@ const LLMProviderSettings: React.FC<LLMProviderSettingsProps> = (props) => {
       // Fallback for Web/Vercel
       setProviders([
         { id: 'openai-compatible', name: 'OpenAI (Cloud)' },
-        { id: 'local', name: 'Browser AI (Local TF.js)' }
+        { id: 'local', name: 'Browser AI (Local TF.js)' },
+        { id: 'gemini-3-pro', name: 'Google Gemini 3 Pro' },
+        { id: 'claude-3-5-sonnet', name: 'Claude 3.5 Sonnet' },
+        { id: 'groq', name: 'Groq (LPU Inference)' },
+        { id: 'ollama', name: 'Ollama (Local)' }
       ]);
       setActiveProviderId(store.aiProvider === 'local' ? 'local' : 'openai-compatible');
     };
@@ -78,12 +82,27 @@ const LLMProviderSettings: React.FC<LLMProviderSettingsProps> = (props) => {
   const handleSaveConfig = async () => {
     if (!activeProviderId) return;
 
+    let config: LLMProviderOptions = {};
+    if (activeProviderId === 'ollama') {
+      config = { baseUrl: store.ollamaBaseUrl, model: store.ollamaModel };
+    } else if (activeProviderId === 'openai-compatible') {
+      config = { apiKey: store.openaiApiKey, baseUrl: store.localLLMBaseUrl, model: store.localLLMModel };
+    } else if (activeProviderId.startsWith('gemini')) {
+      config = { apiKey: store.geminiApiKey };
+    } else if (activeProviderId === 'claude' || activeProviderId === 'anthropic' || activeProviderId === 'claude-3-5-sonnet') {
+      config = { apiKey: store.anthropicApiKey, model: store.localLLMModel };
+    } else if (activeProviderId === 'groq' || activeProviderId === 'mixtral-8x7b-groq') {
+      config = { apiKey: store.groqApiKey, model: store.localLLMModel };
+    } else if (activeProviderId === 'local-tfjs') {
+      config = { type: 'local-tfjs' };
+    }
+
     if (window.electronAPI) {
-      const success = await window.electronAPI.configureLLMProvider(activeProviderId, selectedProviderConfig);
-      setFeedback(success ? 'Config Saved' : 'Failed to Save');
+      const success = await window.electronAPI.configureLLMProvider(activeProviderId, config);
+      setFeedback(success ? 'Intelligence Configured' : 'Configuration Failed');
     } else {
-      localProvider.init(selectedProviderConfig);
-      setFeedback('Local Config Saved');
+      localProvider.init(config);
+      setFeedback('Local IQ Active');
     }
     setTimeout(() => setFeedback(null), 3000);
   };
@@ -129,60 +148,238 @@ const LLMProviderSettings: React.FC<LLMProviderSettingsProps> = (props) => {
                 </select>
 
                 <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5">
-                  {activeProviderId === 'local' ? (
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-3 text-deep-space-accent-neon mb-2">
-                        <Cpu size={16} />
-                        <span className="text-[10px] font-black uppercase tracking-widest">Local Neural Engine</span>
+                  <div className="space-y-4">
+                    {activeProviderId === 'ollama' && (
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-3 text-deep-space-accent-neon mb-1">
+                          <Cpu size={14} />
+                          <span className="text-[10px] font-black uppercase tracking-widest text-deep-space-accent-neon">Native Ollama Models</span>
+                        </div>
+
+                        {/* Base URL Input */}
+                        <div className="space-y-1">
+                          <label className="text-[9px] text-white/30 uppercase font-bold">Base URL (Remote / Local)</label>
+                          <input
+                            type="text"
+                            placeholder="e.g. http://localhost:11434"
+                            className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2.5 text-xs text-white placeholder:text-white/10 outline-none"
+                            value={store.ollamaBaseUrl || ''}
+                            onChange={(e) => store.setOllamaBaseUrl(e.target.value)}
+                          />
+                        </div>
+
+                        {/* Model Selection Dropdown */}
+                        <div className="space-y-1">
+                          <label className="text-[9px] text-white/30 uppercase font-bold">Select Active Model</label>
+                          <select
+                            className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-deep-space-accent-neon/50 transition-all font-bold"
+                            value={store.ollamaModel}
+                            onChange={(e) => store.setOllamaModel(e.target.value)}
+                            onFocus={async () => {
+                              if (window.electronAPI) {
+                                // Refresh list on focus
+                              }
+                            }}
+                          >
+                            <option value="deepseek-r1:1.5b">Deepseek R1 (1.5B) - Recommended</option>
+                            <option value="llama3">Llama 3</option>
+                            <option value="mistral">Mistral</option>
+                            <option value="phi3">Phi-3</option>
+                            <option value="custom">Custom (Type below)</option>
+                          </select>
+                        </div>
+
+                        {/* Manual Override */}
+                        <div className="flex flex-col gap-1">
+                          <input
+                            type="text"
+                            placeholder="Or type model name..."
+                            className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-[10px] text-white outline-none italic"
+                            value={store.ollamaModel || ''}
+                            onChange={(e) => store.setOllamaModel(e.target.value)}
+                          />
+                        </div>
+
+                        {/* Terminal & Pull Section */}
+                        <div className="flex flex-col gap-2 pt-2 border-t border-white/5 mt-2">
+                          <div className="flex items-center justify-between">
+                            <p className="text-[9px] text-white/30 uppercase font-bold">Install New Model</p>
+                          </div>
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              placeholder="Model Name (e.g. gemma:2b)"
+                              className="flex-1 bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-[10px] text-white outline-none"
+                              id="ollama-pull-input"
+                            />
+                            <button
+                              onClick={() => {
+                                const input = document.getElementById('ollama-pull-input') as HTMLInputElement;
+                                const model = input.value.trim();
+                                if (!model || !window.electronAPI) return;
+
+                                const outputDiv = document.getElementById('ollama-terminal');
+                                if (outputDiv) outputDiv.innerText = `> Initializing pull for ${model}...\n`;
+
+                                window.electronAPI.pullOllamaModel(model, (data: any) => {
+                                  if (outputDiv) {
+                                    if (data.done) {
+                                      outputDiv.innerText += `\n> DONE: ${model} installed successfully.\n`;
+                                    } else {
+                                      if (data.output.includes('%') || data.output.includes('[')) {
+                                        const lines = outputDiv.innerText.split('\n');
+                                        if (lines.length > 0 && (lines[lines.length - 1].includes('%') || lines[lines.length - 1].includes('['))) lines.pop();
+                                        outputDiv.innerText = lines.join('\n') + '\n' + data.output.trim();
+                                      } else {
+                                        outputDiv.innerText += data.output;
+                                      }
+                                      outputDiv.scrollTop = outputDiv.scrollHeight;
+                                    }
+                                  }
+                                });
+                              }}
+                              className="px-3 py-1 bg-deep-space-accent-neon/10 hover:bg-deep-space-accent-neon/20 text-deep-space-accent-neon text-[10px] font-black uppercase rounded-lg transition-all"
+                            >
+                              PULL
+                            </button>
+                          </div>
+                          <div id="ollama-terminal" className="h-[60px] bg-black/40 rounded-lg p-2 text-[9px] font-mono text-green-400/80 overflow-y-auto whitespace-pre-wrap border border-white/5 custom-scrollbar">
+                            Ready to install models from ollama.com/library
+                          </div>
+                        </div>
+
+                        {/* Import Local GGUF */}
+                        <div className="flex flex-col gap-2 pt-2 border-t border-white/5 mt-2">
+                          <div className="flex items-center justify-between">
+                            <p className="text-[9px] text-white/30 uppercase font-bold">Import Custom Model (.GGUF)</p>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={async () => {
+                                if (!window.electronAPI) return;
+                                const filePath = await window.electronAPI.selectLocalFile();
+                                if (filePath) {
+                                  // Simple generic prompt for name - in a real app would be a modal
+                                  const name = prompt("Enter a name for this model (e.g. my-custom-model):");
+                                  if (name) {
+                                    const outputDiv = document.getElementById('ollama-terminal');
+                                    if (outputDiv) outputDiv.innerText += `\n> Importing ${name} from local file...\n`;
+
+                                    const res = await window.electronAPI.importOllamaModel({ modelName: name, filePath });
+                                    if (outputDiv) {
+                                      if (res.success) {
+                                        outputDiv.innerText += `> SUCCESS: Model '${name}' created.\n`;
+                                        store.setOllamaModel(name);
+                                      } else {
+                                        outputDiv.innerText += `> ERROR: ${res.error}\n`;
+                                      }
+                                      outputDiv.scrollTop = outputDiv.scrollHeight;
+                                    }
+                                  }
+                                }
+                              }}
+                              className="w-full py-2 bg-white/5 hover:bg-white/10 border border-white/5 rounded-lg text-white/60 text-[10px] font-bold uppercase transition-all flex items-center justify-center gap-2"
+                            >
+                              <Database size={12} />
+                              Select .GGUF File
+                            </button>
+                          </div>
+                        </div>
+
+                        <p className="text-[9px] text-green-400/60 font-medium pt-2">
+                          * Native backend running. Models stored in local user data.
+                        </p>
                       </div>
-                      <p className="text-[10px] text-white/30 uppercase tracking-widest leading-relaxed">
-                        Connect to a local LLM instance (e.g., Ollama).
-                      </p>
-                      <input
-                        type="text"
-                        name="baseUrl"
-                        placeholder="Local LLM Base URL (e.g., http://localhost:11434)"
-                        className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2.5 text-xs text-white placeholder:text-white/10 focus:border-deep-space-accent-neon/30 outline-none transition-all"
-                        value={store.localLLMBaseUrl || ''}
-                        onChange={(e) => store.setLocalLLMBaseUrl(e.target.value)}
-                      />
-                      <input
-                        type="text"
-                        name="model"
-                        placeholder="Local LLM Model (e.g., llama2)"
-                        className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2.5 text-xs text-white placeholder:text-white/10 focus:border-deep-space-accent-neon/30 outline-none transition-all"
-                        value={store.localLLMModel || ''}
-                        onChange={(e) => store.setLocalLLMModel(e.target.value)}
-                      />
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      <input
-                        type="password"
-                        name="apiKey"
-                        placeholder="Cloud API Key"
-                        className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2.5 text-xs text-white placeholder:text-white/10 focus:border-deep-space-accent-neon/30 outline-none transition-all"
-                        value={selectedProviderConfig.apiKey || ''}
-                        onChange={handleConfigChange}
-                      />
-                      <input
-                        type="text"
-                        name="baseUrl"
-                        placeholder="Base URL (Optional)"
-                        className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2.5 text-xs text-white placeholder:text-white/10 focus:border-deep-space-accent-neon/30 outline-none transition-all"
-                        value={selectedProviderConfig.baseUrl || ''}
-                        onChange={handleConfigChange}
-                      />
-                      <input
-                        type="text"
-                        name="model"
-                        placeholder="Model (e.g. gpt-4o)"
-                        className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2.5 text-xs text-white placeholder:text-white/10 focus:border-deep-space-accent-neon/30 outline-none transition-all"
-                        value={selectedProviderConfig.model || ''}
-                        onChange={handleConfigChange}
-                      />
-                    </div>
-                  )}
+                    )}
+
+                    {activeProviderId === 'openai-compatible' && (
+                      <div className="space-y-3">
+                        <input
+                          type="password"
+                          placeholder="OpenAI API Key"
+                          className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2.5 text-xs text-white placeholder:text-white/10 outline-none"
+                          value={store.openaiApiKey || ''}
+                          onChange={(e) => store.setOpenaiApiKey(e.target.value)}
+                        />
+                        <input
+                          type="text"
+                          placeholder="API Base URL (Optional)"
+                          className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2.5 text-xs text-white placeholder:text-white/10 outline-none"
+                          value={store.localLLMBaseUrl || ''}
+                          onChange={(e) => store.setLocalLLMBaseUrl(e.target.value)}
+                        />
+                        <select
+                          className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-deep-space-accent-neon/50 transition-all font-bold"
+                          value={store.localLLMModel || 'gpt-4o'}
+                          onChange={(e) => store.setLocalLLMModel(e.target.value)}
+                        >
+                          <option value="gpt-4o">GPT-4o</option>
+                          <option value="gpt-4-turbo">GPT-4 Turbo</option>
+                          <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                          <option value="o1-preview">OpenAI o1 Preview</option>
+                        </select>
+                      </div>
+                    )}
+
+                    {activeProviderId && activeProviderId.startsWith('gemini') && (
+                      <div className="space-y-3">
+                        <input
+                          type="password"
+                          placeholder="Gemini API Key"
+                          className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2.5 text-xs text-white placeholder:text-white/10 outline-none"
+                          value={store.geminiApiKey || ''}
+                          onChange={(e) => store.setGeminiApiKey(e.target.value)}
+                        />
+                        <p className="text-[10px] text-white/30 italic">Targeting latest {activeProviderId === 'gemini-3-pro' ? 'Pro' : 'Flash'} v3 model.</p>
+                      </div>
+                    )}
+
+                    {(activeProviderId === 'claude' || activeProviderId === 'anthropic') && (
+                      <div className="space-y-3">
+                        <input
+                          type="password"
+                          placeholder="Anthropic API Key"
+                          className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2.5 text-xs text-white placeholder:text-white/10 outline-none"
+                          value={store.anthropicApiKey || ''}
+                          onChange={(e) => store.setAnthropicApiKey(e.target.value)}
+                        />
+                        <select
+                          className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-deep-space-accent-neon/50 transition-all font-bold"
+                          value={store.localLLMModel || 'claude-3-5-sonnet-20240620'}
+                          onChange={(e) => store.setLocalLLMModel(e.target.value)}
+                        >
+                          <option value="claude-3-5-sonnet-20240620">Claude 3.5 Sonnet</option>
+                          <option value="claude-3-opus-20240229">Claude 3 Opus</option>
+                          <option value="claude-3-haiku-20240307">Claude 3 Haiku</option>
+                        </select>
+                      </div>
+                    )}
+
+                    {activeProviderId === 'local-tfjs' && (
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-3 text-deep-space-accent-neon mb-1">
+                          <Sparkles size={14} />
+                          <span className="text-[10px] font-black uppercase tracking-widest text-deep-space-accent-neon">On-Device Intelligence</span>
+                        </div>
+                        <p className="text-[10px] text-white/40 leading-relaxed font-bold italic">
+                          Running entirely on your hardware via TensorFlow.js. Optimized for privacy and offline research.
+                        </p>
+                      </div>
+                    )}
+
+                    {(activeProviderId === 'groq' || activeProviderId === 'mixtral-8x7b-groq') && (
+                      <div className="space-y-3">
+                        <input
+                          type="password"
+                          placeholder="Groq API Key"
+                          className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2.5 text-xs text-white placeholder:text-white/10 outline-none"
+                          value={store.groqApiKey || ''}
+                          onChange={(e) => store.setGroqApiKey(e.target.value)}
+                        />
+                        <p className="text-[10px] text-white/30 italic">Using Mixtral 8x7b via Groq's high-speed LPU.</p>
+                      </div>
+                    )}
+                  </div>
 
                   <button
                     onClick={handleSaveConfig}

@@ -8,7 +8,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('ai-query-detected', subscription);
     return () => ipcRenderer.removeListener('ai-query-detected', subscription);
   },
-  navigateTo: (url) => ipcRenderer.send('navigate-browser-view', url),
+  createView: (args) => ipcRenderer.send('create-view', args),
+  activateView: (args) => ipcRenderer.send('activate-view', args),
+  destroyView: (tabId) => ipcRenderer.send('destroy-view', tabId),
+  onBrowserViewUrlChanged: (callback) => {
+    const subscription = (event, { tabId, url }) => callback({ tabId, url });
+    ipcRenderer.on('browser-view-url-changed', subscription);
+    return () => ipcRenderer.removeListener('browser-view-url-changed', subscription);
+  },
+  navigateBrowserView: (args) => ipcRenderer.send('navigate-browser-view', args),
   goBack: () => ipcRenderer.send('browser-view-go-back'),
   goForward: () => ipcRenderer.send('browser-view-go-forward'),
   reload: () => ipcRenderer.send('browser-view-reload'),
@@ -20,6 +28,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   capturePage: () => ipcRenderer.invoke('capture-page'),
   sendInputEvent: (input) => ipcRenderer.invoke('send-input-event', input),
   openDevTools: () => ipcRenderer.send('open-dev-tools'),
+  changeZoom: (deltaY) => ipcRenderer.send('change-zoom', deltaY),
+  onAudioStatusChanged: (callback) => {
+    const subscription = (event, isPlaying) => callback(isPlaying);
+    ipcRenderer.on('audio-status-changed', subscription);
+    return () => ipcRenderer.removeListener('audio-status-changed', subscription);
+  },
 
   // LLM & Memory APIs
   getAvailableLLMProviders: () => ipcRenderer.invoke('llm-get-available-providers'),
@@ -35,6 +49,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     const subscription = (event, url) => callback(event, url);
     ipcRenderer.on('auth-callback', subscription);
     return () => ipcRenderer.removeListener('auth-callback', subscription);
+  },
+  onAuthTokenReceived: (callback) => {
+    const subscription = (event, token) => callback(token);
+    ipcRenderer.on('auth-token-received', subscription);
+    return () => ipcRenderer.removeListener('auth-token-received', subscription);
   },
 
   // Dev-MCP & Analytics
@@ -97,4 +116,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   suspendTab: (tabId) => ipcRenderer.send('suspend-tab', tabId),
   resumeTab: (tabId) => ipcRenderer.send('resume-tab', tabId),
   getMemoryUsage: () => ipcRenderer.invoke('get-memory-usage'),
+
+  importOllamaModel: (data) => ipcRenderer.invoke('ollama-import-model', data),
+  selectLocalFile: () => ipcRenderer.invoke('select-local-file'),
 });

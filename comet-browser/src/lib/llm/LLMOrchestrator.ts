@@ -3,6 +3,8 @@ import { LLMProvider, LLMProviderOptions, ChatMessage, GenerateContentResult } f
 import { OpenAICompatibleProvider } from './providers/openai-compatible';
 import { GeminiProvider } from './providers/gemini';
 import { ClaudeProvider } from './providers/claude';
+import { OllamaProvider } from './providers/ollama';
+import { GroqProvider } from './providers/groq';
 
 export class LLMOrchestrator {
   private providers: Map<string, LLMProvider> = new Map();
@@ -13,6 +15,8 @@ export class LLMOrchestrator {
     this.registerProvider(new OpenAICompatibleProvider());
     this.registerProvider(new GeminiProvider());
     this.registerProvider(new ClaudeProvider());
+    this.registerProvider(new OllamaProvider());
+    this.registerProvider(new GroqProvider());
   }
 
   registerProvider(provider: LLMProvider): void {

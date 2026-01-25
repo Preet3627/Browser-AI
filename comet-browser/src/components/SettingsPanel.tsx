@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { useAppStore } from '@/store/useAppStore';
 import {
     Monitor, Shield, Globe, Info, Download,
-    ChevronRight, ShieldCheck, Key, Package, Keyboard, 
+    ChevronRight, ShieldCheck, Key, Package, Keyboard,
     Briefcase, ShieldAlert, Database, LogIn, LogOut, History as HistoryIcon, User as UserIcon, Zap
 } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -17,6 +17,7 @@ import AdminDashboard from './AdminDashboard';
 import HistoryPanel from './HistoryPanel';
 import ApiKeysSettings from './ApiKeysSettings';
 import PerformanceSettings from './PerformanceSettings';
+import LoginPrompt from './LoginPrompt';
 import firebaseService from '@/lib/FirebaseService';
 import { User } from 'firebase/auth';
 
@@ -143,9 +144,7 @@ const SettingsPanel = ({ onClose }: { onClose: () => void }) => {
                 {/* Navigation Sidebar */}
                 <div className="w-72 bg-white/[0.02] border-r border-white/5 p-8 flex flex-col gap-2">
                     <div className="flex items-center gap-3 px-4 mb-10">
-                        <div className="w-10 h-10 rounded-2xl bg-deep-space-accent-neon flex items-center justify-center text-deep-space-bg font-black text-xl shadow-[0_0_20px_rgba(0,255,255,0.3)]">
-                            {store.appName.charAt(0)}
-                        </div>
+                        <img src="/icon.ico" alt="Comet Icon" className="w-10 h-10 object-contain" />
                         <span className="text-xl font-black tracking-tighter uppercase">{store.appName}</span>
                     </div>
 
@@ -171,7 +170,7 @@ const SettingsPanel = ({ onClose }: { onClose: () => void }) => {
                             Install PWA
                         </button>
                         <div className="p-4 bg-deep-space-accent-neon/5 rounded-2xl border border-deep-space-accent-neon/10 text-[10px] font-medium text-deep-space-accent-neon/60 text-center leading-relaxed">
-                            Version v0.1.1 Stable <br /> (Production Build)
+                            Version v0.1.3 Stable <br /> (Production Build)
                         </div>
                     </div>
                 </div>
@@ -225,7 +224,7 @@ const SettingsPanel = ({ onClose }: { onClose: () => void }) => {
                                 </div>
                             </div>
                         )}
-                        
+
                         {activeSection === 'performance' && <PerformanceSettings />}
 
                         {activeSection === 'search' && <SearchEngineSettings selectedEngine={store.selectedEngine} setSelectedEngine={store.setSelectedEngine} />}
@@ -342,50 +341,7 @@ const SettingsPanel = ({ onClose }: { onClose: () => void }) => {
                                                         </button>
                                                     </div>
                                                 ) : (
-                                                    <>
-                                                        {!isGuestMode && (
-                                                            <>
-                                                                <button
-                                                                    onClick={handleGoogleLogin}
-                                                                    className="w-full flex items-center justify-center gap-3 px-6 py-3 bg-deep-space-accent-neon/10 border border-deep-space-accent-neon/30 text-deep-space-accent-neon rounded-xl text-sm font-black uppercase tracking-widest hover:bg-deep-space-accent-neon hover:text-deep-space-bg transition-all"
-                                                                >
-                                                                    <LogIn size={20} />
-                                                                    Sign in with Google
-                                                                </button>
-                                                                <div className="relative flex py-2 items-center">
-                                                                    <div className="flex-grow border-t border-white/10"></div>
-                                                                    <span className="flex-shrink mx-4 text-white/40 text-xs uppercase">Or</span>
-                                                                    <div className="flex-grow border-t border-white/10"></div>
-                                                                </div>
-                                                                <div className="space-y-4">
-                                                                    <div className="relative">
-                                                                        <input
-                                                                            type="password"
-                                                                            value={licenseKey}
-                                                                            onChange={(e) => setLicenseKey(e.target.value)}
-                                                                            placeholder="Enter your License Key"
-                                                                            aria-label="License Key"
-                                                                            className="w-full bg-black/40 border border-white/10 rounded-2xl py-3 px-6 text-sm text-white focus:outline-none focus:ring-1 focus:ring-deep-space-accent-neon/50 transition-all placeholder:text-white/20"
-                                                                        />
-                                                                    </div>
-                                                                    <button
-                                                                        onClick={handleLicenseLogin}
-                                                                        className="w-full flex items-center justify-center gap-3 px-6 py-3 bg-white/10 border border-white/20 text-white rounded-xl text-sm font-black uppercase tracking-widest hover:bg-white/20 transition-all"
-                                                                    >
-                                                                        <Key size={20} />
-                                                                        Login with License Key
-                                                                    </button>
-                                                                </div>
-                                                            </>
-                                                        )}
-                                                        <button
-                                                            onClick={handleGuestMode}
-                                                            className="w-full flex items-center justify-center gap-3 px-6 py-3 bg-white/10 border border-white/20 text-white rounded-xl text-sm font-black uppercase tracking-widest hover:bg-white/20 transition-all"
-                                                        >
-                                                            <UserIcon size={20} />
-                                                            Continue as Guest
-                                                        </button>
-                                                    </>
+                                                    <LoginPrompt onLogin={handleGoogleLogin} />
                                                 )}
 
                                                 <div className="flex items-center justify-between">
@@ -485,9 +441,7 @@ const SettingsPanel = ({ onClose }: { onClose: () => void }) => {
 
                         {activeSection === 'about' && (
                             <div className="text-center py-20">
-                                <div className="w-24 h-24 rounded-[2.5rem] bg-deep-space-accent-neon flex items-center justify-center text-deep-space-bg font-black text-6xl mx-auto mb-8 shadow-2xl animate-pulse">
-                                    {store.appName.charAt(0)}
-                                </div>
+                                <img src="/icon.ico" alt="Comet Icon" className="w-24 h-24 mx-auto mb-8 shadow-2xl animate-pulse" />
                                 <h2 className="text-5xl font-black tracking-tighter mb-4">{store.appName}</h2>
                                 <p className="text-white/40 max-w-md mx-auto mb-10 text-sm leading-relaxed font-medium">
                                     A performance-hardened Chromium shell with native AI orchestration, optimized for decentralized workflows.

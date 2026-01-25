@@ -10,6 +10,10 @@ const ApiKeysSettings = () => {
         setOpenaiApiKey,
         geminiApiKey,
         setGeminiApiKey,
+        anthropicApiKey,
+        setAnthropicApiKey,
+        groqApiKey,
+        setGroqApiKey,
     } = useAppStore();
 
     return (
@@ -24,7 +28,7 @@ const ApiKeysSettings = () => {
 
                 <div className="space-y-4">
                     <div>
-                        <label className="block text-[14px] font-medium text-gray-700 mb-1.5">
+                        <label className="block text-xs font-black uppercase tracking-widest text-white/40 mb-1.5">
                             OpenAI API Key
                         </label>
                         <div className="relative">
@@ -40,7 +44,7 @@ const ApiKeysSettings = () => {
                     </div>
 
                     <div>
-                        <label className="block text-[14px] font-medium text-gray-700 mb-1.5">
+                        <label className="block text-xs font-black uppercase tracking-widest text-white/40 mb-1.5">
                             Gemini API Key
                         </label>
                         <div className="relative">
@@ -50,6 +54,38 @@ const ApiKeysSettings = () => {
                                 value={geminiApiKey || ''}
                                 onChange={(e) => setGeminiApiKey(e.target.value)}
                                 placeholder="AIza..."
+                                className="w-full bg-black/40 border border-white/10 rounded-2xl py-3 pl-12 pr-6 text-sm text-white focus:outline-none focus:ring-1 focus:ring-deep-space-accent-neon/50 transition-all placeholder:text-white/20"
+                            />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-black uppercase tracking-widest text-white/40 mb-1.5">
+                            Anthropic API Key (Claude)
+                        </label>
+                        <div className="relative">
+                            <Key size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20" />
+                            <input
+                                type="password"
+                                value={anthropicApiKey || ''}
+                                onChange={(e) => setAnthropicApiKey(e.target.value)}
+                                placeholder="sk-ant-..."
+                                className="w-full bg-black/40 border border-white/10 rounded-2xl py-3 pl-12 pr-6 text-sm text-white focus:outline-none focus:ring-1 focus:ring-deep-space-accent-neon/50 transition-all placeholder:text-white/20"
+                            />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-black uppercase tracking-widest text-white/40 mb-1.5">
+                            Groq API Key
+                        </label>
+                        <div className="relative">
+                            <Key size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20" />
+                            <input
+                                type="password"
+                                value={groqApiKey || ''}
+                                onChange={(e) => setGroqApiKey(e.target.value)}
+                                placeholder="gsk_..."
                                 className="w-full bg-black/40 border border-white/10 rounded-2xl py-3 pl-12 pr-6 text-sm text-white focus:outline-none focus:ring-1 focus:ring-deep-space-accent-neon/50 transition-all placeholder:text-white/20"
                             />
                         </div>

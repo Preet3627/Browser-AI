@@ -1,101 +1,84 @@
-# ☄️ Comet AI Browser (Desktop Core)
+# ☄️ Comet Browser (v0.1.3)
+### The Intelligent Workspace for the Future
 
-![Version](https://img.shields.io/badge/version-v0.1.1-blue)
+**Built by a solo high school developer (Latestinssan)**, running on extreme constraints (i3 4th Gen, 4GB RAM), yet designed to outperform modern browsers in productivity and intelligence.
 
-![Comet Banner](https://via.placeholder.com/1200x400/0a0a0f/00ffff?text=Comet+AI+Browser)
-
-**Comet AI Browser** is a performance-hardened Chromium shell with native AI orchestration, optimized for decentralized workflows. It combines the speed of Chromium with the power of modern AI and cross-device synchronization.
-
-## ✨ Core Features
-
-- 🤖 **Native AI Orchestration:** Seamlessly switch between Google Gemini, OpenAI, Claude, and Local LLMs (via Ollama/TensorFlow.js).
-- 🔒 **Quantum E2EE Privacy:** Industry-standard **AES-GCM (256-bit)** local-first encryption. Your data is encrypted with your private passphrase *before* syncing. **Zero-Knowledge Architecture**—not even the developers can see your data.
-- 🛡️ **AI Fortress:** Proactive real-time scanner that detects and masks sensitive keys (Gemini, OpenAI, Anthropic) or secrets in AI chats before they reach the cloud.
-- 🌐 **Cloud Dashboard:** A web-native portal (`browser.ponsrischool.in`) for managing your synced history and clipboard from any device.
-- 📁 **Hardware-Isolated Tabs:** Persistent sessions with high-fidelity isolation and custom volume/priority controls.
-- 🛒 **Unified Shopping Engine:** AI-powered cross-site cart management that automatically scans pages for items.
-- 📄 **Advanced PDF Workspace:** Built-in OCR text extraction (Tesseract.js) and annotation tools.
-- 🧩 **Chrome Extension Support:** Load and manage your local development plugins with ease.
-- 🔄 **Master Sync Core:** Persistent synchronization of bookmarks, history, and AI memory via Firebase/MySQL.
-
-## Recent Updates
-
-### Version 0.1.2
-
-*   **New Feature:** Added Performance Mode for optimized resource management.
-*   **Bug Fixes:** Resolved multiple TypeScript errors, including duplicate variable declarations and type mismatches across various components and the store.
-*   **Improvements:** Enhanced tab management with audio detection and configurable performance settings.
-
-
-## 🚀 Quick Start (Development)
-
-1.  **Install Dependencies:**
-    ```bash
-    npm install
-    ```
-
-2.  **Configure Environment:**
-    Copy `.env.example` to `.env.local` and fill in your API keys.
-
-3.  **Run Dev Server:**
-    ```bash
-    # Terminal 1: Next.js Frontend
-    npm run dev
-    ```
-    ```bash
-    # Terminal 2: Electron Shell
-    npm run start
-    ```
-
-## 📖 Our Story: How We Built This
-This browser isn't just a piece of software; it's a testament to what's possible with determination and the right tools. **Comet Browser was built in under 6 hours** by a **16-year-old 11th-grade student** with the assistance of advanced AI.
-
-The development took place on a highly modest setup, proving that performance code doesn't require a supercomputer:
-- **Device:** Acer Veriton (Business Desktop)
-- **RAM:** 8 GB
-- **Processor:** Intel Core i5 (U-Series)
-- **Graphics:** Intel UHD Integrated (4 GB Shared)
-- **Storage:** 256 GB SATA SSD
-- **Display:** VA Panel
-
-This project was born out of a desire to create a browsing workspace that feels premium, fast, and intelligent, even on "low-end" hardware.
-
-## ⚙️ System Architecture & Sync Logic
-
-### 🏠 Login & Entry
-The desktop application initializes by loading the internal **Login/Landing Site** bundled within the distribution.
-- **Local Route:** The app points to `out/index.html`, which serves the `LandingPage` component.
-- **Authentication:** We use **Firebase Google OAuth** for persistent sessions. Once logged in, the app transitions seamlessly to the Browser Workspace.
-- **Portal Integration:** Syncing is powered by `browser.ponsrischool.in`, which serves as the central hub for your decentralized data.
-
-### 🛡️ Security System: The "Fortress"
-Comet implements a three-tier security model:
-1.  **Local Isolation:** Tabs run in isolated contexts with randomized IDs.
-2.  **Quantum E2EE:** User-provided passphrases generate unique AES-GCM keys for all cloud-synced metadata.
-3.  **AI Fortress:** A regex-based proactive interceptor that prevents PII (Personally Identifiable Information) and API secrets from being leaked to LLM providers during chat sessions.
-
-### 🔄 Multi-Layer Sync System
-Comet uses a hybrid synchronization model:
-1.  **Cloud Sync (Firebase):** Encrypted **API Keys**, **Vault data**, and **History** are stored in Firebase.
-2.  **P2P Direct Sync:** Large files and real-time clipboard sharing use **Direct Device-to-Device (P2P)** via WebRTC.
-3.  **Relay & Queue:** Temporary encrypted file uploads for offline-queued syncs, with **automated deletion** upon completion.
-
-## 🛠️ Tech Stack & Credits
-
-### Core Libraries
-- **UI Framework:** Next.js 14+, React 19
-- **Styling:** Tailwind CSS 4, Framer Motion 12
-- **State Management:** Zustand
-- **Desktop Shell:** Electron (Chromium) 28.0.0
-- **Intelligence:** TensorFlow.js, Google Gemini, Tesseract.js
-- **Backend:** Firebase (Auth/Datastore), MySQL (Optional Client Metadata)
-
-### © Copyright & Credits
-**Comet AI Browser** is a production of **Latestinssan**.
-Copyright © 2026 Latestinssan. All rights reserved.
-
-All included libraries and sources are the property of their respective owners and are used under their open-source licenses (MIT, Apache 2.0, etc.). Special credits to the [Google DeepMind](https://deepmind.google/) team and the open-source community for the models and tooling that power our Intelligence Core.
+**Comet** is not just a fork; it's a **custom-hardened Chromium environment** designed for:
+1.  **Native AI Orchestration**: Seamlessly switch between Google Gemini 3, GPT-4o, Claude 3.5, Groq, and **Local Ollama (Deepseek R1)**.
+2.  **RAG-Powered Memory**: Your browser remembers your context. It builds a local vector database of your sessions to provide "Perplexity-style" answers offline.
+3.  **Hardware Isolation**: Every tab is sandboxed for maximum security and crash resistance.
+4.  **Decentralized Sync**: Sync your data (tabs, clipboard, history) across devices using P2P direct connections or Firebase with end-to-end encryption.
 
 ---
 
-For detailed installation, Firebase setup, and production build instructions, see [SETUP.md](./SETUP.md).
+## 🚀 Features (v0.1.3 Stable)
+
+### 🧠 Intelligence & RAG
+*   **Perplexity-Style Answers**: Ask complex questions to your sidebar. Comet scans your current page and retrieves relevant context from your history.
+*   **Local Vector DB**: Automatically indexes your browsing for offline semantic search.
+*   **Deepseek R1 Integration**: Optimized for the 1.5B model running locally via Ollama.
+*   **OCR & Vision**: Automatic screenshot analysis and text extraction via Tesseract.js.
+
+### ⚡ Performance & Core
+*   **Chromium Rendering Engine**: We use the raw power of Chromium for 100% web compatibility, stripped of bloatware.
+*   **Optimized for Low-End PCs**: Validated on 4GB RAM machines. Aggressive tab suspension technology.
+*   **Google Navigation Fixed**: Resolved infinite loop issues with search engine redirects.
+
+### 🛡️ Security & Sync
+*   **Identity-Aware**: Login via `browser.ponsrischool.in` to verify your session.
+*   **P2P File Drop**: Send files between Mobile and Desktop instantly.
+*   **Admin Console**: (Enterprise) Manage user access and monitor sync status.
+
+---
+
+---
+
+## 🦙 Native Windows AI (No WSL Required)
+
+Most guides tell you to use WSL (Windows Subsystem for Linux) for local AI. We didn't do that. Comet Browser runs **Ollama natively on Windows** by treating it as a background service controlled via standard `child_process` commands.
+
+**How we achieved this engineering feat:**
+1.  **Native Binary Spawning**: We spawn the `ollama.exe` CLI directly from the Electron main process, bypassing the need for Docker or Linux wrappers.
+2.  **Modelfile Injection**: To import your local `.GGUF` files, Comet programmatically generates a temporary `Modelfile` instructing Ollama to read from your Windows path, creates the model, and cleans up instantly.
+3.  **Stream Capture**: We pipe the standard output (`stdout`) from the command line directly to the React UI, giving you a real-time terminal experience for model downloads and imports.
+
+This allows every Windows user to run local AI without complicated setups.
+
+### 📥 Prerequisites (Ollama Setup)
+To use the local AI features, you simply need the official Windows installer. **No Docker or WSL needed.**
+
+1.  Download **Ollama for Windows** from [ollama.com/download/windows](https://ollama.com/download/windows).
+2.  Install it normally (`OllamaSetup.exe`).
+3.  That's it! Comet will automatically detect the `ollama` command in your system PATH.
+
+---
+
+## 🛠️ The Story Behind Comet
+Building a browser is considered "impossible" for a solo dev. Doing it on a laggy i3 laptop while studying for high school exams? **Insanity.**
+
+**Comet was born out of frustration.** Modern browsers are RAM hogs that spy on you. I wanted a workspace that:
+1.  Loads instantly.
+2.  Understands what I'm reading.
+3.  Works offline.
+
+Despite constant crashes, build failures (Electron is heavy!), and school pressure, **v0.1.3** is here. It stands as a testament to what "Agentic Coding" and sheer willpower can achieve.
+
+---
+
+## 📦 Installation
+```bash
+# Clone the repository
+git clone https://github.com/Latestinssan/comet-browser.git
+
+# Install dependencies
+npm install
+
+# Run (Dev Mode)
+npm run dev
+
+# Build for Windows
+npm run build-electron
+```
+
+---
+*Dedicated to the builders who code on potato PCs.* ❤️
