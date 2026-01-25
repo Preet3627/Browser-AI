@@ -6,7 +6,7 @@ import { useAppStore } from '@/store/useAppStore';
 import {
     Monitor, Shield, Globe, Info, Download,
     ChevronRight, ShieldCheck, Key, Package, Keyboard,
-    Briefcase, ShieldAlert, Database, LogIn, LogOut, History as HistoryIcon, User as UserIcon, Zap
+    Briefcase, ShieldAlert, Database, LogIn, LogOut, History as HistoryIcon, User as UserIcon, Zap, RefreshCw
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import SearchEngineSettings from './SearchEngineSettings';
@@ -20,6 +20,7 @@ import PerformanceSettings from './PerformanceSettings';
 import LoginPrompt from './LoginPrompt';
 import firebaseService from '@/lib/FirebaseService';
 import { User } from 'firebase/auth';
+import SyncSettings from './SyncSettings'; // Import the new SyncSettings component
 
 const SettingsPanel = ({ onClose }: { onClose: () => void }) => {
     const store = useAppStore();
@@ -125,6 +126,7 @@ const SettingsPanel = ({ onClose }: { onClose: () => void }) => {
         { id: 'history', icon: <HistoryIcon size={18} />, label: 'History' },
         { id: 'api-keys', icon: <Key size={18} />, label: 'API Keys' },
         { id: 'shortcuts', icon: <Keyboard size={18} />, label: 'Keyboard Shortcuts' },
+        { id: 'sync', icon: <RefreshCw size={18} />, label: 'Sync' },
         { id: 'extensions', icon: <Package size={18} />, label: 'Extensions' },
         { id: 'tabs', icon: <Monitor size={18} />, label: 'Tab Management' },
         { id: 'integrations', icon: <Briefcase size={18} />, label: 'Integrations' },
@@ -288,6 +290,8 @@ const SettingsPanel = ({ onClose }: { onClose: () => void }) => {
                         {activeSection === 'history' && <HistoryPanel />}
 
                         {activeSection === 'shortcuts' && <KeyboardShortcutSettings />}
+
+                        {activeSection === 'sync' && (<SyncSettings onClose={onClose} />)}
 
                         {activeSection === 'system' && <UserAgentSettings />}
 

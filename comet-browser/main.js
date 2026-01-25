@@ -5,7 +5,7 @@ const { exec } = require('child_process');
 const isDev = !app.isPackaged;
 const express = require('express');
 const bodyParser = require('body-parser');
-const { getP2PSync } = require('./src/lib/P2PFileSyncService'); // Import the P2P service
+const { getP2PSync } = require('./src/lib/P2PFileSyncService.js'); // Import the P2P service
 
 let p2pSyncService = null; // Declare p2pSyncService here
 
@@ -207,6 +207,36 @@ function createWindow() {
       }
     });
   } catch (e) { }
+}
+
+// Helper function for recursive directory scanning
+async function _scanDirectoryRecursive(currentPath, types) {
+  const files = [];
+  const entries = fs.readdirSync(currentPath, { withFileTypes: true });
+
+  for (const entry of entries) {
+    const entryPath = path.join(currentPath, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...await _scanDirectoryRecursive(entryPath, types));
+    } else if (entry.isFile()) {
+      const stats = fs.statSync(entryPath);
+      const fileType = path.extname(entry.name).toLowerCase();
+      const shouldInclude = types.includes('all') || types.some(t => fileType.includes(t));
+
+      if (shouldInclude) {
+        files.push({
+          id: entryPath, // Use path as ID for simplicity
+          name: entry.name,
+          path: entryPath,
+          size: stats.size,
+          type: fileType,
+          hash: `${entryPath}-${stats.size}-${stats.mtimeMs}`, // Simple hash for now
+          modifiedTime: stats.mtimeMs,
+        });
+      }
+    }
+  }
+  return files;
 }
 
 // IPC Handlers
@@ -803,15 +833,67 @@ ipcMain.on('send-p2p-signal', (event, { signal, remoteDeviceId }) => {
 });
 
 ipcMain.handle('scan-folder', async (event, folderPath, types) => {
-  // TODO: Implement actual folder scanning using Node.js fs module
-  console.log(`[Main] Scanning folder: ${folderPath} for types: ${types.join(', ')}`);
-  return [];
+  return await _scanDirectoryRecursive(folderPath, types);
 });
 
 ipcMain.handle('read-file-buffer', async (event, filePath) => {
-  // TODO: Implement actual file reading using Node.js fs module
-  console.log(`[Main] Reading file buffer: ${filePath}`);
-  return new ArrayBuffer(0);
+  try {
+    const buffer = await fs.promises.readFile(filePath);
+    return buffer.buffer; // Return as ArrayBuffer
+  } catch (error) {
+    console.error(`[Main] Error reading file buffer for ${filePath}:`, error);
+    return new ArrayBuffer(0);
+  }
+});
+
+const crypto = require('crypto');
+
+// Function to derive key from passphrase
+async function deriveKey(passphrase, salt) {
+    return new Promise((resolve, reject) => {
+        crypto.pbkdf2(passphrase, salt, 100000, 32, 'sha512', (err, derivedKey) => {
+            if (err) reject(err);
+            resolve(derivedKey);
+        });
+    });
+}
+
+// IPC handler for encryption
+ipcMain.handle('encrypt-data', async (event, { data, key }) => {
+    try {
+        const salt = crypto.randomBytes(16);
+        const derivedKey = await deriveKey(key, salt);
+        const iv = crypto.randomBytes(16); // Initialization vector
+        const cipher = crypto.createCipheriv('aes-256-gcm', derivedKey, iv);
+
+        const encrypted = Buffer.concat([cipher.update(Buffer.from(data)), cipher.final()]);
+        const authTag = cipher.getAuthTag();
+
+        return {
+            encryptedData: encrypted.buffer,
+            iv: iv.buffer,
+            authTag: authTag.buffer,
+            salt: salt.buffer
+        };
+    } catch (error) {
+        console.error('[Main] Encryption failed:', error);
+        return { error: error.message };
+    }
+});
+
+// IPC handler for decryption
+ipcMain.handle('decrypt-data', async (event, { encryptedData, key, iv, authTag, salt }) => {
+    try {
+        const derivedKey = await deriveKey(key, Buffer.from(salt));
+        const decipher = crypto.createDecipheriv('aes-256-gcm', derivedKey, Buffer.from(iv));
+        decipher.setAuthTag(Buffer.from(authTag));
+
+        const decrypted = Buffer.concat([decipher.update(Buffer.from(encryptedData)), decipher.final()]);
+        return { decryptedData: decrypted.buffer };
+    } catch (error) {
+        console.error('[Main] Decryption failed:', error);
+        return { error: error.message };
+    }
 });
 
 app.on('will-quit', () => {

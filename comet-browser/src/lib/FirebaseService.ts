@@ -7,6 +7,8 @@ class FirebaseService {
   public app: FirebaseApp | null = null;
   public auth: Auth | null = null;
   public firestore: Firestore | null = null;
+  private authReadyCallbacks: (() => void)[] = [];
+  private authInitialized: boolean = false;
 
   constructor() {
     this.initializeFirebase();
@@ -37,16 +39,30 @@ class FirebaseService {
       const firebaseConfig = getFirebaseConfig();
 
       // Only initialize if we have valid config
-      if (firebaseConfig.apiKey) {
-        this.app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-        this.auth = getAuth(this.app);
-        this.firestore = getFirestore(this.app);
-      }
-    } catch (error) {
-      console.error("Error initializing Firebase:", error);
-    }
-  }
-
+              if (firebaseConfig.apiKey) {
+              this.app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+              this.auth = getAuth(this.app);
+              this.firestore = getFirestore(this.app);
+      
+              // Listen for the initial auth state to set authInitialized
+              this.auth.onAuthStateChanged(() => {
+                  this.authInitialized = true;
+                  this.authReadyCallbacks.forEach(cb => cb());
+                  this.authReadyCallbacks = []; // Clear callbacks after execution
+              });
+              }
+          } catch (error) {
+              console.error("Error initializing Firebase:", error);
+          }
+        }
+      
+        public onAuthReady(callback: () => void) {
+          if (this.authInitialized) {
+              callback();
+          } else {
+              this.authReadyCallbacks.push(callback);
+          }
+        }
   async signInWithCustomToken(token: string): Promise<User | null> {
     if (!this.auth) {
       console.error("Firebase Auth not initialized.");

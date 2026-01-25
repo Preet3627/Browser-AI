@@ -1,3 +1,4 @@
+
 /**
  * Peer-to-Peer File Sync Service
  * Syncs files, folders, images, PDFs across devices without cloud storage
@@ -7,6 +8,7 @@
 import { EventEmitter } from 'events';
 import firebaseService from './FirebaseService';
 import { getDatabase, ref, set, onValue, off, Database, DataSnapshot } from 'firebase/database';
+import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject, FirebaseStorage } from 'firebase/storage';
 
 export interface SyncFolder {
     id: string;
@@ -26,6 +28,39 @@ export interface FileMetadata {
     type: string;
     hash: string;
     modifiedTime: number;
+    iv?: string; // Base64 encoded ArrayBuffer
+    authTag?: string; // Base64 encoded ArrayBuffer
+    salt?: string; // Base64 encoded ArrayBuffer
+    storagePath?: string; // Path in Firebase Storage
+    downloadURL?: string; // Download URL from Firebase Storage
+    senderDeviceId?: string; // The device that sent the file
+    timestamp?: number; // When the file was relayed
+}
+
+// Define a type for the successful encryption/decryption result
+interface EncryptionSuccessResult {
+    encryptedData: ArrayBuffer;
+    iv: ArrayBuffer;
+    authTag: ArrayBuffer;
+    salt: ArrayBuffer;
+}
+
+interface DecryptionSuccessResult {
+    decryptedData: ArrayBuffer;
+}
+
+// Define a type for the error result
+interface ErrorResult {
+    error: string;
+}
+
+// Union types
+type EncryptResult = EncryptionSuccessResult | ErrorResult;
+type DecryptResult = DecryptionSuccessResult | ErrorResult;
+
+// Type guard function
+function isErrorResult(result: EncryptResult | DecryptResult): result is ErrorResult {
+    return (result as ErrorResult).error !== undefined;
 }
 
 export class P2PFileSyncService extends EventEmitter {
@@ -35,8 +70,11 @@ export class P2PFileSyncService extends EventEmitter {
     private deviceId: string;
     private isConnected: boolean = false;
     private db: Database | null = null;
+    private storage: FirebaseStorage | null = null; // Add storage property
     private userId: string | null = null;
     private remoteDeviceId: string | null = null; // Track the device we are trying to connect to
+
+
 
     constructor(deviceId: string) {
         super();
@@ -48,9 +86,11 @@ export class P2PFileSyncService extends EventEmitter {
         firebaseService.onAuthReady(() => {
             if (firebaseService.app && firebaseService.auth?.currentUser) {
                 this.db = getDatabase(firebaseService.app);
+                this.storage = getStorage(firebaseService.app);
                 this.userId = firebaseService.auth.currentUser.uid;
                 console.log('[P2P] Firebase initialized for user:', this.userId);
                 this.emit('firebase-ready', this.userId);
+                this._listenForRelayFiles(); // Start listening for relayed files
             } else {
                 console.warn('[P2P] Firebase not ready or no user logged in.');
             }
@@ -138,6 +178,12 @@ export class P2PFileSyncService extends EventEmitter {
                 this.dataChannel = event.channel;
                 this.setupDataChannel();
             };
+            return true;
+        } catch (error) {
+            console.error('[P2P] Connection failed:', error);
+            return false;
+        }
+    }
 
 
     private setupDataChannel() {
@@ -265,28 +311,106 @@ export class P2PFileSyncService extends EventEmitter {
      */
     private async syncViaRelay(folderId: string): Promise<{ success: boolean; filesSynced: number }> {
         const folder = this.syncFolders.get(folderId);
-        if (!folder) return { success: false, filesSynced: 0 };
+        if (!folder || !this.db || !this.storage || !this.userId || !this.remoteDeviceId) {
+            console.error('[Relay] Offline sync failed: folder, DB, Storage, userId, or remoteDeviceId not available.');
+            return { success: false, filesSynced: 0 };
+        }
 
-        console.log(`[Relay] Device ${folder.deviceId} is offline. Queueing files to temporary server...`);
+        console.log(`[Relay] Device ${this.remoteDeviceId} is offline. Queueing files to temporary Firebase Storage...`);
 
         try {
             const localFiles = await this.scanFolder(folder.localPath, folder.syncTypes);
             let filesQueued = 0;
+            const passphrase = 'temp-key'; // TODO: Get actual passphrase from useAppStore
 
             for (const file of localFiles) {
-                // 1. Upload to Relay Server (Encrypted)
-                // 2. Clear from server once destination device pulls it
-                // 3. This implementation is simulated for the local shell
-                console.log(`[Relay] Uploading ${file.name} to temp buffer...`);
+                const fileData = await this.readFileData(file.path);
+                const encryptResult: EncryptResult = await window.electronAPI.encryptData(fileData, passphrase);
+
+                if (isErrorResult(encryptResult)) {
+                    console.error('[Relay] Encryption failed:', encryptResult.error);
+                    continue;
+                }
+                const { encryptedData, iv, authTag, salt } = encryptResult;
+
+                // Upload to Firebase Storage
+                const storagePath = `users/${this.userId}/relay_files/${this.remoteDeviceId}/${file.id}`;
+                const fileRef = storageRef(this.storage, storagePath);
+                await uploadBytes(fileRef, new Uint8Array(encryptedData));
+                const downloadURL = await getDownloadURL(fileRef);
+
+                // Store metadata in Firebase Realtime Database
+                const fileRelayMetadata: FileMetadata = {
+                    ...file,
+                    storagePath,
+                    downloadURL,
+                    iv: Buffer.from(iv).toString('base64'),
+                    authTag: Buffer.from(authTag).toString('base64'),
+                    salt: Buffer.from(salt).toString('base64'),
+                    senderDeviceId: this.deviceId,
+                    timestamp: Date.now()
+                };
+                await set(ref(this.db, `p2p_relay_metadata/${this.remoteDeviceId}/${file.id}`), fileRelayMetadata);
+
+                console.log(`[Relay] Uploaded ${file.name} to Firebase Storage and added metadata to DB.`);
                 filesQueued++;
             }
 
             this.emit('relay-queued', { folderId, count: filesQueued });
             return { success: true, filesSynced: filesQueued };
-        } catch (e) {
+        } catch (e: any) {
             console.error('[Relay] Offline queue failed:', e);
             return { success: false, filesSynced: 0 };
         }
+    }
+
+    private _relayListenerOff: (() => void) | null = null;
+    private _listenForRelayFiles() {
+        if (!this.db || !this.storage || !this.userId) return;
+
+        const relayRef = ref(this.db, `p2p_relay_metadata/${this.deviceId}`);
+        this._relayListenerOff = onValue(relayRef, async (snapshot) => {
+            const filesToProcess = snapshot.val();
+            if (!filesToProcess) return;
+
+            for (const fileId in filesToProcess) {
+                const fileMetadata: FileMetadata = filesToProcess[fileId];
+                console.log(`[Relay] Device ${this.deviceId} detected new file to download: ${fileMetadata.name}`);
+
+                try {
+                    // Download from Firebase Storage
+                    const fileRef = storageRef(this.storage!, fileMetadata.storagePath!);
+                    const arrayBuffer = await (await fetch(fileMetadata.downloadURL!)).arrayBuffer();
+                    
+                    const passphrase = 'temp-key'; // TODO: Get actual passphrase from useAppStore
+                    const decryptResult: DecryptResult = await window.electronAPI.decryptData(
+                        arrayBuffer,
+                        passphrase,
+                        Buffer.from(fileMetadata.iv!, 'base64').buffer,
+                        Buffer.from(fileMetadata.authTag!, 'base64').buffer,
+                        Buffer.from(fileMetadata.salt!, 'base64').buffer
+                    );
+
+                    if (isErrorResult(decryptResult)) {
+                        console.error('[Relay] Decryption failed:', decryptResult.error);
+                        continue;
+                    }
+                    const { decryptedData } = decryptResult;
+                    
+                    // TODO: Save file locally (Electron main process will handle this via IPC)
+                    console.log(`[Relay] Decrypted ${fileMetadata.name}. Ready to save locally.`);
+                    
+                    // Delete metadata and file from Firebase after successful processing
+                    await set(ref(this.db!, `p2p_relay_metadata/${this.deviceId}/${fileId}`), null);
+                    await deleteObject(fileRef);
+                    console.log(`[Relay] Cleaned up ${fileMetadata.name} from Firebase.`);
+
+                    this.emit('file-relayed', { ...fileMetadata, decryptedData });
+                } catch (e) {
+                    console.error(`[Relay] Error processing relayed file ${fileMetadata.name}:`, e);
+                }
+            }
+        });
     }
 
     /**
@@ -399,6 +523,16 @@ export class P2PFileSyncService extends EventEmitter {
         if (this.peerConnection) {
             this.peerConnection.close();
             this.peerConnection = null;
+        }
+        if (this.db && this.userId && this.remoteDeviceId) {
+            // Clean up Firebase signaling listener
+            const signalRef = ref(this.db, `p2p_signals/${this.userId}/${this.remoteDeviceId}`);
+            off(signalRef);
+        }
+        // Clean up Firebase relay listener
+        if (this._relayListenerOff) {
+            this._relayListenerOff();
+            this._relayListenerOff = null;
         }
         this.isConnected = false;
         this.emit('disconnected');

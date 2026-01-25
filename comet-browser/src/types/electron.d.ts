@@ -1,4 +1,4 @@
-import { ChatMessage } from "@/lib/llm/providers/base";
+import { ChatMessage } from "../lib/llm/providers/base";
 
 declare global {
     interface Window {
@@ -121,6 +121,8 @@ declare global {
             onP2POfferCreated: (callback: (data: { offer: any; remoteDeviceId: string }) => void) => () => void;
             onP2PAnswerCreated: (callback: (data: { answer: any; remoteDeviceId: string }) => void) => () => void;
             onP2PIceCandidate: (callback: (data: { candidate: any; remoteDeviceId: string }) => void) => () => void;
+            encryptData: (data: ArrayBuffer, key: string) => Promise<{ encryptedData: ArrayBuffer; iv: ArrayBuffer; authTag: ArrayBuffer; salt: ArrayBuffer; } | { error: string }>;
+            decryptData: (encryptedData: ArrayBuffer, key: string, iv: ArrayBuffer, authTag: ArrayBuffer, salt: ArrayBuffer) => Promise<{ decryptedData: ArrayBuffer; } | { error: string }>;
         };
     }
 }

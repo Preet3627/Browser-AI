@@ -7,12 +7,13 @@
   "main": "main.js",
   "homepage": "./",
   "scripts": {
-    "dev": "concurrently \"npm:electron-dev\" \"wait-on http://localhost:3000 && npm:electron-start\"",
+    "dev": "concurrently \"npm:electron-dev\" \"wait-on http://localhost:3000 && electron .\"",
     "electron-dev": "next dev",
     "electron-start": "electron .",
     "build": "next build",
     "start": "npx serve@latest out",
     "lint": "eslint",
+    "predev": "tsc src/lib/P2PFileSyncService.ts src/types/electron.d.ts --outDir src/lib --module CommonJS",
     "build-electron": "npm run build && electron-builder"
   },
   "dependencies": {
