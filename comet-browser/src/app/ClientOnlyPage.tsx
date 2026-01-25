@@ -333,6 +333,20 @@ export default function Home() {
     let url = store.currentUrl.trim();
     if (!url) return;
 
+    const isGoogleAuthUrl = (testUrl: string) => {
+      try {
+        const hostname = new URL(testUrl).hostname;
+        return hostname.includes('accounts.google.com') || hostname.includes('accounts.youtube.com');
+      } catch {
+        return false;
+      }
+    };
+
+    if (isGoogleAuthUrl(url) && window.electronAPI) {
+      window.electronAPI.openAuthWindow(url);
+      return;
+    }
+
     if (/^[0-9+\-*/().\s]+$/.test(url)) {
       try {
         const result = eval(url);
