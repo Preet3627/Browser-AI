@@ -8,7 +8,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-cyan.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Android%20%7C%20iOS-blue)]()
-[![Version](https://img.shields.io/badge/Version-0.1.2--beta-green)]()
+[![Version](https://img.shields.io/badge/Version-0.1.3--stable-green)]()
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)]()
 
 [Features](#-features) • [Download](#-download) • [Quick Start](#-quick-start) • [Documentation](#-documentation) • [Contributing](#-contributing)
@@ -191,7 +191,7 @@ The AI communicates with the browser using structured tags:
 
 | Platform | Download | Status | Size |
 |----------|----------|--------|------|
-| 🪟 **Windows** | [Download v0.1.2‑beta (.exe)](https://github.com/Preet3627/Browser-AI/releases/download/Comet-Browser/Comet.Browser.Setup.0.1.3-beta.exe) | ✅ Available | ~150 MB |
+| 🪟 **Windows** | [Download v0.1.3-stable (.exe)](https://github.com/Preet3627/Browser-AI/releases/download/Stable/Comet.Browser.Setup.0.1.4.exe) | ✅ Available | ~150 MB |
 | 🍎 **macOS** | Coming soon | 🧪 In development | – |
 | 🐧 **Linux** | Coming soon | 🧪 In development | – |
 
