@@ -1,6 +1,6 @@
 {
   "name": "comet-browser",
-  "version": "0.1.3",
+  "version": "0.1.5",
   "private": true,
   "description": "Comet AI Browser - A high-performance, intelligence-driven browsing workspace with local LLM support and advanced productivity features.",
   "author": "Latestinssan",
@@ -14,7 +14,8 @@
     "start": "npx serve@latest out",
     "lint": "eslint",
     "predev": "npx tsc src/lib/P2PFileSyncService.ts src/types/electron.d.ts --outDir src/lib --module CommonJS --skipLibCheck --esModuleInterop",
-    "build-electron": "npm run build && electron-builder"
+    "build-electron": "npm run build && electron-builder",
+    "dist:win": "npm run build && electron-builder --win --x64"
   },
   "dependencies": {
     "@ghostery/adblocker-electron": "^2.13.4",
@@ -58,7 +59,7 @@
     "@types/react": "19.2.8",
     "@types/react-syntax-highlighter": "^15.5.13",
     "concurrently": "^8.2.2",
-    "electron": "28.3.3",
+    "electron": "^40.1.0",
     "electron-builder": "^26.0.12",
     "eslint": "^8.0.0",
     "globals": "^13.24.0",
@@ -66,6 +67,7 @@
     "typescript": "^5",
     "typescript-eslint": "^8.53.1"
   },
+  "packageManager": "npm@11.5.1",
   "build": {
     "appId": "com.latestinssan.cometbrowser",
     "productName": "Comet Browser",
@@ -78,10 +80,14 @@
       "preload.js",
       "view_preload.js",
       "src/lib/P2PFileSyncService.js",
+      "src/lib/*.js",
       "package.json",
       "LICENSE.txt",
       "icon.ico",
       "node_modules/**/*"
+    ],
+    "npmArgs": [
+      "--no-workspaces"
     ],
     "nsis": {
       "oneClick": false,
@@ -101,5 +107,8 @@
       "buildResources": "assets",
       "output": "release"
     }
+  },
+  "optionalDependencies": {
+    "@next/swc-win32-x64-msvc": "^16.1.6"
   }
 }

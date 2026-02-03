@@ -21,7 +21,7 @@ interface LLMProviderSettingsProps {
   setBackend: (backend: 'firebase' | 'mysql') => void;
   mysqlConfig: any;
   setMysqlConfig: (config: any) => void;
-  ollamaModels: { name: string; modified_at: string; }[]; 
+  ollamaModels: { name: string; modified_at: string; }[];
   setOllamaModels: (models: { name: string; modified_at: string; }[]) => void;
   setError: (error: string | null) => void; // New prop for setting errors
 }
@@ -114,7 +114,7 @@ const LLMProviderSettings: React.FC<LLMProviderSettingsProps> = (props) => {
     <div className="border border-white/5 rounded-2xl overflow-hidden glass-dark transition-all">
       <button
         onClick={() => setShowSettings(!showSettings)}
-        className="w-full flex items-center justify-between p-4 hover:bg-white/5 transition-colors"
+        className="w-full flex items-center justify-between p-4 hover:bg-white/5 transition-colors no-drag-region"
       >
         <div className="flex items-center gap-2">
           <Settings size={14} className="text-white/40" />
@@ -213,14 +213,29 @@ const LLMProviderSettings: React.FC<LLMProviderSettingsProps> = (props) => {
                           <select
                             className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-deep-space-accent-neon/50 transition-all font-bold"
                             value={store.ollamaModel}
-                            onChange={(e) => store.setOllamaModel(e.target.value)}
+                            onChange={async (e) => {
+                              const newModel = e.target.value;
+                              store.setOllamaModel(newModel);
+                              if (window.electronAPI && newModel !== 'custom') {
+                                // Auto-sync configuration to main process
+                                await window.electronAPI.configureLLMProvider('ollama', {
+                                  baseUrl: store.ollamaBaseUrl,
+                                  model: newModel
+                                });
+                                setFeedback(`Synced: ${newModel}`);
+                                setTimeout(() => setFeedback(null), 2000);
+                              }
+                            }}
                             onFocus={async () => {
-                              if (window.electronAPI) { // Always try to refresh on focus
+                              if (window.electronAPI) {
+                                setFeedback("Syncing Models...");
                                 const { models, error } = await window.electronAPI.ollamaListModels();
                                 if (models) {
-                                  props.setOllamaModels(models); // Update state in parent
+                                  props.setOllamaModels(models);
+                                  setFeedback(null);
                                 } else if (error) {
                                   props.setError(`Ollama error: ${error}`);
+                                  setFeedback("Sync Failed");
                                 }
                               }
                             }}

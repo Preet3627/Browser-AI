@@ -14,9 +14,9 @@ export class BrowserAI {
         if (this.isReady) return this.isReady;
         this.isReady = (async () => {
             await tf.ready();
-            // Force CPU if WebGL is flaky in Electron views
             try {
-                // await tf.setBackend('webgl');
+                // Try WebGL first, fallback to CPU
+                await tf.setBackend('webgl').catch(() => tf.setBackend('cpu'));
             } catch (e) {
                 await tf.setBackend('cpu');
             }

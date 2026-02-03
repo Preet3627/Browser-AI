@@ -25,7 +25,20 @@ Made in India 🇮🇳
 
 ---
 
-## 🚀 Features (v0.1.3 Stable)
+## 🤖 AI Prompt Guide (Top Queries)
+Unlock the full potential of Comet AI with these curated search & query examples:
+1.  **Latest Tech Info**: "Show me the latest news about Gemini 2.0"
+2.  **Language Translation**: "Summarize this page in Hindi"
+3.  **Financial Insights**: "What are the best stocks to buy today in India?"
+4.  **Developer Assistance**: "Give me a coding recipe for a React weather app"
+5.  **Visual OCR**: "Analyze the visual content of this page"
+6.  **Deep Search**: "Find all mentions of 'intelligence' on this page"
+7.  **Smart Navigation**: "Navigate to google.com and search for AI browsers"
+8.  **UI Control**: "Switch to Dark mode"
+9.  **History Retrieval**: "What is my browsing history for today?"
+10. **Data Extraction**: "Read this page and tell me the main price"
+11. **Linguistic Support**: "Translate my last message to Tamil"
+12. **Workspace Management**: "List all my open tabs and summarize them"
 
 ### 🧠 Intelligence & RAG
 *   **Perplexity-Style Answers**: Ask complex questions to your sidebar. Comet scans your current page and retrieves relevant context from your history.

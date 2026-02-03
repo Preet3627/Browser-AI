@@ -6,7 +6,7 @@ import { useAppStore } from '@/store/useAppStore';
 import {
     Monitor, Shield, Globe, Info, Download,
     ChevronRight, ShieldCheck, Key, Package, Keyboard,
-    Briefcase, ShieldAlert, Database, LogIn, LogOut, History as HistoryIcon, User as UserIcon, Zap, RefreshCw
+    Briefcase, ShieldAlert, Database, LogIn, LogOut, History as HistoryIcon, User as UserIcon, Zap, RefreshCw, Languages
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import SearchEngineSettings from './SearchEngineSettings';
@@ -120,6 +120,7 @@ const SettingsPanel = ({ onClose, defaultSection = 'profile' }: { onClose: () =>
         { id: 'vault', icon: <Key size={18} />, label: 'Vault & Autofill' },
         { id: 'history', icon: <HistoryIcon size={18} />, label: 'History' },
         { id: 'api-keys', icon: <Key size={18} />, label: 'API Keys' },
+        { id: 'languages', icon: <Languages size={18} />, label: 'Regional Languages' },
         { id: 'shortcuts', icon: <Keyboard size={18} />, label: 'Keyboard Shortcuts' },
         { id: 'sync', icon: <RefreshCw size={18} />, label: 'Sync' },
         { id: 'extensions', icon: <Package size={18} />, label: 'Extensions' },
@@ -167,7 +168,7 @@ const SettingsPanel = ({ onClose, defaultSection = 'profile' }: { onClose: () =>
                             Install PWA
                         </button>
                         <div className="p-4 bg-deep-space-accent-neon/5 rounded-2xl border border-deep-space-accent-neon/10 text-[10px] font-medium text-deep-space-accent-neon/60 text-center leading-relaxed">
-                            Version v0.1.3 Stable <br /> (Production Build)
+                            Version v0.1.5 Stable <br /> (Production Build)
                         </div>
                     </div>
                 </div>
@@ -237,7 +238,7 @@ const SettingsPanel = ({ onClose, defaultSection = 'profile' }: { onClose: () =>
                                         <p className="text-[10px] font-black text-white/20 uppercase tracking-widest mb-4">Workspace Tier</p>
                                         <div className="flex items-center gap-3 text-white">
                                             <Zap size={16} className="text-amber-400" />
-                                            <span className="text-sm font-bold">Foundation (Alpha 0.1.3)</span>
+                                            <span className="text-sm font-bold">Foundation (Alpha 0.1.5)</span>
                                         </div>
                                     </div>
                                 </div>
@@ -304,6 +305,38 @@ const SettingsPanel = ({ onClose, defaultSection = 'profile' }: { onClose: () =>
                                         </label>
                                     </div>
 
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <p className="font-bold text-white mb-1">Privacy Permission Prompt</p>
+                                            <p className="text-xs text-white/30">Ask for permission before AI reads current page content.</p>
+                                        </div>
+                                        <label className="relative inline-flex items-center cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={store.askForAiPermission}
+                                                onChange={() => store.setAskForAiPermission(!store.askForAiPermission)}
+                                                className="sr-only peer"
+                                            />
+                                            <div className="relative w-11 h-6 bg-white/10 rounded-full peer peer-checked:after:translate-x-full peer peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-deep-space-accent-neon" />
+                                        </label>
+                                    </div>
+
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <p className="font-bold text-white mb-1">Intelligence Disclaimer Prompt</p>
+                                            <p className="text-xs text-white/30">Show a one-time reminder that AI results should be verified.</p>
+                                        </div>
+                                        <label className="relative inline-flex items-center cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={!store.hasSeenAiMistakeWarning}
+                                                onChange={() => store.setHasSeenAiMistakeWarning(!store.hasSeenAiMistakeWarning)}
+                                                className="sr-only peer"
+                                            />
+                                            <div className="relative w-11 h-6 bg-white/10 rounded-full peer peer-checked:after:translate-x-full peer peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-deep-space-accent-neon" />
+                                        </label>
+                                    </div>
+
                                     <div className="h-[1px] bg-white/5 w-full" />
 
                                     <div className="space-y-4">
@@ -346,6 +379,53 @@ const SettingsPanel = ({ onClose, defaultSection = 'profile' }: { onClose: () =>
                         {activeSection === 'shortcuts' && <KeyboardShortcutSettings />}
 
                         {activeSection === 'sync' && (<SyncSettings onClose={onClose} />)}
+
+                        {activeSection === 'languages' && (
+                            <div className="space-y-8">
+                                <div className="p-8 rounded-[2rem] bg-white/[0.03] border border-white/5 space-y-8">
+                                    <div>
+                                        <h3 className="text-lg font-bold text-white mb-2">Regional Language Support</h3>
+                                        <p className="text-xs text-white/30 mb-8">Select your preferred Indian regional language for browser interface and AI interaction.</p>
+
+                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                                            {store.availableLanguages.map((lang) => {
+                                                const names: Record<string, string> = {
+                                                    en: 'English', hi: 'Hindi (हिन्दी)', bn: 'Bengali (বাংলা)', te: 'Telugu (తెలుగు)',
+                                                    mr: 'Marathi (मराठी)', ta: 'Tamil (தமிழ்)', gu: 'Gujarati (ગુજરાતી)', ur: 'Urdu (اردو)',
+                                                    kn: 'Kannada (ಕನ್ನಡ)', or: 'Odia (ଓଡ଼ିଆ)', ml: 'Malayalam (മലയാളം)', pa: 'Punjabi (ਪੰਜਾਬੀ)',
+                                                    as: 'Assamese (অসমীয়া)', mai: 'Maithili (मैथिली)', sat: 'Santali (संताली)', ks: 'Kashmiri (کأشُر)',
+                                                    ne: 'Nepali (नेपाली)', kok: 'Konkani (कोंकणी)', sd: 'Sindhi (سنڌي)', doi: 'Dogri (डोगरी)',
+                                                    mni: 'Manipuri (মৈতৈলোন)', sa: 'Sanskrit (संस्कृतम्)', brx: 'Bodo (बड़ो)',
+                                                    es: 'Spanish (Español)', fr: 'French (Français)', de: 'German (Deutsch)',
+                                                    ja: 'Japanese (日本語)', zh: 'Chinese (中文)', ru: 'Russian (Русский)',
+                                                    pt: 'Portuguese (Português)', it: 'Italian (Italiano)', ko: 'Korean (한국어)',
+                                                    ar: 'Arabic (العربية)', tr: 'Turkish (Türkçe)', vi: 'Vietnamese (Tiếng Việt)',
+                                                    th: 'Thai (ไทย)', nl: 'Dutch (Nederlands)', pl: 'Polish (Polski)'
+                                                };
+                                                return (
+                                                    <button
+                                                        key={lang}
+                                                        onClick={() => store.setSelectedLanguage(lang)}
+                                                        className={`p-4 rounded-2xl border transition-all text-left ${store.selectedLanguage === lang ? 'bg-deep-space-accent-neon/10 border-deep-space-accent-neon/40 text-deep-space-accent-neon' : 'bg-white/5 border-white/5 hover:bg-white/10 text-white/60'}`}
+                                                    >
+                                                        <p className="text-sm font-bold">{names[lang] || lang}</p>
+                                                        <p className="text-[10px] opacity-40 uppercase font-black tracking-widest mt-1">{lang}</p>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+
+                                    <div className="p-6 bg-deep-space-accent-neon/5 rounded-2xl border border-deep-space-accent-neon/10 flex items-center gap-4">
+                                        <Languages size={24} className="text-deep-space-accent-neon" />
+                                        <div className="flex-1">
+                                            <p className="text-xs font-bold text-white">AI Neural Translation</p>
+                                            <p className="text-[10px] text-white/40">The browser will now prioritize {store.selectedLanguage} for real-time web translation and neural insights.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
                         {activeSection === 'system' && <UserAgentSettings />}
 

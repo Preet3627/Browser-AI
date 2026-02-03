@@ -27,7 +27,7 @@ class FirebaseSyncService {
         auth.onAuthStateChanged((user: User | null) => {
           if (user) {
             this.userId = user.uid;
-            // Only sync if not in guest mode - check will be done in individual sync methods
+            // Trigger initial sync for all categories
             this.syncClipboard();
             this.syncHistory();
             this.syncApiKeys();
@@ -47,10 +47,10 @@ class FirebaseSyncService {
 
   public async syncClipboard() {
     if (!this.userId || !db) return;
-    
+
     const useAppStore = await this.getStore();
     const store = useAppStore.getState();
-    
+
     // Skip sync if guest mode is enabled
     if (store.isGuestMode || !store.cloudSyncConsent) return;
 
@@ -60,10 +60,10 @@ class FirebaseSyncService {
       if (data && Array.isArray(data)) {
         const useAppStore = await this.getStore();
         const store = useAppStore.getState();
-        
+
         // Double-check guest mode and sync consent before syncing
         if (store.isGuestMode || !store.cloudSyncConsent) return;
-        
+
         const decrypted = await Promise.all(
           data.map(item => Security.decrypt(item, store.syncPassphrase || undefined))
         );
@@ -76,10 +76,10 @@ class FirebaseSyncService {
     if (!this.userId || !db) return;
     const useAppStore = await this.getStore();
     const store = useAppStore.getState();
-    
+
     // Skip sync if guest mode is enabled
     if (store.isGuestMode || !store.cloudSyncConsent) return;
-    
+
     const encrypted = await Promise.all(
       clipboard.map(item => Security.encrypt(String(item), store.syncPassphrase || undefined))
     );
@@ -93,7 +93,7 @@ class FirebaseSyncService {
 
     const useAppStore = await this.getStore();
     const store = useAppStore.getState();
-    
+
     // Skip sync if guest mode is enabled
     if (store.isGuestMode || !store.cloudSyncConsent) return;
 
@@ -103,10 +103,10 @@ class FirebaseSyncService {
       if (data && Array.isArray(data)) {
         const useAppStore = await this.getStore();
         const store = useAppStore.getState();
-        
+
         // Double-check guest mode and sync consent before syncing
         if (store.isGuestMode || !store.cloudSyncConsent) return;
-        
+
         store.setHistory(data);
       }
     });
@@ -116,10 +116,10 @@ class FirebaseSyncService {
     if (!this.userId || !db) return;
     const useAppStore = await this.getStore();
     const store = useAppStore.getState();
-    
+
     // Skip sync if guest mode is enabled
     if (store.isGuestMode || !store.cloudSyncConsent) return;
-    
+
     const encrypted = await Promise.all(
       history.map(item => Security.encrypt(item, store.syncPassphrase || undefined))
     );
@@ -133,7 +133,7 @@ class FirebaseSyncService {
 
     const useAppStore = await this.getStore();
     const store = useAppStore.getState();
-    
+
     // Skip sync if guest mode is enabled
     if (store.isGuestMode || !store.cloudSyncConsent) return;
 
@@ -143,10 +143,10 @@ class FirebaseSyncService {
       if (data) {
         const useAppStore = await this.getStore();
         const store = useAppStore.getState();
-        
+
         // Double-check guest mode and sync consent before syncing
         if (store.isGuestMode || !store.cloudSyncConsent) return;
-        
+
         const decrypted = await Security.decrypt(data, store.syncPassphrase || undefined);
         const parsedKeys = JSON.parse(decrypted);
         store.setOpenaiApiKey(parsedKeys.openai);
@@ -159,10 +159,10 @@ class FirebaseSyncService {
     if (!this.userId || !db) return;
     const useAppStore = await this.getStore();
     const store = useAppStore.getState();
-    
+
     // Skip sync if guest mode is enabled
     if (store.isGuestMode || !store.cloudSyncConsent) return;
-    
+
     const encryptedKeys = await Security.encrypt(JSON.stringify(apiKeys), store.syncPassphrase || undefined);
     const apiKeysRef = ref(db, "apiKeys/" + this.userId);
     set(apiKeysRef, encryptedKeys);

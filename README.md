@@ -22,7 +22,7 @@
 Comet AI Browser is currently in **v0.1.2‑beta**.
 
 - ✅ Windows (Electron): Installable and usable  
-- 🧪 Mobile (React Native): Under active development  
+- 🧪 Mobile (Flutter): Under active development  
 - 🧪 macOS & Linux: Desktop builds in development  
 - 🧪 Advanced features (phone control, full P2P suite, etc.): Being implemented step by step  
 
@@ -213,10 +213,21 @@ The AI communicates with the browser using structured tags:
 ```bash
 # Clone the repository
 git clone https://github.com/Preet3627/Browser-AI.git
-cd Browser-AI/comet-browser
 
-# Install dependencies
+# Install dependencies at the root level (monorepo)
+cd Browser-AI
 npm install
+
+# Navigate to the comet-browser workspace
+cd comet-browser
+
+# IMPORTANT: Setup workspace (Windows only)
+# This creates a junction to the parent node_modules directory
+# Required for Electron to find dependencies in the monorepo structure
+.\setup-workspace.ps1
+
+# For Linux/macOS, create a symlink instead:
+# ln -s ../node_modules node_modules
 
 # Copy environment variables
 cp env.example .env.local
@@ -230,27 +241,38 @@ cp env.example .env.local
 npm run dev
 
 # In another terminal, start Electron
+# NOTE: If you get "Access is denied" for cache, close all Electron tasks first.
 npm run electron-start
 
 # Build for production
-npm run build
+# ⚠️ WARNING: If "npm rebuild" fails with "reading 'location'", 
+# we have disabled manual rebuild in package.json. 
+# Ensure your node_modules are already installed at the root.
 npm run build-electron
 ```
 
-### Mobile (React Native)
+**Note for Windows Users**: If you encounter "Cannot find module" errors (like `Cannot find module 'express'`), make sure you've run the `setup-workspace.ps1` script. This creates a junction link from `comet-browser/node_modules` to the parent `node_modules` directory, which is required for the monorepo workspace structure. See `comet-browser/TROUBLESHOOTING.md` for more details.
+
+### 🛠️ Troubleshooting NPM 11
+If you encounter `TypeError: Cannot read properties of null (reading 'location')`, run:
+```bash
+# From the root directory
+rm -r node_modules; rm package-lock.json; npm install
+```
+
+### Mobile (Flutter)
 
 ```bash
-cd ../CometBrowserMobile
+cd ./CometBrowserMobile
 
 # Install dependencies
-npm install
+flutter pub get
 
-# iOS
-cd ios && pod install && cd ..
-npm run ios
+# Run on Android
+flutter run -d android
 
-# Android
-npm run android
+# Run on iOS
+flutter run -d ios
 ```
 
 > Note: Mobile apps are work‑in‑progress; some features may be stubbed or experimental.
@@ -486,15 +508,19 @@ Browser-AI/
 │   └── package.json
 ```
 
-### Mobile (React Native)
+### Mobile (Flutter)
 
 ```text
 Browser-AI/
 └── CometBrowserMobile/
-    ├── App.tsx               # Main app component
+    ├── lib/                  # Dart source code
+    │   ├── main.dart         # Entry point
+    │   ├── browser_page.dart # Glassmorphic Browser UI
+    │   ├── sync_service.dart # Firebase & P2P Sync
+    │   └── tabs_panel.dart   # Collections UI
     ├── android/              # Android native code
     ├── ios/                  # iOS native code
-    └── package.json
+    └── pubspec.yaml          # Flutter dependencies
 ```
 
 ***

@@ -1,4 +1,6 @@
 const { app, BrowserWindow, ipcMain, session, shell, clipboard, BrowserView, dialog, globalShortcut } = require('electron');
+const contextMenuRaw = require('electron-context-menu');
+const contextMenu = contextMenuRaw.default || contextMenuRaw;
 const fs = require('fs');
 const path = require('path');
 const { exec } = require('child_process');
@@ -71,103 +73,244 @@ const llmGenerateHandler = async (messages, options = {}) => {
   const config = llmConfigs[providerId] || {};
   const apiKey = options.apiKey || config.apiKey;
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), providerId === 'ollama' ? 30000 : 90000); // 30s for local Ollama, 90s for reasoning
+
   try {
     if (providerId.startsWith('gemini')) {
       const gKey = apiKey || process.env.GEMINI_API_KEY;
       if (!gKey) return { error: 'Missing Gemini API Key' };
 
       const genAI = new GoogleGenerativeAI(gKey);
-      // Map to official model names. Default to 1.5 Pro if "pro" is in ID, otherwise Flash.
-      // If the user asks for "3.5", we'll default to the latest Pro model available via SDK.
-      const modelName = providerId.includes('pro') ? 'gemini-1.5-pro' : 'gemini-1.5-flash';
 
-      const model = genAI.getGenerativeModel({ model: modelName });
+      let modelName = 'gemini-1.5-flash';
+      let generationConfigOverrides = {};
 
-      // Transform messages for SDK
-      // The SDK expects history to be separate from the new message
-      const history = messages.slice(0, -1).map(m => ({
-        role: m.role === 'user' ? 'user' : 'model',
-        parts: [{ text: m.content }]
-      }));
+      if (providerId.includes('2.0-pro')) {
+        modelName = 'gemini-2.0-pro-exp-02-05';
+      } else if (providerId.includes('2.0-flash-lite')) {
+        modelName = 'gemini-2.0-flash-lite-preview-02-05';
+      } else if (providerId.includes('2.0-flash')) {
+        modelName = 'gemini-2.0-flash';
+      } else if (providerId.includes('1.5-pro')) {
+        modelName = 'gemini-1.5-pro';
+      } else if (providerId.includes('1.5-flash')) {
+        modelName = 'gemini-1.5-flash';
+      } else {
+        modelName = 'gemini-1.5-pro'; // Default
+      }
 
-      const lastMessage = messages[messages.length - 1];
-      const prompt = lastMessage ? lastMessage.content : "";
+      const systemMessage = messages.find(m => m.role === 'system');
+      const chatMessages = messages.filter(m => m.role !== 'system');
 
-      if (!prompt) return { error: "Empty prompt" };
+      const model = genAI.getGenerativeModel({
+        model: modelName,
+        systemInstruction: systemMessage ? systemMessage.content : undefined
+      });
 
+      // Gemini history MUST start with 'user' and alternate user/model
+      let history = [];
+      const historySource = chatMessages.slice(0, -1);
+
+      if (historySource.length > 0) {
+        // Find first user message to start the history
+        const firstUserIndex = historySource.findIndex(m => m.role === 'user');
+        if (firstUserIndex !== -1) {
+          history = historySource.slice(firstUserIndex).map(m => ({
+            role: m.role === 'user' ? 'user' : 'model',
+            parts: [{ text: m.content }]
+          }));
+        }
+      }
+
+      const lastMessage = chatMessages[chatMessages.length - 1];
       const chat = model.startChat({
-        history: history,
+        history,
         generationConfig: {
-          maxOutputTokens: 4096,
+          maxOutputTokens: 8192,
+          temperature: 0.7,
+          ...generationConfigOverrides // Inject latest 2026 reasoning config
         },
       });
 
-      const result = await chat.sendMessage(prompt);
+      const result = await chat.sendMessage(lastMessage.content);
       const response = await result.response;
+      clearTimeout(timeoutId);
       return { text: response.text() };
 
-    } else if (providerId === 'gpt-4o') {
-      const oaiKey = apiKey || process.env.OPENAI_API_KEY;
-      if (!oaiKey) return { error: 'Missing OpenAI API Key' };
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    } else if (providerId.startsWith('gpt') || providerId.startsWith('o1') || providerId === 'openai-compatible') {
+      const oaiKey = apiKey || config.apiKey || process.env.OPENAI_API_KEY;
+      const baseUrl = config.baseUrl || 'https://api.openai.com/v1';
+
+      let modelName = config.model;
+      if (!modelName) {
+        if (providerId === 'gpt-4o') modelName = 'gpt-4o';
+        else if (providerId === 'gpt-4-turbo') modelName = 'gpt-4-turbo';
+        else if (providerId === 'gpt-3.5-turbo') modelName = 'gpt-3.5-turbo';
+        else if (providerId === 'o1') modelName = 'o1';
+        else if (providerId === 'o1-mini') modelName = 'o1-mini';
+        else modelName = 'gpt-4o';
+      }
+
+      const response = await fetch(`${baseUrl.replace(/\/$/, '')}/chat/completions`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${oaiKey}` },
-        body: JSON.stringify({ model: 'gpt-4o', messages: messages.map(m => ({ role: m.role, content: m.content })) })
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': oaiKey ? `Bearer ${oaiKey}` : ''
+        },
+        body: JSON.stringify({
+          model: modelName,
+          messages: messages.map(m => ({ role: m.role, content: m.content })),
+          temperature: 0.7
+        }),
+        signal: controller.signal
       });
       const data = await response.json();
-      return { text: data.choices?.[0]?.message?.content || 'No response from GPT-4o.' };
-    } else if (providerId === 'claude-3-5-sonnet') {
+      clearTimeout(timeoutId);
+      return { text: data.choices?.[0]?.message?.content || 'No response from intelligence provider.' };
+
+    } else if (providerId.startsWith('claude') || providerId === 'anthropic') {
       const anthropicKey = apiKey || process.env.ANTHROPIC_API_KEY;
       if (!anthropicKey) return { error: 'Missing Anthropic API Key' };
+
+      const modelName = providerId.includes('3-7') ? 'claude-3-7-sonnet-20250224' : 'claude-3-5-sonnet-20240620';
+      const isExtended = providerId.includes('3-7');
+
       const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01' },
-        body: JSON.stringify({ model: 'claude-3-5-sonnet-20240620', max_tokens: 4096, messages: messages.map(m => ({ role: m.role, content: m.content })) })
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': anthropicKey,
+          'anthropic-version': '2023-06-01'
+        },
+        body: JSON.stringify({
+          model: modelName,
+          max_tokens: 16384,
+          thinking: isExtended ? { type: 'enabled', budget_tokens: 4096 } : undefined,
+          messages: messages.map(m => ({ role: m.role, content: m.content }))
+        }),
+        signal: controller.signal
       });
       const data = await response.json();
-      return { text: data.content?.[0]?.text || 'No response from Claude 3.5 Sonnet.' };
-    } else if (providerId === 'mixtral-8x7b-groq') {
-      const groqKey = apiKey || process.env.GROQ_API_KEY;
-      if (!groqKey) return { error: 'Missing Groq API Key' };
-      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${groqKey}` },
-        body: JSON.stringify({ model: 'mixtral-8x7b-32768', messages: messages.map(m => ({ role: m.role, content: m.content })) })
-      });
-      const data = await response.json();
-      return { text: data.choices?.[0]?.message?.content || 'No response from Groq.' };
+      clearTimeout(timeoutId);
+      return { text: data.content?.[0]?.text || data.content?.find(c => c.type === 'text')?.text || 'No response from Claude.' };
+
     } else if (providerId === 'ollama') {
       const baseUrl = config.baseUrl || 'http://localhost:11434';
-      const model = config.model || 'llama3';
+      const model = config.model || 'llama3.3';
+
       const response = await fetch(`${baseUrl}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model, messages: messages.map(m => ({ role: m.role, content: m.content })), stream: false })
+        body: JSON.stringify({
+          model,
+          messages: messages.map(m => ({ role: m.role, content: m.content })),
+          stream: false,
+          keep_alive: "1h",
+          options: { temperature: 0.7, num_ctx: 32768 }
+        }),
+        signal: controller.signal
       });
       const data = await response.json();
-      return { text: data.message?.content || `No response from Ollama model ${model}.` };
+      clearTimeout(timeoutId);
+      if (!data.message?.content) {
+        return { error: `Ollama returned an empty response. Ensure the model '${model}' is downloaded and reachable.` };
+      }
+      return { text: data.message.content };
+
+    } else if (providerId.includes('groq')) {
+      const groqKey = apiKey || process.env.GROQ_API_KEY;
+      if (!groqKey) return { error: 'Missing Groq API Key' };
+
+      const modelName = config.model || 'mixtral-8x7b-32768';
+
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${groqKey}`
+        },
+        body: JSON.stringify({
+          model: modelName,
+          messages: messages.map(m => ({ role: m.role, content: m.content })),
+          temperature: 0.7
+        }),
+        signal: controller.signal
+      });
+      const data = await response.json();
+      clearTimeout(timeoutId);
+      return { text: data.choices?.[0]?.message?.content || 'No response from Groq.' };
+
     } else {
+      clearTimeout(timeoutId);
       return { error: `Provider '${providerId}' is not configured.` };
     }
   } catch (e) {
-    return { error: e.message };
+    clearTimeout(timeoutId);
+    console.error("LLM Error:", e);
+    return { error: e.name === 'AbortError' ? 'Neural Link Timed Out (Reasoning Overload)' : e.message };
   }
 };
 
+// When menu opens
+// When menu opens
+function hideWebview() {
+  if (!mainWindow) return;
+  const view = tabViews.get(activeTabId);
+  if (view) {
+    view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
+  }
+}
+
+// When menu closes
+function showWebview() {
+  if (!mainWindow) return;
+  const view = tabViews.get(activeTabId);
+  if (view) {
+    // Current window bounds are handled by setBrowserViewBounds usually, 
+    // but we can force it here if needed.
+    // For now, let's just trigger a re-render from renderer or use stored bounds
+  }
+}
+
+
+
 function createWindow() {
+  // GPU compositing optimizations for transparent overlays
+  app.commandLine.appendSwitch('--enable-gpu-rasterization');
+  app.commandLine.appendSwitch('--enable-zero-copy');
+  app.commandLine.appendSwitch('--enable-hardware-overlays');
+  app.commandLine.appendSwitch('--enable-features', 'VaapiVideoDecoder,CanvasOopRasterization');
+  app.commandLine.appendSwitch('--disable-background-timer-throttling');
+  app.commandLine.appendSwitch('--disable-renderer-backgrounding');
+  app.commandLine.appendSwitch('--disable-features', 'TranslateUI,BlinkGenPropertyTrees');
+
+  // Force GPU acceleration and compositing
+  app.commandLine.appendSwitch('--ignore-gpu-blacklist');
+  app.commandLine.appendSwitch('--disable-gpu-driver-bug-workarounds');
+  app.commandLine.appendSwitch('--enable-native-gpu-memory-buffers');
+  app.commandLine.appendSwitch('--enable-gpu-memory-buffer-compositor-resources');
+
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
     frame: false,
+    transparent: false, // Keep opaque to avoid compositing issues with overlays
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
-      sandbox: false
+      sandbox: false,
+      // Enable GPU acceleration for web content
+      offscreen: false,
+      webSecurity: true
     },
     titleBarStyle: 'hidden',
     backgroundColor: '#0D0E1C',
-    icon: path.join(__dirname, 'icon.ico')
+    icon: path.join(__dirname, 'icon.ico'),
+    // Optimize for GPU compositing
+    show: false,
+    paintWhenInitiallyHidden: false
   });
 
   mainWindow.setMenuBarVisibility(false);
@@ -184,8 +327,13 @@ function createWindow() {
 
   // Ad blocker
   ElectronBlocker.fromPrebuiltAdsAndTracking(fetch).then((blocker) => {
-    blocker.enableBlockingInSession(session.defaultSession);
-    console.log('Ad blocker enabled.');
+    try {
+      blocker.enableBlockingInSession(session.defaultSession);
+      console.log('Ad blocker enabled.');
+    } catch (e) {
+      console.warn("Ad blocker requires Electron 29+. Current version may not support registerPreloadScript:", e.message);
+      // Ad blocking not available in this Electron version
+    }
   }).catch(e => console.error("Ad blocker failed to load:", e));
 
   // Handle external links
@@ -215,7 +363,14 @@ function createWindow() {
 
     const filteredHeaders = headerKeys.reduce((acc, key) => {
       const lowerKey = key.toLowerCase();
-      if (lowerKey !== 'x-frame-options' && lowerKey !== 'content-security-policy') {
+      // Expanded list of headers to strip for maximum compatibility with Google/MS Workspace
+      if (
+        lowerKey !== 'x-frame-options' &&
+        lowerKey !== 'content-security-policy' &&
+        lowerKey !== 'content-security-policy-report-only' &&
+        lowerKey !== 'cross-origin-resource-policy' &&
+        lowerKey !== 'cross-origin-opener-policy'
+      ) {
         acc[key] = responseHeaders[key];
       }
       return acc;
@@ -226,10 +381,14 @@ function createWindow() {
 
   // Load Extensions
   try {
+    console.log(`[Main] Scanning for extensions in: ${extensionsPath}`);
     if (!fs.existsSync(extensionsPath)) {
       fs.mkdirSync(extensionsPath, { recursive: true });
     }
     const extensionDirs = fs.readdirSync(extensionsPath);
+    if (extensionDirs.length === 0) {
+      console.log("[Main] No extensions found in extensions directory.");
+    }
     extensionDirs.forEach(dir => {
       const extPath = path.join(extensionsPath, dir);
       if (fs.lstatSync(extPath).isDirectory()) {
@@ -238,6 +397,8 @@ function createWindow() {
           session.defaultSession.loadExtension(extPath).then(extension => {
             console.log(`Extension loaded: ${extension.name} (${extension.id}) from ${extPath}`);
           }).catch(e => console.error(`Failed to load extension from ${extPath}: ${e.message || e}`));
+        } else {
+          console.log(`[Main] Skipping ${dir}: No manifest.json found.`);
         }
       }
     });
@@ -291,6 +452,11 @@ async function _scanDirectoryRecursive(currentPath, types) {
 
 // IPC Handlers
 ipcMain.handle('get-is-online', () => isOnline);
+
+
+ipcMain.on('show-webview', () => showWebview());
+ipcMain.on('hide-webview', () => hideWebview());
+
 ipcMain.on('add-tab-from-main', (event, url) => {
   if (mainWindow) {
     mainWindow.webContents.send('add-new-tab', url);
@@ -303,11 +469,158 @@ ipcMain.on('maximize-window', () => { if (mainWindow) { if (mainWindow.isMaximiz
 ipcMain.on('close-window', () => { if (mainWindow) mainWindow.close(); });
 ipcMain.on('toggle-fullscreen', () => { if (mainWindow) mainWindow.setFullScreen(!mainWindow.isFullScreen()); });
 
-// Auth
-ipcMain.on('open-auth-window', (event, authUrl) => { shell.openExternal(authUrl); });
+// Persistent Storage Handlers
+const persistentDataPath = path.join(app.getPath('userData'), 'persistent_data');
+if (!fs.existsSync(persistentDataPath)) {
+  fs.mkdirSync(persistentDataPath, { recursive: true });
+}
+
+ipcMain.handle('save-persistent-data', async (event, { key, data }) => {
+  try {
+    const filePath = path.join(persistentDataPath, `${key}.json`);
+    fs.writeFileSync(filePath, JSON.stringify(data), 'utf-8');
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to save persistent data:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('load-persistent-data', async (event, key) => {
+  try {
+    const filePath = path.join(persistentDataPath, `${key}.json`);
+    if (fs.existsSync(filePath)) {
+      const data = fs.readFileSync(filePath, 'utf-8');
+      return { success: true, data: JSON.parse(data) };
+    }
+    return { success: false, error: 'File not found' };
+  } catch (error) {
+    console.error('Failed to load persistent data:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('delete-persistent-data', async (event, key) => {
+  try {
+    const filePath = path.join(persistentDataPath, `${key}.json`);
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to delete persistent data:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Password Manager Logic
+ipcMain.handle('get-passwords-for-site', async (event, domain) => {
+  const filePath = path.join(persistentDataPath, 'user-passwords.json');
+  if (fs.existsSync(filePath)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+      return data.filter(p => p.site.includes(domain));
+    } catch (e) { return []; }
+  }
+  return [];
+});
+
+ipcMain.on('propose-password-save', (event, { domain, username, password }) => {
+  // Automatically show a dialog to save password
+  dialog.showMessageBox(mainWindow, {
+    type: 'question',
+    buttons: ['Save', 'Ignore'],
+    defaultId: 0,
+    title: 'Comet Vault',
+    message: `Do you want to save the password for ${domain}?`,
+    detail: `User: ${username}`
+  }).then(result => {
+    if (result.response === 0) {
+      const filePath = path.join(persistentDataPath, 'user-passwords.json');
+      let passwords = [];
+      if (fs.existsSync(filePath)) {
+        try { passwords = JSON.parse(fs.readFileSync(filePath, 'utf-8')); } catch (e) { }
+      }
+      // Avoid duplicates
+      if (!passwords.some(p => p.site === domain && p.username === username && p.password === password)) {
+        passwords.push({ id: Date.now().toString(), site: domain, username, password, created: new Date().toISOString() });
+        fs.writeFileSync(filePath, JSON.stringify(passwords), 'utf-8');
+        console.log(`[Vault] Saved password for ${domain}`);
+      }
+    }
+  });
+});
+
+
+// Auth - Create proper OAuth window instead of opening in external browser
+let authWindow = null;
+
+ipcMain.on('open-auth-window', (event, authUrl) => {
+  // Check if this is an OAuth URL (Firebase, Google, etc.)
+  const isOAuthUrl = authUrl.includes('accounts.google.com') ||
+    authUrl.includes('firebase') ||
+    authUrl.includes('oauth') ||
+    authUrl.includes('auth');
+
+  if (isOAuthUrl) {
+    // Create a new window for OAuth
+    if (authWindow) {
+      authWindow.focus();
+      authWindow.loadURL(authUrl);
+      return;
+    }
+
+    authWindow = new BrowserWindow({
+      width: 500,
+      height: 700,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+      },
+      parent: mainWindow,
+      modal: true,
+      show: false,
+    });
+
+    authWindow.loadURL(authUrl);
+
+    authWindow.once('ready-to-show', () => {
+      authWindow.show();
+    });
+
+    // Listen for navigation to callback URL
+    authWindow.webContents.on('will-redirect', (event, url) => {
+      if (url.startsWith('comet-browser://') || url.includes('__/auth/handler')) {
+        event.preventDefault();
+        if (mainWindow) {
+          mainWindow.webContents.send('auth-callback', url);
+        }
+        authWindow.close();
+      }
+    });
+
+    authWindow.webContents.on('did-navigate', (event, url) => {
+      if (url.startsWith('comet-browser://') || url.includes('__/auth/handler')) {
+        if (mainWindow) {
+          mainWindow.webContents.send('auth-callback', url);
+        }
+        authWindow.close();
+      }
+    });
+
+    authWindow.on('closed', () => {
+      authWindow = null;
+    });
+  } else {
+    // For non-OAuth URLs, open in external browser
+    shell.openExternal(authUrl);
+  }
+});
 
 // Multi-BrowserView Management
 ipcMain.on('create-view', (event, { tabId, url }) => {
+  if (tabViews.has(tabId)) return; // Prevent redundant creation
+
   const chromeUserAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
   const newView = new BrowserView({
     webPreferences: {
@@ -322,6 +635,21 @@ ipcMain.on('create-view', (event, { tabId, url }) => {
 
   // Intercept new window requests and open them as new tabs
   newView.webContents.setWindowOpenHandler(({ url }) => {
+    // Allow popups for authentication (Google, etc.)
+    const isAuth = url.includes('accounts.google.com') || url.includes('facebook.com') || url.includes('oauth') || url.includes('auth0');
+    if (isAuth) {
+      return {
+        action: 'allow',
+        overrideBrowserWindowOptions: {
+          width: 600,
+          height: 700,
+          center: true,
+          autoHideMenuBar: true,
+          parent: mainWindow,
+        }
+      };
+    }
+
     if (mainWindow) {
       mainWindow.webContents.send('add-new-tab', url);
     }
@@ -539,15 +867,23 @@ ipcMain.handle('load-vector-store', async () => {
 });
 
 const llmProviders = [
-  { id: 'gemini-3-pro', name: 'Google Gemini 3 Pro' },
-  { id: 'gemini-3-flash', name: 'Google Gemini 3 Flash' },
-  { id: 'gpt-4o', name: 'OpenAI GPT-4o' },
-  { id: 'claude-3-5-sonnet', name: 'Anthropic Claude 3.5 Sonnet' },
-  { id: 'mixtral-8x7b-groq', name: 'Groq (Mixtral 8x7b)' },
-  { id: 'ollama', name: 'Ollama (External Local)' },
-  { id: 'local-tfjs', name: 'Comet Neural Engine (Local)' }
+  { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro' },
+  { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash' },
+  { id: 'gemini-2.0-pro', name: 'Gemini 2.0 Pro' },
+  { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash' },
+  { id: 'gemini-2.0-flash-lite', name: 'Gemini 2.0 Flash Lite' },
+  { id: 'gpt-4o', name: 'GPT-4o (Omni)' },
+  { id: 'gpt-4-turbo', name: 'GPT-4 Turbo' },
+  { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo' },
+  { id: 'o1', name: 'OpenAI o1 (Reasoning)' },
+  { id: 'o1-mini', name: 'OpenAI o1-mini' },
+  { id: 'claude-3-5-sonnet', name: 'Claude 3.5 Sonnet' },
+  { id: 'claude-3-7-sonnet', name: 'Claude 3.7 Sonnet (Thinking)' },
+  { id: 'ollama', name: 'Ollama (Local AI)' },
+  { id: 'groq-mixtral', name: 'Groq LPU (Mixtral 8x7b)' },
+  { id: 'openai-compatible', name: 'OpenAI Compatible' }
 ];
-let activeLlmProvider = 'gemini';
+let activeLlmProvider = 'gemini-1.5-flash';
 const llmConfigs = {};
 
 ipcMain.handle('llm-get-available-providers', () => llmProviders);
@@ -596,18 +932,7 @@ ipcMain.on('send-to-ai-chat-input', (event, text) => {
 });
 
 ipcMain.handle('llm-generate-chat-content', async (event, messages, options = {}) => {
-  try {
-    const response = await fetch(`http://localhost:${mcpServerPort}/llm/generate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages, options })
-    });
-    const data = await response.json();
-    return data;
-  } catch (e) {
-    console.error("Error communicating with MCP Server:", e);
-    return { error: e.message };
-  }
+  return await llmGenerateHandler(messages, options);
 });
 
 // Ollama Integration:
@@ -680,16 +1005,16 @@ ipcMain.handle('ollama-list-models', async () => {
       }
 
       const models = lines.slice(1).map(line => {
-        const parts = line.split(/\s+/);
-        // Assuming format: NAME    ID      SIZE    DIGEST  UPDATED
+        const parts = line.trim().split(/\s{2,}/); // Split by 2 or more spaces
+        if (parts.length < 1) return null;
+
         return {
           name: parts[0],
-          id: parts[1],
-          size: parts[2],
-          digest: parts[3],
-          updated: parts[4] + ' ' + parts[5] // Combine date and time
+          id: parts[1] || 'N/A',
+          size: parts[2] || 'N/A',
+          updated: parts[parts.length - 1] || 'N/A'
         };
-      });
+      }).filter(Boolean);
       resolve({ models });
     });
   });
@@ -709,6 +1034,14 @@ const handleDeepLink = (url) => {
       const token = parsedUrl.searchParams.get('token') || parsedUrl.searchParams.get('id_token');
       if (token) {
         mainWindow.webContents.send('auth-token-received', token);
+        // Save the token persistently
+        const persistentDataPath = path.join(app.getPath('userData'), 'persistent_data');
+        if (!fs.existsSync(persistentDataPath)) {
+          fs.mkdirSync(persistentDataPath, { recursive: true });
+        }
+        const filePath = path.join(persistentDataPath, `auth_token.json`);
+        fs.writeFileSync(filePath, JSON.stringify({ token: token, timestamp: Date.now() }), 'utf-8');
+        console.log('[Main] Auth token saved persistently.');
       }
     }
   } catch (e) {
@@ -749,6 +1082,23 @@ if (!gotTheLock) {
 
 
 app.whenReady().then(() => {
+  // Load persistent auth token on startup
+  const authPersistentDataPath = path.join(app.getPath('userData'), 'persistent_data', 'auth_token.json');
+  if (fs.existsSync(authPersistentDataPath)) {
+    try {
+      const authData = JSON.parse(fs.readFileSync(authPersistentDataPath, 'utf-8'));
+      if (authData && authData.token) {
+        // Ensure mainWindow is ready before sending
+        mainWindow.webContents.once('did-finish-load', () => {
+          mainWindow.webContents.send('load-auth-token', authData.token);
+          console.log('[Main] Loaded and sent persistent auth token to renderer.');
+        });
+      }
+    } catch (e) {
+      console.error('[Main] Failed to load persistent auth token:', e);
+    }
+  }
+
   // MCP Server Setup
   const mcpApp = express();
   mcpApp.use(bodyParser.json());
@@ -790,55 +1140,53 @@ app.whenReady().then(() => {
 
   // Handle file downloads
   session.defaultSession.on('will-download', (event, item, webContents) => {
-    event.preventDefault();
-
+    // Force download to Downloads folder to avoid dialog issues
     const fileName = item.getFilename();
-    const filePath = item.getSavePath(); // Get the suggested path
+    const downloadsPath = app.getPath('downloads');
+    const saveDataPath = path.join(downloadsPath, fileName);
 
-    dialog.showSaveDialog(mainWindow, {
-      defaultPath: path.join(filePath, fileName),
-      properties: ['createDirectory', 'showOverwriteConfirmation']
-    }).then(result => {
-      if (!result.canceled && result.filePath) {
-        if (mainWindow) {
-          mainWindow.webContents.send('download-started', item.getFilename());
+    // event.preventDefault(); // COMMENTED OUT to ensure download proceeds.
+    // Actually, calling item.setSavePath suppresses the dialog automatically.
+    // So we should NOT call preventDefault if we want it to run.
+    // But let's just remove the preventDefault line or comment it out clearly.
+    // event.preventDefault();
+
+    console.log(`[Main] Starting download: ${fileName} to ${saveDataPath}`);
+
+    item.setSavePath(saveDataPath);
+    item.resume();
+
+    if (mainWindow) {
+      mainWindow.webContents.send('download-started', fileName);
+    }
+
+    item.on('updated', (event, state) => {
+      if (state === 'interrupted') {
+        console.log('Download is interrupted but can be resumed');
+      } else if (state === 'progressing') {
+        if (item.isPaused()) {
+          console.log('Download is paused');
+        } else {
+          // console.log(`Received bytes: ${item.getReceivedBytes()}`);
         }
-        item.setSavePath(result.filePath);
-        item.on('updated', (event, state) => {
-          if (state === 'interrupted') {
-            console.log('Download is interrupted but can be resumed');
-            // Optionally, send a message to the renderer about interruption
-          } else if (state === 'progressing') {
-            if (item.isPaused()) {
-              console.log('Download is paused');
-              // Optionally, send a message to the renderer about pause
-            } else {
-              console.log(`Received bytes: ${item.getReceivedBytes()}`);
-              // Optionally, send progress updates to the renderer
-            }
-          }
-        });
-        item.on('done', (event, state) => {
-          if (state === 'completed') {
-            console.log('Download successfully');
-            if (mainWindow) {
-              mainWindow.webContents.send('download-complete', item.getFilename());
-            }
-          } else {
-            console.log(`Download failed: ${state}`);
-            if (mainWindow) {
-              mainWindow.webContents.send('download-failed', item.getFilename());
-            }
-          }
-        });
-        item.resume(); // Ensure download starts
-      } else {
-        item.cancel(); // User canceled the save dialog
       }
-    }).catch(error => {
-      console.error("Error showing save dialog:", error);
-      item.cancel();
     });
+
+    item.on('done', (event, state) => {
+      if (state === 'completed') {
+        console.log('Download successfully');
+        if (mainWindow) {
+          mainWindow.webContents.send('download-complete', item.getFilename());
+        }
+      } else {
+        console.log(`Download failed: ${state}`);
+        if (mainWindow) {
+          mainWindow.webContents.send('download-failed', item.getFilename());
+        }
+      }
+    });
+
+    item.resume();
   });
 
   // Register Global Shortcuts
@@ -865,6 +1213,24 @@ app.whenReady().then(() => {
       console.error(`Failed to register shortcut ${s.accelerator}:`, e);
     }
   });
+});
+
+ipcMain.handle('get-open-tabs', async () => {
+  const tabs = [];
+  for (const [tabId, view] of tabViews.entries()) {
+    if (view && view.webContents) {
+      try {
+        const url = view.webContents.getURL();
+        const title = view.webContents.getTitle();
+        const isActive = (tabId === activeTabId);
+        tabs.push({ tabId, url, title, isActive });
+      } catch (e) {
+        console.error(`Error getting info for tabId ${tabId}:`, e);
+        tabs.push({ tabId, url: 'Error', title: 'Error', isActive: (tabId === activeTabId) });
+      }
+    }
+  }
+  return tabs;
 });
 
 ipcMain.on('hide-all-views', () => {
@@ -921,6 +1287,10 @@ ipcMain.handle('uninstall-extension', async (event, id) => {
 
 ipcMain.handle('get-extension-path', async () => {
   return extensionsPath;
+});
+
+ipcMain.handle('get-icon-path', async () => {
+  return path.join(__dirname, 'icon.ico');
 });
 
 ipcMain.on('open-extension-dir', () => {
@@ -993,6 +1363,110 @@ ipcMain.handle('encrypt-data', async (event, { data, key }) => {
 });
 
 // IPC handler for decryption
+// Web Search RAG Helper
+ipcMain.handle('web-search-rag', async (event, query) => {
+  try {
+    console.log(`[RAG] Performing web search for: ${query}`);
+    // Use Google Search with a simple User-Agent to get snippets
+    const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+    const response = await fetch(searchUrl, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36' }
+    });
+    const html = await response.text();
+
+    // Simple regex to extract search snippets (approximate)
+    const snippets = [];
+    const divRegex = /<div class="VwiC3b[^>]*>([\s\S]*?)<\/div>/g;
+    let match;
+    while ((match = divRegex.exec(html)) !== null && snippets.length < 5) {
+      const cleanSnippet = match[1].replace(/<[^>]*>/g, '').trim();
+      if (cleanSnippet) snippets.push(cleanSnippet);
+    }
+
+    return snippets;
+  } catch (error) {
+    console.error('[RAG] Web search failed:', error);
+    return [];
+  }
+});
+
+// Website Translation IPC
+ipcMain.handle('translate-website', async (event, { targetLanguage }) => {
+  const view = tabViews.get(activeTabId);
+  if (!view) return { error: 'No active view' };
+
+  try {
+    // Google Translate Simple Injection
+    const code = `
+      (function() {
+        var script = document.createElement('script');
+        script.type = 'text/javascript';
+        script.src = '//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit';
+        document.body.appendChild(script);
+        
+        window.googleTranslateElementInit = function() {
+          new google.translate.TranslateElement({
+            pageLanguage: 'auto',
+            includedLanguages: '${targetLanguage}',
+            layout: google.translate.TranslateElement.InlineLayout.SIMPLE,
+            autoDisplay: false
+          }, 'google_translate_element');
+          
+          // Trigger translation automatically if possible or show the UI
+          var check = setInterval(function() {
+             var combo = document.querySelector('.goog-te-combo');
+             if(combo) {
+                combo.value = '${targetLanguage}';
+                combo.dispatchEvent(new Event('change'));
+                clearInterval(check);
+             }
+          }, 500);
+        };
+      })();
+    `;
+    await view.webContents.executeJavaScript(code);
+    return { success: true };
+  } catch (e) {
+    return { error: e.message };
+  }
+});
+
+// Setup Context Menu
+contextMenu({
+  showSaveImageAs: true,
+  showInspectElement: true,
+  showCopyImageAddress: true,
+  showSearchWithGoogle: true,
+  prepend: (defaultActions, parameters, browserWindow) => [
+    {
+      label: '🚀 Analyze with Comet AI',
+      visible: parameters.selectionText.trim().length > 0,
+      click: () => {
+        if (mainWindow) {
+          mainWindow.webContents.send('ai-query-detected', parameters.selectionText);
+        }
+      }
+    },
+    {
+      label: '📄 Summarize Page',
+      click: () => {
+        if (mainWindow) {
+          mainWindow.webContents.send('ai-query-detected', 'Summarize this page');
+        }
+      }
+    },
+    {
+      label: '🌐 Translate this Site',
+      click: () => {
+        // This will trigger the translation IPC
+        if (mainWindow) {
+          mainWindow.webContents.send('trigger-translation-dialog');
+        }
+      }
+    }
+  ]
+});
+
 ipcMain.handle('decrypt-data', async (event, { encryptedData, key, iv, authTag, salt }) => {
   try {
     const derivedKey = await deriveKey(key, Buffer.from(salt));
@@ -1003,6 +1477,21 @@ ipcMain.handle('decrypt-data', async (event, { encryptedData, key, iv, authTag, 
     return { decryptedData: decrypted.buffer };
   } catch (error) {
     console.error('[Main] Decryption failed:', error);
+    return { error: error.message };
+  }
+});
+
+ipcMain.handle('create-desktop-shortcut', async (event, { url, title }) => {
+  const desktopPath = path.join(require('os').homedir(), 'Desktop');
+  const shortcutPath = path.join(desktopPath, `${title.replace(/[^a-z0-9]/gi, '_').substring(0, 30)}.url`);
+
+  const content = `[InternetShortcut]\nURL=${url}\n`;
+
+  try {
+    fs.writeFileSync(shortcutPath, content);
+    return { success: true, path: shortcutPath };
+  } catch (error) {
+    console.error('[Main] Failed to create shortcut:', error);
     return { error: error.message };
   }
 });

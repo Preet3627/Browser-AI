@@ -8,7 +8,14 @@ import { User } from "firebase/auth";
 import firebaseService from '@/lib/FirebaseService';
 import ThinkingIndicator from './ThinkingIndicator';
 import { useAppStore } from '@/store/useAppStore';
-import { Sparkles, Terminal, Code2, Image as ImageIcon, Maximize2, Minimize2, FileText, Download, Wifi, WifiOff, X, LogOut, User as UserIcon, ShieldAlert, ShieldCheck, SlidersHorizontal, ChevronLeft, ChevronRight, ChevronDown, Zap } from 'lucide-react';
+import {
+  Sparkles, Terminal, Code2, Image as ImageIcon, Maximize2, Minimize2, FileText, Download,
+  Wifi, WifiOff, X, LogOut, User as UserIcon, ShieldAlert, ShieldCheck, SlidersHorizontal,
+  ChevronLeft, ChevronRight, ChevronDown, Zap, Send, ShoppingBag, Globe, Plus, Bookmark,
+  RotateCw, AlertTriangle, DownloadCloud, ShoppingCart, Copy as CopyIcon, Settings as GhostSettings,
+  FolderOpen, ScanLine, Search, Puzzle, Briefcase, RefreshCcw, Layout, MoreVertical,
+  CreditCard, ArrowRight, Languages, Share2, Lock, Shield, Volume2, Square, Music2, Waves
+} from 'lucide-react';
 import MediaSuggestions from './MediaSuggestions';
 import { offlineChatbot } from '@/lib/OfflineChatbot';
 import { Security } from '@/lib/Security';
@@ -33,12 +40,37 @@ ACTION COMMANDS:
 - [RELOAD] : Reloads the active tab.
 - [GO_BACK] : Navigates back.
 - [GO_FORWARD] : Navigates forward.
-- [SCREENSHOT_AND_ANALYZE] : Takes a screenshot of the current browser view, performs OCR, and analyzes the content.
-- [WEB_SEARCH: query] : Performs a real-time web search for information you don't already have in your knowledge base.
+- [SCREENSHOT_AND_ANALYZE] : Takes a screenshot of the current browser view, performs OCR, and analyzes the content visually.
+- [WEB_SEARCH: query] : Performs a real-time web search.
+- [READ_PAGE_CONTENT] : Reads the full text content of the current active browser tab.
+- LIST_OPEN_TABS] : Lists all currently open browser tabs.
+- [GENERATE_PDF: title | content] : Generates and downloads a PDF with specified title and content.
+- [GENERATE_DIAGRAM: mermaid_code] : Generates a visual diagram using Mermaid.js syntax.
 
-CONTEXT:
-- You have access to local RAG knowledge and current page content.
-- When an action is requested, ALWAYS append the [COMMAND] to your response.
+CHAINED EXECUTION:
+You can provide MULTIPLE commands in a single response for multi-step tasks.
+Example: "[NAVIGATE: https://google.com] [SEARCH: AI news] [OPEN_VIEW: browser]"
+
+COGNITIVE CAPABILITIES:
+- HYBRID RAG: You have access to Local Memory (History) AND Online Search Results.
+- VISION: You can see the page via [SCREENSHOT_AND_ANALYZE].
+- AUTOMATION: You can help manage passwords and settings.
+
+EXAMPLES FOR USER GUIDE:
+1. "Show me the latest news about Gemini 2.0"
+2. "Summarize this page in Hindi"
+3. "What are the best stocks to buy today in India?"
+4. "Give me a coding recipe for a React weather app"
+5. "Analyze the visual content of this page"
+6. "Find all mentions of 'intelligence' on this page"
+7. "Navigate to unacademy.com and find Thermodynamics tests"
+8. "Switch to Dark mode"
+9. "What is my browsing history for today?"
+10. "Read this page and tell me the main price"
+11. "Translate my last message to Tamil"
+12. "List all my open tabs and summarize them"
+
+Always combine your local knowledge with online search for the most accurate and updated answers.
 `.trim();
 
 interface AIChatSidebarProps {
@@ -72,32 +104,56 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = (props) => {
   const [attachments, setAttachments] = useState<{ name: string; type: string; data: string }[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [ragContextItems, setRagContextItems] = useState<{ text: string; score: number }[]>([]);
+  const [ragContextItems, setRagContextItems] = useState<any[]>([]);
   const [showRagPanel, setShowRagPanel] = useState(false);
+  const [isReadingPage, setIsReadingPage] = useState(false);
+  const [permissionPending, setPermissionPending] = useState<{ resolve: (val: boolean) => void } | null>(null);
   const [showSettings, setShowSettings] = useState(false); // Local toggle for settings
   const [groqSpeed, setGroqSpeed] = useState<string | null>(null);
-  const tesseractWorkerRef = useRef<Tesseract.Worker | null>(null);
-  const [isDragOver, setIsDragOver] = useState(false); // State for drag-over visual feedback
   const [ollamaModels, setOllamaModels] = useState<{ name: string; modified_at: string; }[]>([]);
+  const [isMermaidLoaded, setIsMermaidLoaded] = useState(false);
+  const tesseractWorkerRef = useRef<Tesseract.Worker | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
+
+  useEffect(() => {
+    // Dynamically load mermaid for diagrams
+    const script = document.createElement('script');
+    script.src = "https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js";
+    script.async = true;
+    script.onload = () => {
+      (window as any).mermaid?.initialize({ startOnLoad: true, theme: 'dark' });
+      setIsMermaidLoaded(true);
+    };
+    document.body.appendChild(script);
+  }, []);
 
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // Webview visibility is now managed by ClientOnlyPage layout resizing
+
   useEffect(() => {
     // Initialize Tesseract worker
     const initializeTesseract = async () => {
-      tesseractWorkerRef.current = await Tesseract.createWorker('eng');
-      console.log("Tesseract worker initialized.");
+      try {
+        const worker = await Tesseract.createWorker('eng', 1, {
+          logger: m => console.log(m),
+        });
+        tesseractWorkerRef.current = worker;
+        console.log("Tesseract worker initialized successfully.");
+      } catch (err) {
+        console.error("Failed to initialize Tesseract worker:", err);
+      }
     };
-
     initializeTesseract();
 
     return () => {
-      // Terminate Tesseract worker on component unmount
-      tesseractWorkerRef.current?.terminate();
-      console.log("Tesseract worker terminated.");
+      if (tesseractWorkerRef.current) {
+        tesseractWorkerRef.current.terminate();
+        console.log("Tesseract worker terminated.");
+      }
     };
   }, []);
 
@@ -271,6 +327,11 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = (props) => {
     setIsLoading(true);
     setError(null);
 
+    // One-time mistake warning
+    if (!store.hasSeenAiMistakeWarning && messages.length === 0) {
+      store.setShowAiMistakeWarning(true);
+    }
+
     try {
       if (window.electronAPI) {
         // Retrieve REAL RAG context with updated interface
@@ -282,21 +343,71 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = (props) => {
         let pageContext = "";
         const keywords = ['this page', 'summarize', 'explain', 'analyze', 'read'];
         if (keywords.some(k => contentToUse.toLowerCase().includes(k))) {
-          const extraction = await window.electronAPI.extractPageContent();
-          pageContext = extraction.content || "";
-          if (pageContext.length > 5000) pageContext = pageContext.substring(0, 5000) + "..."; // Token limit
+          let shouldRead = !store.askForAiPermission;
+          if (store.askForAiPermission) {
+            const permission = await new Promise<boolean>((resolve) => {
+              setPermissionPending({ resolve });
+            });
+            shouldRead = permission;
+          }
+
+          if (shouldRead) {
+            setIsReadingPage(true);
+            const extraction = await window.electronAPI.extractPageContent();
+            pageContext = extraction.content || "";
+            if (pageContext.length > 5000) pageContext = pageContext.substring(0, 5000) + "..."; // Token limit
+            setTimeout(() => setIsReadingPage(false), 2000);
+          }
+        }
+
+        // Web Search RAG (If query needs latest information)
+        let webSearchContext = "";
+        const searchKeywords = ['latest', 'current', 'today', '2025', '2026', 'news', 'price', 'status', 'who is', 'what happened', '?'];
+        if (searchKeywords.some(k => contentToUse.toLowerCase().includes(k))) {
+          try {
+            const searchResults = await window.electronAPI.webSearchRag(contentToUse);
+            if (searchResults && searchResults.length > 0) {
+              webSearchContext = searchResults.map((s: string, i: number) => `[Web Result ${i + 1}]: ${s}`).join('\n');
+            }
+          } catch (e) { console.error("Web Search RAG failed:", e); }
         }
 
         const ragContextText = contextItems.map(c => c.text).join(' | ');
+        const recentHistory = store.history.slice(-15).reverse().map(h => `- [${h.title || 'Untitled'}](${h.url})`).join('\n');
+        const currentTab = store.tabs.find(t => t.id === store.activeTabId);
 
         const ragContext = `
-[LOCAL KNOWLEDGE]: ${ragContextText}
-[PAGE CONTENT]: ${pageContext}
+[CURRENT CONTEXT]
+Active Tab: ${currentTab?.title || 'Unknown'} (${store.currentUrl})
+
+[ONLINE SEARCH RESULTS (LIVE)]
+${webSearchContext || "No online context retrieved."}
+
+[RECENT BROWSING HISTORY]
+${recentHistory || "No recent history."}
+
+[LOCAL KNOWLEDGE BASE (RAG)]
+${ragContextText || "No relevant local memories."}
+
+[PAGE CONTENT SNIPPET]
+${pageContext || "Content not loaded. Use [READ_PAGE_CONTENT] command to read full page."}
         `.trim();
 
         // Inject System Instructions and Context
+        const languageMap: Record<string, string> = {
+          'hi': 'Hindi', 'bn': 'Bengali', 'te': 'Telugu', 'mr': 'Marathi', 'ta': 'Tamil',
+          'gu': 'Gujarati', 'ur': 'Urdu', 'kn': 'Kannada', 'or': 'Odia', 'ml': 'Malayalam',
+          'pa': 'Punjabi', 'as': 'Assamese', 'mai': 'Maithili', 'sat': 'Santali', 'ks': 'Kashmiri',
+          'ne': 'Nepali', 'kok': 'Konkani', 'sd': 'Sindhi', 'doi': 'Dogri', 'mni': 'Manipuri',
+          'sa': 'Sanskrit', 'brx': 'Bodo'
+        };
+        const langName = languageMap[store.selectedLanguage] || store.selectedLanguage;
+        const languageInstructions = store.selectedLanguage !== 'en'
+          ? `\nIMPORTANT: Respond ONLY in ${langName}. The user prefers this language. Always translate your findings to ${langName}.`
+          : "";
+
         const messageHistory: ChatMessage[] = [
-          { role: 'system', content: SYSTEM_INSTRUCTIONS },
+          { role: 'system', content: SYSTEM_INSTRUCTIONS + languageInstructions },
           ...(store.additionalAIInstructions ? [{ role: 'system', content: store.additionalAIInstructions }] : []), // Add additional instructions
           ...messages.map(m => ({ role: m.role, content: m.content })),
           {
@@ -320,6 +431,15 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = (props) => {
         if (response.error) {
           setError(response.error);
         } else if (response.text) {
+          if (window.electronAPI) {
+            window.electronAPI.addAiMemory({
+              role: 'user',
+              content: userMessage.content,
+              url: store.currentUrl,
+              response: response.text,
+              provider: store.aiProvider
+            });
+          }
           let text = response.text;
 
           // Handle Local-Only Logic
@@ -327,26 +447,38 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = (props) => {
             text = await BrowserAI.summarizeLocal(contentToUse);
           }
 
-          if (text.includes('NAVIGATE:')) {
-            const match = text.match(/\[NAVIGATE:\s*(https?:\/\/[^\s\]]+)\]/i) || text.match(/NAVIGATE:\s*(https?:\/\/[^\s]+)/i);
-            if (match) {
-              store.setCurrentUrl(match[1]);
-              store.setActiveView('browser');
-              if (window.electronAPI) window.electronAPI.navigateBrowserView({ tabId: store.activeTabId, url: match[1] });
-              text = text.replace(/\[NAVIGATE:.*?\]/i, '🌐 **Navigating...**').replace(/NAVIGATE:.*?[^\s]+/, '🌐 **Navigating...**');
-            }
-          }
+          // Multi-Layered Task Processing (Chained Commands)
+          const executeCommands = async (content: string) => {
+            let processedText = content;
 
-          if (text.includes('SEARCH:')) {
-            const match = text.match(/\[SEARCH:\s*(.*?)\]/i);
-            if (match) {
-              const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(match[1])}`;
+            // Handle Navigation Chaining
+            const navMatches = content.matchAll(/\[NAVIGATE:\s*(https?:\/\/[^\s\]]+)\]/gi);
+            for (const match of navMatches) {
+              const url = match[1];
+              store.setCurrentUrl(url);
+              store.setActiveView('browser');
+              if (window.electronAPI) window.electronAPI.navigateBrowserView({ tabId: store.activeTabId, url });
+              processedText = processedText.replace(match[0], `🌐 **Navigating to ${url}...**`);
+              // Small delay between commands to allow browser to react
+              await new Promise(r => setTimeout(r, 800));
+            }
+
+            // Handle Search Chaining
+            const searchMatches = content.matchAll(/\[SEARCH:\s*(.*?)\]/gi);
+            for (const match of searchMatches) {
+              const query = match[1];
+              const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
               store.setCurrentUrl(searchUrl);
               store.setActiveView('browser');
               if (window.electronAPI) window.electronAPI.navigateBrowserView({ tabId: store.activeTabId, url: searchUrl });
-              text = text.replace(/\[SEARCH:.*?\]/i, `🔍 **Searching for:** ${match[1]}`);
+              processedText = processedText.replace(match[0], `🔍 **Searching for:** ${query}`);
+              await new Promise(r => setTimeout(r, 800));
             }
-          }
+
+            return processedText;
+          };
+
+          text = await executeCommands(text);
 
           if (text.includes('SET_THEME:')) {
             const match = text.match(/\[SET_THEME:\s*(dark|light|system)\]/i);
@@ -399,6 +531,42 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = (props) => {
             }
           }
 
+          if (text.includes('[READ_PAGE_CONTENT]')) {
+            if (window.electronAPI) {
+              text = text.replace(/\[READ_PAGE_CONTENT\]/i, '📄 **Reading page content...**');
+              setMessages(prev => [...prev, { role: 'model', content: text }]); // Display immediate feedback
+
+              const extraction = await window.electronAPI.extractPageContent();
+              if (extraction.content) {
+                // Re-send the user's original message with page content context for AI to analyze
+                await handleSendMessage(userMessage.content + `\n\n[PAGE_CONTENT_READ]: ${extraction.content}`);
+                return; // Prevent further processing of the current AI response
+              } else {
+                text = '⚠️ **Failed to read page content.**';
+              }
+            } else {
+              text = '⚠️ **Page content reading not available.**';
+            }
+          }
+
+          if (text.includes('[LIST_OPEN_TABS]')) {
+            if (window.electronAPI) {
+              text = text.replace(/\[LIST_OPEN_TABS\]/i, '📝 **Listing open tabs...**');
+              setMessages(prev => [...prev, { role: 'model', content: text }]); // Display immediate feedback
+
+              const openTabs = await window.electronAPI.getOpenTabs();
+              if (openTabs && openTabs.length > 0) {
+                const tabsContext = openTabs.map((tab: any) => `Tab ID: ${tab.tabId}, Title: ${tab.title}, URL: ${tab.url}${tab.isActive ? ' (Active)' : ''}`).join('\n');
+                await handleSendMessage(userMessage.content + `\n\n[OPEN_TABS_LIST]:\n${tabsContext}`);
+                return; // Prevent further processing of the current AI response
+              } else {
+                text = '⚠️ **No open tabs found.**';
+              }
+            } else {
+              text = '⚠️ **Tab listing not available.**';
+            }
+          }
+
           if (text.includes('[WEB_SEARCH:')) {
             const match = text.match(/\[WEB_SEARCH:\s*(.*?)\]/i);
             if (match) {
@@ -407,7 +575,6 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = (props) => {
               setMessages(prev => [...prev, { role: 'model', content: text }]);
 
               const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
-              // Instead of just navigating, we could try to scrape, but navigation is safer for visual feedback
               store.setCurrentUrl(searchUrl);
               store.setActiveView('browser');
               if (window.electronAPI) window.electronAPI.navigateBrowserView({ tabId: store.activeTabId, url: searchUrl });
@@ -415,10 +582,39 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = (props) => {
             }
           }
 
+          // New: Diagram Generation
+          if (text.includes('[GENERATE_DIAGRAM:')) {
+            const match = text.match(/\[GENERATE_DIAGRAM:\s*([\s\S]*?)\]/i);
+            if (match) {
+              const mermaidCode = match[1];
+              text = text.replace(/\[GENERATE_DIAGRAM:[\s\S]*?\]/i, `\n\`\`\`mermaid\n${mermaidCode}\n\`\`\`\n`);
+            }
+          }
+
+          // New: PDF Generation
+          if (text.includes('[GENERATE_PDF:')) {
+            const match = text.match(/\[GENERATE_PDF:\s*(.*?)\s*\|\s*([\s\S]*?)\]/i);
+            if (match) {
+              const title = match[1];
+              const content = match[2];
+              if (window.electronAPI) {
+                window.electronAPI.exportChatAsPdf([{ role: 'system', content: `Title: ${title}\n\n${content}` }]);
+                text = text.replace(/\[GENERATE_PDF:.*?\]/i, `📄 **Generated PDF:** ${title}`);
+              }
+            }
+          }
+
           setMessages(prev => [...prev, { role: 'model', content: text }]);
+
+          // Trigger Mermaid re-render if diagrams found
+          if (text.includes('mermaid') || text.includes('[GENERATE_DIAGRAM:')) {
+            setTimeout(() => {
+              (window as any).mermaid?.contentLoaded();
+            }, 500);
+          }
         }
       } else {
-        setError("AI Engine not connected.");
+        setError("AI Engine not connected. Use the Comet Desktop App for full AI features.");
       }
     } catch (err: any) {
       setError(`Response Error: ${err.message}`);
@@ -451,9 +647,17 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = (props) => {
 
   return (
     <div
-      className={`flex flex-col h-full gap-4 p-4 bg-black/40 backdrop-blur-[50px] border-r border-transparent transition-all duration-500 z-50 ${isFullScreen ? 'fixed inset-0 z-[999] bg-[#020205] shadow-2xl overflow-hidden' : ''}
+      className={`flex flex-col h-full gap-4 p-4 bg-black/60 border-r border-transparent transition-all duration-500 z-50 ${isFullScreen ? 'fixed inset-0 z-[999] bg-[#020205] shadow-2xl overflow-hidden' : ''}
           ${isDragOver ? 'border-accent/50 bg-accent/5' : ''}
         `}
+      style={{
+        // GPU-accelerated background with reduced backdrop-filter to prevent compositing issues
+        backdropFilter: isFullScreen ? 'none' : 'blur(20px)',
+        WebkitBackdropFilter: isFullScreen ? 'none' : 'blur(20px)',
+        // Ensure hardware acceleration
+        transform: 'translateZ(0)',
+        willChange: 'transform'
+      }}
       onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
       onDragLeave={() => setIsDragOver(false)}
       onDrop={handleDrop}
@@ -529,13 +733,19 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = (props) => {
                 components={{
                   code({ node, className, children, ...props }) {
                     const match = /language-(\w+)/.exec(className || '');
+                    const codeString = String(children).replace(/\n$/, '');
+
+                    if (match && match[1] === 'mermaid') {
+                      return <div className="mermaid bg-black/40 p-4 rounded-xl my-4 text-center">{codeString}</div>;
+                    }
+
                     return node && !node.properties.inline && match ? (
                       <SyntaxHighlighter
                         style={dracula as any}
                         language={match[1]}
                         PreTag="div"
                       >
-                        {String(children).replace(/\n$/, '')}
+                        {codeString}
                       </SyntaxHighlighter>
                     ) : (
                       <code className={className} {...props}>
@@ -590,6 +800,72 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = (props) => {
           setOllamaModels={setOllamaModels}
           setError={setError}
         />
+
+        {/* Permission Dialog */}
+        <AnimatePresence>
+          {permissionPending && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-md flex items-center justify-center p-4">
+              <div className="w-full max-w-xs bg-[#0a0a0f] border border-white/10 rounded-2xl p-6 shadow-2xl">
+                <div className="flex items-center gap-3 mb-4 text-accent">
+                  <Shield size={20} />
+                  <h3 className="text-sm font-black uppercase tracking-widest">AI Permission</h3>
+                </div>
+                <p className="text-xs text-white/70 leading-relaxed mb-6">Comet AI wants to read the current page content to assist you. Allow this session?</p>
+                <div className="flex gap-3">
+                  <button onClick={() => { permissionPending.resolve(false); setPermissionPending(null); }} className="flex-1 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-[10px] font-black uppercase tracking-widest text-white/40 transition-all border border-white/5">Deny</button>
+                  <button onClick={() => { permissionPending.resolve(true); setPermissionPending(null); }} className="flex-1 py-2 rounded-xl bg-accent/20 hover:bg-accent/30 text-[10px] font-black uppercase tracking-widest text-accent transition-all border border-accent/20 shadow-[0_0_20px_rgba(0,255,255,0.1)]">Allow</button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Floating Glowing Border when reading */}
+        <AnimatePresence>
+          {isReadingPage && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 pointer-events-none z-[99999] border-[3px] border-accent/20 shadow-[inset_0_0_100px_rgba(0,255,255,0.1)] animate-pulse"
+            />
+          )}
+        </AnimatePresence>
+
+        {/* Footer with Disclaimer */}
+        {/* AI Mistake Warning Popup */}
+        <AnimatePresence>
+          {store.showAiMistakeWarning && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[110] bg-black/80 backdrop-blur-xl flex items-center justify-center p-6">
+              <div className="w-full max-w-sm bg-[#0a0a0f] border border-white/10 rounded-[2rem] p-8 shadow-2xl relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-accent to-transparent" />
+                <div className="flex flex-col items-center text-center space-y-6">
+                  <div className="w-16 h-16 rounded-2xl bg-accent/10 flex items-center justify-center text-accent">
+                    <Sparkles size={32} />
+                  </div>
+                  <div className="space-y-2">
+                    <h3 className="text-xl font-black uppercase tracking-tight">Intelligence Disclaimer</h3>
+                    <p className="text-xs text-white/40 leading-relaxed font-medium">Comet AI is a powerful neural engine, but it can make mistakes. Always verify critical information. Your data remains protected by our security shell.</p>
+                  </div>
+                  <div className="w-full space-y-3 pt-2">
+                    <button
+                      onClick={() => store.setShowAiMistakeWarning(false)}
+                      className="w-full py-4 rounded-2xl bg-accent text-black font-black uppercase tracking-widest text-[10px] shadow-[0_0_30px_rgba(0,255,255,0.2)] hover:scale-[1.02] transition-all"
+                    >
+                      I Understand
+                    </button>
+                    <button
+                      onClick={() => { store.setHasSeenAiMistakeWarning(true); store.setShowAiMistakeWarning(false); }}
+                      className="w-full py-4 rounded-2xl bg-white/5 hover:bg-white/10 text-white/40 font-black uppercase tracking-widest text-[9px] border border-white/5 transition-all"
+                    >
+                      Don't Show Again
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </footer>
     </div>
   );

@@ -19,7 +19,8 @@ import {
     Code2,
     Monitor,
     Search,
-    RefreshCw
+    RefreshCw,
+    Copy as CopyIcon
 } from "lucide-react";
 import { firebaseConfigStorage, FirebaseConfig } from "@/lib/firebaseConfigStorage";
 
@@ -64,6 +65,11 @@ const LandingPage = () => {
     const { scrollYProgress } = useScroll();
 
     useEffect(() => {
+        if (store.user) {
+            store.setActiveView("browser");
+            return;
+        }
+
         const done = sessionStorage.getItem("comet_startup_done");
         if (done) {
             setShowStartup(false);
@@ -74,7 +80,7 @@ const LandingPage = () => {
             sessionStorage.setItem("comet_startup_done", "true");
         }, 2500);
         return () => clearTimeout(t);
-    }, []);
+    }, [store.user]);
 
     useEffect(() => {
         const handleExternalAuthReturn = () => {
@@ -232,6 +238,43 @@ const LandingPage = () => {
                                         {store.user ? `Identified Entity: ${store.user.email}` : 'No registration required for guest access'}
                                     </p>
                                 </div>
+
+                                {store.user && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: 20 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        className="mt-8 grid grid-cols-2 gap-4"
+                                    >
+                                        <div className="p-6 rounded-[2rem] bg-white/[0.02] border border-white/5 flex flex-col gap-4">
+                                            <div className="flex items-center gap-2">
+                                                <RefreshCw size={14} className="text-sky-400" />
+                                                <span className="text-[10px] font-black uppercase tracking-widest text-white/40">Recent History</span>
+                                            </div>
+                                            <div className="space-y-2">
+                                                {store.history.slice(-3).reverse().map((h, i) => (
+                                                    <div key={i} className="text-[10px] font-medium text-white/60 truncate hover:text-sky-400 cursor-pointer transition-colors" onClick={() => { store.setCurrentUrl(h.url); store.setActiveView('browser'); }}>
+                                                        {h.title || h.url}
+                                                    </div>
+                                                ))}
+                                                {store.history.length === 0 && <p className="text-[10px] text-white/20 italic">No history yet</p>}
+                                            </div>
+                                        </div>
+                                        <div className="p-6 rounded-[2rem] bg-white/[0.02] border border-white/5 flex flex-col gap-4">
+                                            <div className="flex items-center gap-2">
+                                                <CopyIcon size={14} className="text-purple-400" />
+                                                <span className="text-[10px] font-black uppercase tracking-widest text-white/40">Cloud Clipboard</span>
+                                            </div>
+                                            <div className="space-y-2">
+                                                {store.clipboard.slice(0, 3).map((c, i) => (
+                                                    <div key={i} className="text-[10px] font-medium text-white/60 truncate hover:text-purple-400 cursor-pointer transition-colors" onClick={() => navigator.clipboard.writeText(c)}>
+                                                        {c.substring(0, 30)}...
+                                                    </div>
+                                                ))}
+                                                {store.clipboard.length === 0 && <p className="text-[10px] text-white/20 italic">Empty clipboard</p>}
+                                            </div>
+                                        </div>
+                                    </motion.div>
+                                )}
                             </div>
                         </motion.div>
                         <motion.div initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} className="hidden lg:block relative">

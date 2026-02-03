@@ -99,6 +99,14 @@ interface BrowserState {
     localLLMModel: string;
     setLocalLLMBaseUrl: (url: string) => void;
     setLocalLLMModel: (model: string) => void;
+
+    // AI Permission
+    askForAiPermission: boolean;
+    setAskForAiPermission: (val: boolean) => void;
+    showAiMistakeWarning: boolean;
+    setShowAiMistakeWarning: (val: boolean) => void;
+    hasSeenAiMistakeWarning: boolean;
+    setHasSeenAiMistakeWarning: (val: boolean) => void;
     mcpServerPort: number;
     setMcpServerPort: (port: number) => void;
     additionalAIInstructions: string;
@@ -148,6 +156,10 @@ interface BrowserState {
     // Unified cart
     unifiedCart: Array<{ id: string; item: string; site: string; price: string; }>;
     removeFromCart: (itemId: string) => void;
+    ambientMusicUrl: string;
+    enableAmbientMusic: boolean;
+    setAmbientMusicUrl: (url: string) => void;
+    setEnableAmbientMusic: (enable: boolean) => void;
 
     // Search and bookmarks
     selectedEngine: string;
@@ -177,6 +189,23 @@ interface BrowserState {
     setBackendStrategy: (strategy: 'firebase' | 'mysql') => void;
     setCustomFirebaseConfig: (config: any | null) => void;
     setCustomMysqlConfig: (config: any | null) => void;
+
+    // Firewall and Security
+    firewallLevel: 'standard' | 'strict' | 'paranoid';
+    setFirewallLevel: (level: 'standard' | 'strict' | 'paranoid') => void;
+
+    // Language and Translation
+    selectedLanguage: string;
+    setSelectedLanguage: (lang: string) => void;
+    availableLanguages: string[];
+
+    // Ollama Management
+    ollamaModelsList: Array<{ name: string; size?: number; details?: any }>;
+    setOllamaModelsList: (models: any[]) => void;
+
+    // Offline Reading
+    offlineReadingList: Array<{ url: string; title: string; html: string; timestamp: number }>;
+    addOfflinePage: (page: { url: string; title: string; html: string }) => void;
 
     // Logout
     logout: () => void;
@@ -227,6 +256,10 @@ export const useAppStore = create<BrowserState>()(
 
             // Theme settings
             theme: 'system',
+            ambientMusicUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
+            enableAmbientMusic: true,
+            setAmbientMusicUrl: (url: string) => set({ ambientMusicUrl: url }),
+            setEnableAmbientMusic: (enable: boolean) => set({ enableAmbientMusic: enable }),
 
             // Online status
             isOnline: true,
@@ -248,6 +281,26 @@ export const useAppStore = create<BrowserState>()(
 
             // Vibrant mode
             isVibrant: false,
+
+            // New states
+            firewallLevel: 'standard',
+            setFirewallLevel: (level) => set({ firewallLevel: level }),
+
+            selectedLanguage: 'en',
+            setSelectedLanguage: (lang) => set({ selectedLanguage: lang }),
+            availableLanguages: [
+                'en', 'hi', 'bn', 'te', 'mr', 'ta', 'gu', 'ur', 'kn', 'or', 'ml', 'pa', 'as', 'mai', 'sat', 'ks', 'ne', 'kok', 'sd', 'doi', 'mni', 'sa', 'brx', // Indian
+                'es', 'fr', 'de', 'ja', 'zh', 'ru', 'pt', 'it', 'ko', 'ar', 'tr', 'vi', 'th', 'nl', 'pl' // World
+            ],
+
+            ollamaModelsList: [],
+            setOllamaModelsList: (models) => set({ ollamaModelsList: models }),
+
+            offlineReadingList: [],
+            addOfflinePage: (page) => set((state) => ({
+                offlineReadingList: [...state.offlineReadingList, { ...page, timestamp: Date.now() }]
+            })),
+
 
             // Site warnings
             showSiteWarnings: true,
@@ -365,6 +418,14 @@ export const useAppStore = create<BrowserState>()(
             setOllamaModel: (model) => set({ ollamaModel: model }),
             setLocalLLMBaseUrl: (url) => set({ localLLMBaseUrl: url }),
             setLocalLLMModel: (model) => set({ localLLMModel: model }),
+
+            // AI Permission
+            askForAiPermission: true,
+            setAskForAiPermission: (val) => set({ askForAiPermission: val }),
+            showAiMistakeWarning: false,
+            setShowAiMistakeWarning: (val) => set({ showAiMistakeWarning: val }),
+            hasSeenAiMistakeWarning: false,
+            setHasSeenAiMistakeWarning: (val) => set({ hasSeenAiMistakeWarning: val }),
             setMcpServerPort: (port) => set({ mcpServerPort: port }),
             setAdditionalAIInstructions: (instructions) => set({ additionalAIInstructions: instructions }),
 
@@ -581,20 +642,23 @@ export const useAppStore = create<BrowserState>()(
 
             setSyncPassphrase: (passphrase) => set({ syncPassphrase: passphrase }),
 
-            logout: () => set({
-                user: null,
-                isAdmin: false,
-                activeView: 'landing-page',
-                history: [],
-                bookmarks: [],
-                passwords: [],
-                addresses: [],
-                paymentMethods: [],
-                cloudSyncConsent: null,
-                isGuestMode: false,
-                tabs: [{ id: 'default', url: 'about:blank', title: 'New Tab' }],
-                currentUrl: 'about:blank',
-            }),
+            logout: () => {
+                if (window.electronAPI) window.electronAPI.deletePersistentData('user-data');
+                set({
+                    user: null,
+                    isAdmin: false,
+                    activeView: 'landing-page',
+                    history: [],
+                    bookmarks: [],
+                    passwords: [],
+                    addresses: [],
+                    paymentMethods: [],
+                    cloudSyncConsent: null,
+                    isGuestMode: false,
+                    tabs: [{ id: 'default', url: 'about:blank', title: 'New Tab' }],
+                    currentUrl: 'about:blank',
+                });
+            },
 
             // ...
         }),
@@ -605,33 +669,46 @@ export const useAppStore = create<BrowserState>()(
 );
 
 // Firebase auth listener
-if (auth) {
-    onAuthStateChanged(auth, (user) => {
-        const { user: currentUser, defaultUrl, tabs, activeTabId } = useAppStore.getState();
+if (typeof window !== 'undefined' && window.electronAPI) {
+    // Initial load of user data from persistent storage
+    window.electronAPI.loadPersistentData('user-data').then((result: any) => {
+        if (result.success && result.data) {
+            useAppStore.getState().setUser(result.data);
+            useAppStore.getState().setActiveView('browser');
+        }
+    });
 
-        if (user) {
-            // Set user info, but only if it's a new user logging in
-            if (!currentUser || currentUser.uid !== user.uid) {
-                useAppStore.getState().setUser({
+    if (auth) {
+        onAuthStateChanged(auth, (user) => {
+            const { user: currentUser, defaultUrl, tabs, activeTabId } = useAppStore.getState();
+
+            if (user) {
+                const userData = {
                     uid: user.uid,
                     email: user.email || '',
                     displayName: user.displayName || '',
                     photoURL: user.photoURL || '',
-                });
-                useAppStore.getState().setActiveView('browser');
+                };
 
-                // Only set the URL if the current tab is still blank
-                const activeTab = tabs.find(t => t.id === activeTabId);
-                if (activeTab && (activeTab.url === 'about:blank' || activeTab.url === '')) {
-                    useAppStore.getState().updateTab(activeTab.id, { url: defaultUrl });
-                    useAppStore.getState().setCurrentUrl(defaultUrl);
+                // Persist to user data directory
+                window.electronAPI.savePersistentData('user-data', userData);
+
+                if (!currentUser || currentUser.uid !== user.uid) {
+                    useAppStore.getState().setUser(userData);
+                    useAppStore.getState().setActiveView('browser');
+
+                    const activeTab = tabs.find(t => t.id === activeTabId);
+                    if (activeTab && (activeTab.url === 'about:blank' || activeTab.url === '')) {
+                        useAppStore.getState().updateTab(activeTab.id, { url: defaultUrl });
+                        useAppStore.getState().setCurrentUrl(defaultUrl);
+                    }
+                }
+            } else {
+                if (currentUser) {
+                    window.electronAPI.deletePersistentData('user-data');
+                    useAppStore.getState().logout();
                 }
             }
-        } else {
-            // If the user logs out, and there was a user before, then log out fully.
-            if (currentUser) {
-                useAppStore.getState().logout();
-            }
-        }
-    });
+        });
+    }
 }

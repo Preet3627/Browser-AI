@@ -10,7 +10,7 @@ import {
   RotateCw, AlertTriangle, ShieldCheck, DownloadCloud, ShoppingCart, Copy as CopyIcon,
   Terminal, Settings as GhostSettings, FolderOpen, Sparkles, ScanLine, Search, X,
   Puzzle, Code2, Briefcase, Image as ImageIcon, User as UserIcon, Maximize2, Minimize2, RefreshCcw, Download as DownloadIcon,
-  Layout, MoreVertical, CreditCard, ArrowRight, Languages
+  Layout, MoreVertical, CreditCard, ArrowRight, Languages, Share2, Lock, Shield, Volume2, Square, Music2, Waves
 } from 'lucide-react';
 import AIChatSidebar from '@/components/AIChatSidebar';
 import LandingPage from '@/components/LandingPage';
@@ -26,9 +26,12 @@ import UnifiedCartPanel from '@/components/UnifiedCartPanel';
 import WorkspaceDashboard from '@/components/WorkspaceDashboard';
 import MediaStudio from '@/components/MediaStudio';
 import Documentation from '@/components/Documentation';
+import PasswordManager from '@/components/PasswordManager';
+import ProxyFirewallManager from '@/components/ProxyFirewallManager';
+import P2PSyncManager from '@/components/P2PSyncManager';
 
 import CloudSyncConsent from "@/components/CloudSyncConsent";
-import NoNetworkGame from "@/components/NoNetworkGame";
+import NoNetworkGame from "@/components/DinoGame";
 import AIAssistOverlay from "@/components/AIAssistOverlay";
 
 import { firebaseSyncService } from "@/lib/FirebaseSyncService";
@@ -63,28 +66,39 @@ const MusicVisualizer = ({ color = 'rgb', isPlaying = false }: { color?: string,
   if (!isPlaying) return null;
 
   return (
-    <div className="flex gap-[2px] items-center h-3">
-      {[...Array(5)].map((_, i) => (
-        <motion.div
-          key={i}
-          animate={{
-            height: [4, 12, 6, 10, 4],
-            backgroundColor: color === 'rgb'
-              ? ['#00ffff', '#ff00ff', '#00ff00', '#ffff00', '#00ffff']
-              : [color, color, color]
-          }}
-          transition={{
-            duration: 0.5 + Math.random() * 0.5,
-            repeat: Infinity,
-            ease: "easeInOut",
-            delay: i * 0.1,
-            backgroundColor: { duration: 3, repeat: Infinity, ease: "linear" }
-          }}
-          className="w-[2px] bg-white/40 rounded-full"
-          style={{ boxShadow: color === 'rgb' ? '0 0 8px rgba(var(--color-primary-text), 0.2)' : `0 0 8px ${color}80` }}
-        />
-      ))}
-    </div>
+    <motion.div
+      initial={{ width: 0, scale: 0.8, opacity: 0 }}
+      animate={{ width: 'auto', scale: 1, opacity: 1 }}
+      className="flex items-center gap-3 px-3 py-1.5 bg-black/60 backdrop-blur-3xl rounded-full border border-white/10 shadow-[0_0_30px_rgba(0,0,0,0.5)] h-8 group hover:scale-105 transition-all duration-500 origin-right mr-2"
+    >
+      <div className="flex gap-[3px] items-center h-4">
+        {[...Array(8)].map((_, i) => (
+          <motion.div
+            key={i}
+            animate={{
+              height: [4, 18, 6, 14, 4],
+              backgroundColor: color === 'rgb'
+                ? ['#00ffff', '#ff00ff', '#7000ff', '#00ff94', '#00ffff']
+                : [color, color, color]
+            }}
+            transition={{
+              duration: 0.4 + Math.random() * 0.4,
+              repeat: Infinity,
+              ease: "easeInOut",
+              delay: i * 0.08,
+            }}
+            className="w-[2.5px] rounded-full"
+          />
+        ))}
+      </div>
+      <div className="flex flex-col justify-center border-l border-white/10 pl-3">
+        <span className="text-[7px] font-black tracking-[0.2em] text-deep-space-accent-neon opacity-80 uppercase leading-none">Comet Audio</span>
+        <span className="text-[6px] font-bold text-white/40 uppercase leading-none mt-1 flex items-center gap-1">
+          <div className="w-1 h-1 rounded-full bg-deep-space-accent-neon animate-pulse" />
+          Analyzing
+        </span>
+      </div>
+    </motion.div>
   );
 };
 
@@ -112,6 +126,42 @@ export default function Home() {
   const [showDownloads, setShowDownloads] = useState(false);
   const [showExtensionsPopup, setShowExtensionsPopup] = useState(false);
   const [downloads, setDownloads] = useState<Array<{ name: string, status: string }>>([]);
+  const [activeManager, setActiveManager] = useState<string | null>(null);
+  const [isReadingAloud, setIsReadingAloud] = useState(false);
+  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const [showTranslateDialog, setShowTranslateDialog] = useState(false);
+  const ambientAudioRef = useRef<HTMLAudioElement | null>(null);
+  const [isAmbientPlaying, setIsAmbientPlaying] = useState(false);
+
+  // Sidebar items configuration
+  const sidebarItems = [
+    { icon: <Globe size={20} />, label: 'Browser', view: 'browser' },
+    { icon: <Briefcase size={20} />, label: 'Workspace', view: 'workspace' },
+    { icon: <ShoppingBag size={20} />, label: 'Web Store', view: 'webstore' },
+    { icon: <FileText size={20} />, label: 'PDF Tools', view: 'pdf' },
+    { icon: <Code2 size={20} />, label: 'Coding', view: 'coding' },
+    { icon: <ImageIcon size={20} />, label: 'Media Studio', view: 'media' },
+    { icon: <Lock size={20} />, label: 'Passwords', manager: 'password' },
+    { icon: <Shield size={20} />, label: 'Firewall', manager: 'firewall' },
+    { icon: <Share2 size={20} />, label: 'P2P Sync', manager: 'p2p' },
+    { icon: <CopyIcon size={20} />, label: 'Clipboard', action: 'clipboard' },
+  ];
+
+  // Handle sidebar item clicks
+  const handleSidebarClick = (item: any) => {
+    if (item.view) {
+      store.setActiveView(item.view);
+      setActiveManager(null);
+      setShowClipboard(false);
+    } else if (item.manager) {
+      setActiveManager(item.manager);
+      store.setActiveView('browser'); // Keep browser view active when showing managers
+      setShowClipboard(false);
+    } else if (item.action === 'clipboard') {
+      setShowClipboard(!showClipboard);
+      setActiveManager(null);
+    }
+  };
 
   useEffect(() => {
     if (window.electronAPI) {
@@ -149,6 +199,75 @@ export default function Home() {
       }
     }
   };
+
+  const handleReadAloud = async () => {
+    if (isReadingAloud) {
+      window.speechSynthesis.cancel();
+      setIsReadingAloud(false);
+      return;
+    }
+
+    if (window.electronAPI) {
+      const text = await window.electronAPI.getSelectedText();
+      const pageText = text || "No text selected to read aloud.";
+
+      const utterance = new SpeechSynthesisUtterance(pageText);
+      const voices = window.speechSynthesis.getVoices();
+
+      // Language code to Name mapping for better matching
+      const langMap: Record<string, string> = {
+        'hi': 'Hindi', 'ta': 'Tamil', 'te': 'Telugu', 'bn': 'Bengali', 'ml': 'Malayalam', 'kn': 'Kannada'
+      };
+
+      const targetLang = store.selectedLanguage;
+      const voice = voices.find(v => v.lang.startsWith(targetLang) || (langMap[targetLang] && v.name.includes(langMap[targetLang]))) || voices[0];
+
+      if (voice) utterance.voice = voice;
+      utterance.rate = 1.0;
+      utterance.pitch = 1.0;
+
+      utterance.onend = () => setIsReadingAloud(false);
+      utterance.onerror = () => setIsReadingAloud(false);
+
+      utteranceRef.current = utterance;
+      window.speechSynthesis.speak(utterance);
+      setIsReadingAloud(true);
+    }
+  };
+
+  const handleMusicUpload = async () => {
+    if (window.electronAPI) {
+      const filePath = await window.electronAPI.selectLocalFile();
+      if (filePath) {
+        store.setAmbientMusicUrl(`file://${filePath}`);
+      }
+    }
+  };
+
+  // Ambient Music Control
+  useEffect(() => {
+    if (store.enableAmbientMusic && store.currentUrl.includes('google.com')) {
+      if (ambientAudioRef.current) {
+        ambientAudioRef.current.play().catch(e => console.log("Autoplay blocked", e));
+        setIsAmbientPlaying(true);
+      }
+    } else {
+      if (ambientAudioRef.current) {
+        ambientAudioRef.current.pause();
+        setIsAmbientPlaying(false);
+      }
+    }
+  }, [store.currentUrl, store.enableAmbientMusic]);
+
+  // Translation Trigger
+  useEffect(() => {
+    if (window.electronAPI) {
+      const clean = window.electronAPI.onTriggerTranslationDialog(() => {
+        setShowTranslateDialog(true);
+      });
+      return clean;
+    }
+  }, []);
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -302,6 +421,19 @@ export default function Home() {
     }
   }, [store.enableAIAssist]);
 
+  // PWA Service Worker Registration
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').then((reg) => {
+          console.log('SW registered:', reg);
+        }).catch((err) => {
+          console.log('SW reg failed:', err);
+        });
+      });
+    }
+  }, []);
+
   // Fetch initial online status and listen for changes
   useEffect(() => {
     if (window.electronAPI) {
@@ -356,6 +488,8 @@ export default function Home() {
     if (store.cloudSyncConsent) {
       console.log("Cloud sync consented. Initializing sync...");
       firebaseSyncService.syncClipboard();
+      firebaseSyncService.syncHistory();
+      firebaseSyncService.syncApiKeys();
     }
   }, [store.cloudSyncConsent]);
 
@@ -425,6 +559,20 @@ export default function Home() {
     }
   }, [store.addTab, store.removeTab, store.activeTabId, store.nextTab, store.prevTab, store.toggleSidebar]);
 
+  // Dynamic Ollama Model Fetch
+  useEffect(() => {
+    if (window.electronAPI && store.aiProvider === 'ollama') {
+      window.electronAPI.ollamaListModels().then((res: any) => {
+        if (res.models) {
+          store.setOllamaModelsList(res.models);
+          console.log('Loaded Ollama models:', res.models);
+        } else if (res.error) {
+          console.error('Failed to load Ollama models:', res.error);
+        }
+      });
+    }
+  }, [store.aiProvider]);
+
   const handleGo = () => {
     let url = store.currentUrl.trim();
     if (!url) return;
@@ -480,6 +628,19 @@ export default function Home() {
     }
   };
 
+  const handleCreateShortcut = async () => {
+    if (!window.electronAPI) return;
+    const activeTab = store.tabs.find(t => t.id === store.activeTabId);
+    if (activeTab) {
+      const result = await (window.electronAPI as any).createDesktopShortcut({ url: activeTab.url, title: activeTab.title });
+      if (result.success) {
+        alert(`Shortcut created on Desktop: ${activeTab.title}`);
+      } else {
+        alert(`Failed to create shortcut: ${result.error}`);
+      }
+    }
+  };
+
   const handleCartScan = async () => {
     if (!window.electronAPI) return;
     setShowCart(true);
@@ -513,15 +674,28 @@ export default function Home() {
   };
 
   const calculateBounds = useCallback(() => {
-    const sidebarWidth = !store.sidebarOpen ? 0 : (store.isSidebarCollapsed ? 70 : (store.sidebarWidth + 70));
-    const headerHeight = 40 + 56; // TitleBar (40) + Toolbar (56). TabBar is integrated in TitleBar.
-    const x = store.sidebarSide === 'left' ? sidebarWidth : 0;
-    const width = window.innerWidth - sidebarWidth;
-    const safeWidth = Math.max(0, Math.round(width));
-    const safeHeight = Math.max(0, window.innerHeight - headerHeight);
-    const safeX = Math.round(x);
-    return { x: safeX, y: headerHeight, width: safeWidth, height: safeHeight };
-  }, [store.sidebarOpen, store.isSidebarCollapsed, store.sidebarWidth, store.sidebarSide]);
+    const railWidth = railVisible ? 70 : 0;
+    const aiSidebarWidth = !store.sidebarOpen ? 0 : (store.isSidebarCollapsed ? 70 : store.sidebarWidth);
+
+    const headerHeight = 40 + 56;
+
+    let x = 0;
+    if (store.sidebarSide === 'left') {
+      x = railWidth + aiSidebarWidth;
+    } else {
+      x = railWidth;
+    }
+
+    const width = window.innerWidth - railWidth - aiSidebarWidth;
+    const height = window.innerHeight - headerHeight;
+
+    return {
+      x: Math.round(x),
+      y: Math.round(headerHeight),
+      width: Math.max(0, Math.round(width)),
+      height: Math.max(0, Math.round(height))
+    };
+  }, [store.sidebarOpen, store.isSidebarCollapsed, store.sidebarWidth, store.sidebarSide, railVisible]);
 
   useEffect(() => {
     if (window.electronAPI) {
@@ -548,12 +722,16 @@ export default function Home() {
 
   useEffect(() => {
     if (window.electronAPI) {
-      // If Settings or other full-screen overlays are open, hide the browser view
-      if (showSettings) {
+      // Hide BrowserView only for truly opaque, full-screen overlays
+      const hasOpaqueOverlay = showSettings || activeManager !== null || showCamera;
+
+      if (hasOpaqueOverlay) {
         window.electronAPI.hideAllViews();
         return;
       }
 
+      // If sidebar or other popups are open, we just resize or let them overlay
+      // Note: Sidebar is handled by calculateBounds returning a smaller width
       if (store.activeView === 'browser' && store.activeTabId) {
         const bounds = calculateBounds();
         window.electronAPI.activateView({ tabId: store.activeTabId, bounds });
@@ -561,7 +739,7 @@ export default function Home() {
         window.electronAPI.hideAllViews();
       }
     }
-  }, [store.activeTabId, store.activeView, calculateBounds, showSettings]);
+  }, [store.activeTabId, store.activeView, calculateBounds, showSettings, activeManager, showCamera]);
 
   useEffect(() => {
     if (window.electronAPI) {
@@ -570,6 +748,10 @@ export default function Home() {
           store.updateTab(tabId, { url });
           if (tabId === store.activeTabId) {
             store.setCurrentUrl(url);
+            // Add to history for URL predictor
+            if (url && url !== 'about:blank' && !url.startsWith('file:') && !url.includes('google.com/search')) {
+              store.addToHistory({ url, title: url });
+            }
           }
         }
       });
@@ -678,74 +860,30 @@ export default function Home() {
               initial={{ width: 0, opacity: 0 }}
               animate={{ width: 70, opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
-              className="flex flex-col items-center py-6 gap-6 z-40 bg-black/40 backdrop-blur-2xl shadow-[10px_0_30px_rgba(0,0,0,0.5)]"
+              className="flex flex-col items-center py-6 gap-5 z-40 bg-black/40 backdrop-blur-2xl shadow-[10px_0_30px_rgba(0,0,0,0.5)] border-r border-white/5 no-drag-region"
             >
-              <SidebarIcon
-                icon={<Globe size={20} />}
-                label="Browser"
-                active={store.activeView === 'browser'}
-                onClick={() => store.setActiveView('browser')}
-                collapsed={true}
-              />
-              <SidebarIcon
-                icon={<ArrowRight size={20} />}
-                label="Home"
-                active={store.activeView === 'landing-page'}
-                onClick={() => store.setActiveView('landing-page')}
-                collapsed={true}
-              />
-              <SidebarIcon
-                icon={<Briefcase size={20} />}
-                label="Workspace"
-                active={store.activeView === 'workspace'}
-                onClick={() => store.setActiveView('workspace')}
-                collapsed={true}
-              />
-              <SidebarIcon
-                icon={<ShoppingBag size={20} />}
-                label="Web Store"
-                active={store.activeView === 'webstore'}
-                onClick={() => store.setActiveView('webstore')}
-                collapsed={true}
-              />
-              <SidebarIcon
-                icon={<FileText size={20} />}
-                label="PDF Studio"
-                active={store.activeView === 'pdf'}
-                onClick={() => store.setActiveView('pdf')}
-                collapsed={true}
-              />
-              <SidebarIcon
-                icon={<ImageIcon size={20} />}
-                label="Media Lab"
-                active={store.activeView === 'media'}
-                onClick={() => store.setActiveView('media')}
-                collapsed={true}
-              />
-              <SidebarIcon
-                icon={<Code2 size={20} />}
-                label="Dev Mode"
-                active={store.activeView === 'coding'}
-                onClick={() => store.setActiveView('coding')}
-                collapsed={true}
-              />
-              <SidebarIcon
-                icon={<Bookmark size={20} />}
-                label="Docs"
-                active={store.activeView === 'documentation'}
-                onClick={() => store.setActiveView('documentation')}
-                collapsed={true}
-              />
-              <SidebarIcon
-                icon={<Puzzle size={20} />}
-                label="Extensions"
-                active={false}
-                onClick={() => {
-                  setSettingsSection('extensions');
-                  setShowSettings(true);
-                }}
-                collapsed={true}
-              />
+              {sidebarItems.map((item, idx) => (
+                <SidebarIcon
+                  key={idx}
+                  icon={item.icon}
+                  label={item.label}
+                  active={!!(item.view && store.activeView === item.view) || !!(item.manager && activeManager === item.manager)}
+                  onClick={() => handleSidebarClick(item)}
+                  collapsed={true}
+                />
+              ))}
+              <div className="mt-auto mb-4">
+                <SidebarIcon
+                  icon={<Puzzle size={20} />}
+                  label="Extensions"
+                  active={showSettings && settingsSection === 'extensions'}
+                  onClick={() => {
+                    setSettingsSection('extensions');
+                    setShowSettings(true);
+                  }}
+                  collapsed={true}
+                />
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
@@ -763,7 +901,7 @@ export default function Home() {
               animate={{ width: store.isSidebarCollapsed ? 70 : store.sidebarWidth, opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
               transition={{ duration: 0.5, ease: 'easeInOut' }}
-              className={`h-full border-r border-border-color cursor-grab active:cursor-grabbing ${store.sidebarSide === 'left' ? 'order-first' : 'order-last'}`}
+              className={`h-full border-r border-border-color cursor-grab active:cursor-grabbing ${store.sidebarSide === 'left' ? 'order-first' : 'order-last'} no-drag-region`}
             >
               <AIChatSidebar
                 studentMode={store.studentMode}
@@ -787,7 +925,7 @@ export default function Home() {
         </AnimatePresence>
         <main className="flex-1 flex flex-col relative overflow-hidden bg-black/5">
           {store.activeView === 'browser' && (
-            <header className="h-[56px] flex items-center px-4 gap-4 border-b border-white/5 bg-black/40 backdrop-blur-3xl z-40">
+            <header className="h-[56px] flex items-center px-4 gap-4 border-b border-white/5 bg-black/40 backdrop-blur-3xl z-40 no-drag-region">
               <div className="flex items-center gap-1">
                 <button onClick={() => setRailVisible(!railVisible)} className={`p-2 rounded-xl transition-all ${railVisible ? 'text-secondary-text' : 'bg-accent text-primary-bg'}`} title="Toggle Tools Rail">
                   <Layout size={18} />
@@ -819,15 +957,34 @@ export default function Home() {
                     onChange={(e) => store.setCurrentUrl(e.target.value)}
                     onFocus={() => setIsTyping(true)}
                     onBlur={() => setIsTyping(false)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleGo()}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleGo();
+                      if (e.key === 'Tab' && urlPrediction && isTyping) {
+                        e.preventDefault();
+                        store.setCurrentUrl(urlPrediction);
+                        setUrlPrediction(null);
+                      }
+                    }}
                     placeholder="Search with Comet or enter URL..."
-                    className="w-full bg-white/[0.03] border border-white/10 rounded-2xl py-2 pl-11 pr-4 text-xs text-primary-text placeholder:text-secondary-text focus:outline-none focus:ring-1 focus:ring-accent/50 focus:bg-white/[0.07] transition-all font-medium backdrop-blur-md"
+                    className="w-full bg-white/[0.03] border border-white/10 rounded-2xl py-2 pl-11 pr-4 text-xs text-primary-text placeholder:text-secondary-text focus:outline-none focus:ring-1 focus:ring-accent/50 focus:bg-white/[0.07] transition-all font-medium backdrop-blur-md relative z-10"
                   />
+                  {urlPrediction && isTyping && (
+                    <div className="absolute inset-y-0 left-11 right-4 flex items-center pointer-events-none text-xs text-white/20 font-medium z-0">
+                      <span>{store.currentUrl}</span>
+                      <span className="opacity-100">{urlPrediction.substring(store.currentUrl.length)}</span>
+                    </div>
+                  )}
                   <div className="absolute top-0 left-0 right-0 h-[2px] overflow-hidden pointer-events-none rounded-t-2xl">
                     <motion.div animate={{ x: ['-100%', '100%'] }} transition={{ duration: 3, repeat: Infinity, ease: 'linear' }} className="w-1/2 h-full bg-gradient-to-r from-transparent via-primary-text/10 to-transparent" />
                   </div>
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2">
-                    <MusicVisualizer color={aiPickColor} isPlaying={isAudioPlaying} />
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 no-drag-region z-20 flex items-center gap-2">
+                    <MusicVisualizer color={aiPickColor} isPlaying={isAudioPlaying || isAmbientPlaying} />
+                    <button onClick={handleMusicUpload} className="p-1.5 rounded-lg hover:bg-white/10 text-white/20 hover:text-white/60 transition-all" title="Upload Ambient Music">
+                      <Music2 size={12} />
+                    </button>
+                    <button onClick={() => store.setEnableAmbientMusic(!store.enableAmbientMusic)} className={`p-1.5 rounded-lg hover:bg-white/10 transition-all ${store.enableAmbientMusic ? 'text-accent' : 'text-white/20'}`} title="Ambient Mode">
+                      <Waves size={12} />
+                    </button>
                   </div>
                 </div>
 
@@ -845,8 +1002,14 @@ export default function Home() {
                   >
                     <DownloadCloud size={14} />
                   </button>
+                  <button onClick={() => { setSettingsSection('history'); setShowSettings(true); }} className="p-1.5 rounded-lg text-secondary-text hover:text-primary-text transition-all" title="Browsing History">
+                    <RefreshCcw size={14} />
+                  </button>
                   <button onClick={() => setShowClipboard(!showClipboard)} className={`p-1.5 rounded-lg transition-all ${showClipboard ? 'text-accent bg-primary-bg/10' : 'text-secondary-text hover:text-primary-text'}`} title="Clipboard Manager">
                     <CopyIcon size={14} />
+                  </button>
+                  <button onClick={handleReadAloud} className={`p-1.5 rounded-lg transition-all ${isReadingAloud ? 'text-accent animate-pulse' : 'text-secondary-text hover:text-primary-text'}`} title="Read Aloud">
+                    {isReadingAloud ? <Square size={14} /> : <Volume2 size={14} />}
                   </button>
                   <button onClick={() => setShowCart(!showCart)} className={`p-1.5 rounded-lg transition-all ${showCart ? 'text-accent bg-primary-bg/10' : 'text-secondary-text hover:text-primary-text'}`} title="Scan Shopping Cart">
                     <ShoppingCart size={14} />
@@ -861,15 +1024,20 @@ export default function Home() {
                 <button onClick={toggleFullscreen} className="p-2 rounded-xl hover:bg-primary-bg/10 text-secondary-text hover:text-primary-text transition-all" title="Toggle Fullscreen">
                   {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
                 </button>
-                <button onClick={handleOfflineSave} className="p-2 rounded-xl hover:bg-primary-bg/10 text-secondary-text hover:text-primary-text transition-all" title="Download Page">
-                  <DownloadIcon size={18} />
-                </button>
+
 
                 <div className="w-[1px] h-6 bg-border-color mx-1" />
 
-                <button onClick={() => setShowSettings(true)} className="p-1 rounded-2xl hover:scale-105 transition-all outline-none">
+                <button onClick={() => setShowSettings(true)} className="p-1 rounded-2xl hover:scale-110 transition-all outline-none border border-white/10 bg-white/5 overflow-hidden">
                   {store.user?.photoURL ? (
-                    <img src={store.user.photoURL} alt="Profile" className="w-8 h-8 rounded-full border border-border-color" />
+                    <img
+                      src={store.user.photoURL}
+                      alt="Profile"
+                      className="w-8 h-8 rounded-full object-cover shadow-[0_0_10px_rgba(56,189,248,0.3)]"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(store.user?.displayName || 'User')}&background=0D8ABC&color=fff`;
+                      }}
+                    />
                   ) : (
                     <div className="w-8 h-8 rounded-full bg-primary-bg/5 border border-border-color flex items-center justify-center text-secondary-text">
                       <UserIcon size={16} />
@@ -896,6 +1064,11 @@ export default function Home() {
                 <motion.div key="browser" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0">
                   <div className={`h-full flex ${store.studentMode ? 'p-4 gap-4' : 'p-2'}`}>
                     <div className={`flex-[3] relative bg-[#020205] shadow-[0_0_100px_rgba(0,0,0,0.5)] ${store.studentMode ? 'rounded-3xl' : 'rounded-2xl'} overflow-hidden border border-white/5`}>
+                      {!store.isOnline && (
+                        <div className="absolute inset-0 z-[100] bg-[#0a0a0f]">
+                          <NoNetworkGame />
+                        </div>
+                      )}
                       {/* This area is now intentionally blank. The BrowserView is managed by the main process. */}
                       <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-sky-500/20 to-transparent pointer-events-none" />
                     </div>
@@ -962,7 +1135,7 @@ export default function Home() {
               )}
 
               {showDownloads && (
-                <div className="absolute top-20 right-4 z-[90] w-72 h-96 bg-[#020205]/95 backdrop-blur-3xl border border-white/5 rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+                <div className={`absolute top-20 ${store.sidebarSide === 'right' && store.sidebarOpen ? 'right-[290px]' : 'right-4'} z-[90] w-72 h-96 bg-[#020205]/95 backdrop-blur-3xl border border-white/5 rounded-2xl shadow-2xl flex flex-col overflow-hidden`}>
                   <div className="p-4 border-b border-white/5 flex items-center justify-between">
                     <span className="text-[10px] font-bold uppercase tracking-widest text-white/60">Recent Downloads</span>
                     <button onClick={() => setShowDownloads(false)} className="text-white/20 hover:text-white"><X size={14} /></button>
@@ -993,7 +1166,7 @@ export default function Home() {
               )}
 
               {showExtensionsPopup && (
-                <div className="absolute top-20 right-4 z-[90] w-80 h-[30rem] bg-[#020205]/95 backdrop-blur-3xl border border-white/5 rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+                <div className={`absolute top-20 ${store.sidebarSide === 'right' && store.sidebarOpen ? 'right-[290px]' : 'right-4'} z-[90] w-80 h-[30rem] bg-[#020205]/95 backdrop-blur-3xl border border-white/5 rounded-2xl shadow-2xl flex flex-col overflow-hidden`}>
                   <div className="p-4 border-b border-white/5 flex items-center justify-between">
                     <span className="text-[10px] font-bold uppercase tracking-widest text-white/60">Quick Extensions</span>
                     <button onClick={() => setShowExtensionsPopup(false)} className="text-white/20 hover:text-white"><X size={14} /></button>
@@ -1014,9 +1187,70 @@ export default function Home() {
               )}
 
               {showClipboard && (
-                <div className="absolute top-20 right-4 z-[90]">
+                <div className={`absolute top-20 ${store.sidebarSide === 'right' && store.sidebarOpen ? 'right-[290px]' : 'right-4'} z-[90] w-80 h-[30rem]`}>
                   <ClipboardManager />
                 </div>
+              )}
+
+              {/* Manager Overlays */}
+              {activeManager === 'password' && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className="absolute inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center"
+                >
+                  <div className="w-full max-w-4xl h-[80vh] bg-[#020205] rounded-2xl border border-white/10 shadow-2xl overflow-hidden relative">
+                    <button
+                      onClick={() => setActiveManager(null)}
+                      className="absolute top-4 right-4 z-50 p-2 bg-white/5 hover:bg-white/10 rounded-xl text-white/60 hover:text-white transition-all"
+                      title="Close"
+                    >
+                      <X size={20} />
+                    </button>
+                    <PasswordManager />
+                  </div>
+                </motion.div>
+              )}
+
+              {activeManager === 'firewall' && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className="absolute inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center"
+                >
+                  <div className="w-full max-w-4xl h-[80vh] bg-[#020205] rounded-2xl border border-white/10 shadow-2xl overflow-hidden relative">
+                    <button
+                      onClick={() => setActiveManager(null)}
+                      className="absolute top-4 right-4 z-50 p-2 bg-white/5 hover:bg-white/10 rounded-xl text-white/60 hover:text-white transition-all"
+                      title="Close"
+                    >
+                      <X size={20} />
+                    </button>
+                    <ProxyFirewallManager />
+                  </div>
+                </motion.div>
+              )}
+
+              {activeManager === 'p2p' && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className="absolute inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center"
+                >
+                  <div className="w-full max-w-4xl h-[80vh] bg-[#020205] rounded-2xl border border-white/10 shadow-2xl overflow-hidden relative">
+                    <button
+                      onClick={() => setActiveManager(null)}
+                      className="absolute top-4 right-4 z-50 p-2 bg-white/5 hover:bg-white/10 rounded-xl text-white/60 hover:text-white transition-all"
+                      title="Close"
+                    >
+                      <X size={20} />
+                    </button>
+                    <P2PSyncManager />
+                  </div>
+                </motion.div>
               )}
 
               {showCamera && (
@@ -1036,28 +1270,13 @@ export default function Home() {
             {/* Neural Context Overlay */}
             <AnimatePresence>
               {aiOverview && (
-                <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }} className="absolute bottom-6 right-6 w-[450px] max-h-[600px] bg-primary-bg/95 backdrop-blur-2xl border border-border-color rounded-2xl shadow-[0_0_50px_rgba(0,0,0,0.5)] z-[60] flex flex-col overflow-hidden">
-                  <div className="p-4 border-b border-border-color flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-accent"><Sparkles size={16} /><span className="text-xs font-black uppercase tracking-widest">Neural Analysis</span></div>
-                    <button onClick={() => setAiOverview(null)} className="text-secondary-text hover:text-primary-text" title="Close Neural Analysis"><X size={14} /></button>
-                  </div>
-                  <div className="flex-1 p-5 overflow-y-auto custom-scrollbar">
-                    <h3 className="text-sm font-bold text-primary-text mb-2">{aiOverview.query}</h3>
-                    {aiOverview.isLoading ? (
-                      <div className="flex items-center gap-2 text-secondary-text text-xs animate-pulse"><RotateCw size={12} className="animate-spin" />Synthesizing intelligence...</div>
-                    ) : (
-                      <div className="text-xs text-secondary-text leading-relaxed whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: aiOverview.result || '' }} />
-                    )}
-                    {aiOverview.sources && (
-                      <div className="mt-4 pt-4 border-t border-border-color space-y-2">
-                        <p className="text-[10px] text-secondary-text uppercase font-black">Sources</p>
-                        {aiOverview.sources.map((s, i) => (
-                          <div key={i} className="text-[10px] text-secondary-text truncate pl-2 border-l border-accent/30">{s.text.substring(0, 80)}...</div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </motion.div>
+                <AIAssistOverlay
+                  query={aiOverview.query}
+                  result={aiOverview.result}
+                  sources={aiOverview.sources}
+                  isLoading={aiOverview.isLoading}
+                  onClose={() => setAiOverview(null)}
+                />
               )}
             </AnimatePresence>
           </div>
@@ -1105,6 +1324,10 @@ export default function Home() {
                 <Code2 size={14} />
                 <span className="text-xs font-bold uppercase tracking-widest">Inspect</span>
               </button>
+              <button onClick={() => { handleCreateShortcut(); setShowContextMenu(null); }} className="w-full px-4 py-2 flex items-center gap-3 hover:bg-accent/10 text-secondary-text hover:text-accent transition-all">
+                <Plus size={14} />
+                <span className="text-xs font-bold uppercase tracking-widest">Create Shortcut</span>
+              </button>
               <button onClick={async () => {
                 setShowContextMenu(null);
                 if (window.electronAPI) {
@@ -1127,6 +1350,40 @@ export default function Home() {
           </>
         )}
       </AnimatePresence>
+
+      <AnimatePresence>
+        {showTranslateDialog && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[2000] bg-black/60 backdrop-blur-md flex items-center justify-center p-4"
+          >
+            <div className="w-full max-w-sm bg-[#0a0a0f] border border-white/10 rounded-2xl shadow-3xl overflow-hidden p-6">
+              <h3 className="text-sm font-black uppercase tracking-widest text-white mb-4 text-center">TRANSLATE SITE</h3>
+              <div className="grid grid-cols-2 gap-2">
+                {['hi', 'ta', 'te', 'bn', 'ml', 'kn', 'mr', 'gu'].map(langCode => (
+                  <button
+                    key={langCode}
+                    onClick={async () => {
+                      if (window.electronAPI) {
+                        await window.electronAPI.translateWebsite({ targetLanguage: langCode });
+                      }
+                      setShowTranslateDialog(false);
+                    }}
+                    className="px-4 py-2 bg-white/5 hover:bg-accent/10 border border-white/5 hover:border-accent/40 rounded-xl text-xs font-bold transition-all text-white/80 hover:text-white"
+                  >
+                    {langCode.toUpperCase()}
+                  </button>
+                ))}
+              </div>
+              <button onClick={() => setShowTranslateDialog(false)} className="w-full mt-6 py-2 text-[10px] font-black uppercase tracking-widest text-white/40 hover:text-white">Close</button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <audio ref={ambientAudioRef} src={store.ambientMusicUrl} loop hidden />
     </div>
   );
 }

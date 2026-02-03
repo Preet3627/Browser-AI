@@ -46,6 +46,7 @@ To generate production installers:
 # Windows
 npm run build-electron -- --win
 
+npm install --prefix . --install-strategy=nested --no-workspaces --ignore-workspace-root-check
 # macOS
 npm run build-electron -- --mac
 

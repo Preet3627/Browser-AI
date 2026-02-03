@@ -61,6 +61,9 @@ declare global {
             maximizeWindow: () => void;
             closeWindow: () => void;
             toggleFullscreen: () => void;
+            showWebview: () => void;
+            hideWebview: () => void;
+            getOpenTabs: () => Promise<any[]>;
 
             // Auth
             openAuthWindow: (url: string) => void;
@@ -104,6 +107,9 @@ declare global {
             // RAG Persistence & Ollama
             saveVectorStore: (data: any[]) => Promise<boolean>;
             loadVectorStore: () => Promise<any[]>;
+            webSearchRag: (query: string) => Promise<string[]>;
+            getPasswordsForSite: (domain: string) => Promise<any[]>;
+            proposePasswordSave: (data: { domain: string; username?: string; password?: string }) => void;
             getOllamaModels: () => Promise<{ name: string; modified_at: string }[]>;
             pullOllamaModel: (model: string, callback: (data: any) => void) => () => void;
             importOllamaModel: (data: { modelName: string; filePath: string }) => Promise<{ success: boolean; error?: string }>;
@@ -125,6 +131,18 @@ declare global {
             onP2PIceCandidate: (callback: (data: { candidate: any; remoteDeviceId: string }) => void) => () => void;
             encryptData: (data: ArrayBuffer, key: string) => Promise<{ encryptedData: ArrayBuffer; iv: ArrayBuffer; authTag: ArrayBuffer; salt: ArrayBuffer; } | { error: string }>;
             decryptData: (encryptedData: ArrayBuffer, key: string, iv: ArrayBuffer, authTag: ArrayBuffer, salt: ArrayBuffer) => Promise<{ decryptedData: ArrayBuffer; } | { error: string }>;
+
+            // Persistent Storage
+            savePersistentData: (key: string, data: any) => Promise<{ success: boolean; error?: string }>;
+            loadPersistentData: (key: string) => Promise<{ success: boolean; data?: any; error?: string }>;
+            deletePersistentData: (key: string) => Promise<{ success: boolean; error?: string }>;
+
+            // Event Listeners for UI updates
+            onNetworkStatusChanged: (callback: (isOnline: boolean) => void) => () => void;
+            onClipboardChanged: (callback: (text: string) => void) => () => void;
+            onAIChatInputText: (callback: (text: string) => void) => () => void;
+            translateWebsite: (args: { targetLanguage: string }) => Promise<{ success?: boolean; error?: string }>;
+            onTriggerTranslationDialog: (callback: () => void) => () => void;
         };
     }
 }

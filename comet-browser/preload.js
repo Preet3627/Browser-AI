@@ -33,12 +33,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   goForward: () => ipcRenderer.send('browser-view-go-forward'),
   reload: () => ipcRenderer.send('browser-view-reload'),
   getCurrentUrl: () => ipcRenderer.invoke('get-browser-view-url'),
+  getOpenTabs: () => ipcRenderer.invoke('get-open-tabs'),
   extractPageContent: () => ipcRenderer.invoke('extract-page-content'),
   getSelectedText: () => ipcRenderer.invoke('get-selected-text'),
   setBrowserViewBounds: (bounds) => ipcRenderer.send('set-browser-view-bounds', bounds),
   setUserAgent: (userAgent) => ipcRenderer.invoke('set-user-agent', userAgent),
   setProxy: (config) => ipcRenderer.invoke('set-proxy', config),
   capturePage: () => ipcRenderer.invoke('capture-page'),
+  captureBrowserViewScreenshot: () => ipcRenderer.invoke('capture-browser-view-screenshot'),
   sendInputEvent: (input) => ipcRenderer.invoke('send-input-event', input),
   openDevTools: () => ipcRenderer.send('open-dev-tools'),
   changeZoom: (deltaY) => ipcRenderer.send('change-zoom', deltaY),
@@ -65,6 +67,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   addAiMemory: (entry) => ipcRenderer.send('add-ai-memory', entry),
   saveVectorStore: (data) => ipcRenderer.invoke('save-vector-store', data),
   loadVectorStore: () => ipcRenderer.invoke('load-vector-store'),
+  webSearchRag: (query) => ipcRenderer.invoke('web-search-rag', query),
+  translateWebsite: (args) => ipcRenderer.invoke('translate-website', args),
+  onTriggerTranslationDialog: (callback) => {
+    const subscription = () => callback();
+    ipcRenderer.on('trigger-translation-dialog', subscription);
+    return () => ipcRenderer.removeListener('trigger-translation-dialog', subscription);
+  },
 
   // Auth
   openAuthWindow: (url) => ipcRenderer.send('open-auth-window', url),
@@ -77,6 +86,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     const subscription = (event, token) => callback(token);
     ipcRenderer.on('auth-token-received', subscription);
     return () => ipcRenderer.removeListener('auth-token-received', subscription);
+  },
+  onLoadAuthToken: (callback) => {
+    const subscription = (event, token) => callback(token);
+    ipcRenderer.on('load-auth-token', subscription);
+    return () => ipcRenderer.removeListener('load-auth-token', subscription);
   },
 
   // Dev-MCP & Analytics
@@ -92,6 +106,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Extension & File Utils
   getExtensionPath: () => ipcRenderer.invoke('get-extension-path'),
+  getIconPath: () => ipcRenderer.invoke('get-icon-path'),
   getExtensions: () => ipcRenderer.invoke('get-extensions'),
   toggleExtension: (id) => ipcRenderer.invoke('toggle-extension', id),
   uninstallExtension: (id) => ipcRenderer.invoke('uninstall-extension', id),
@@ -102,6 +117,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   maximizeWindow: () => ipcRenderer.send('maximize-window'),
   closeWindow: () => ipcRenderer.send('close-window'),
   toggleFullscreen: () => ipcRenderer.send('toggle-fullscreen'),
+  hideWebview: () => ipcRenderer.send('hide-webview'),
+  showWebview: () => ipcRenderer.send('show-webview'),
 
   // Chat & File Export
   exportChatAsTxt: (messages) => ipcRenderer.invoke('export-chat-txt', messages),
@@ -185,5 +202,31 @@ contextBridge.exposeInMainWorld('electronAPI', {
     const subscription = (event, ...args) => callback(...args);
     ipcRenderer.on(channel, subscription);
     return () => ipcRenderer.removeListener(channel, subscription);
+  },
+
+  // Persistent Storage APIs for user data
+  savePersistentData: (key, data) => ipcRenderer.invoke('save-persistent-data', { key, data }),
+  loadPersistentData: (key) => ipcRenderer.invoke('load-persistent-data', key),
+  deletePersistentData: (key) => ipcRenderer.invoke('delete-persistent-data', key),
+
+  // Network status
+  onNetworkStatusChanged: (callback) => {
+    const subscription = (event, isOnline) => callback(isOnline);
+    ipcRenderer.on('network-status-changed', subscription);
+    return () => ipcRenderer.removeListener('network-status-changed', subscription);
+  },
+
+  // Clipboard monitoring
+  onClipboardChanged: (callback) => {
+    const subscription = (event, text) => callback(text);
+    ipcRenderer.on('clipboard-changed', subscription);
+    return () => ipcRenderer.removeListener('clipboard-changed', subscription);
+  },
+
+  // AI chat input
+  onAIChatInputText: (callback) => {
+    const subscription = (event, text) => callback(text);
+    ipcRenderer.on('ai-chat-input-text', subscription);
+    return () => ipcRenderer.removeListener('ai-chat-input-text', subscription);
   },
 });
