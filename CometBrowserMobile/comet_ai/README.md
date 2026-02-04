@@ -1,16 +1,46 @@
-# comet_browser_mobile
+# Comet Browser Mobile
+[![Flutter Build](https://github.com/Browser-AI/CometBrowserMobile/actions/workflows/build_mobile.yml/badge.svg)](https://github.com/Browser-AI/CometBrowserMobile/actions/workflows/build_mobile.yml)
 
-A new Flutter project.
+Comet Browser Mobile is a blazing fast, AI-powered mobile web browser built with Flutter. It features a minimal, vibrant, glassmorphism-inspired UI and seamless integration with Gemini and other AI models.
 
-## Getting Started
+## Features
+- **AI-Powered Insights**: Get instant summaries and analytics for any webpage.
+- **Privacy Focused**: Built-in ad-blocking and tracking protection.
+- **Cross-Platform**: Runs on Android, iOS, and Web.
+- **Glassmorphism UI**: A stunning, modern interface with dark mode.
+- **Sync**: Sync your history and bookmarks across devices (Desktop & Mobile).
 
-This project is a starting point for a Flutter application.
+## Setup
+1. **Prerequisites**:
+   - Flutter SDK (latest stable)
+   - Android Studio / Xcode
+   - Dart SDK
 
-A few resources to get you started if this is your first Flutter project:
+2. **Installation**:
+   ```bash
+   # Clone the repository
+   git clone https://github.com/yourusername/comet-browser-mobile.git
+   cd comet-browser-mobile/comet_ai
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+   # Install dependencies
+   flutter pub get
+   ```
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+3. **Running Locally**:
+   ```bash
+   flutter run
+   ```
+
+## Building
+To generate the APK:
+```bash
+flutter build apk --release
+```
+
+To generate App Bundle (AAB):
+```bash
+flutter build appbundle --release
+```
+
+## License
+Distributed under the MIT License. See `LICENSE` for more information.

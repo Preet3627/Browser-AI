@@ -1,8 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'dart:ui';
 import 'tabs_panel.dart';
+import 'visualizer.dart';
+import 'features_overlay.dart';
+
+import 'package:provider/provider.dart';
+import 'services/music_service.dart';
+import 'pages/settings_page.dart';
+import 'sync_service.dart';
 
 class BrowserPage extends StatefulWidget {
   const BrowserPage({super.key});
@@ -13,13 +21,47 @@ class BrowserPage extends StatefulWidget {
 
 class _BrowserPageState extends State<BrowserPage> {
   late final WebViewController _controller;
-  final TextEditingController _urlController = TextEditingController(text: 'https://www.google.com');
+  final TextEditingController _urlController = TextEditingController(
+    text: 'https://www.google.com',
+  );
   bool _isLoading = false;
   double _progress = 0;
+
+  static const platform = MethodChannel('com.example.comet_ai/browser');
+
+  static const List<String> _topSites = [
+    'google.com',
+    'youtube.com',
+    'facebook.com',
+    'twitter.com',
+    'instagram.com',
+    'wikipedia.org',
+    'reddit.com',
+    'amazon.com',
+    'netflix.com',
+    'linkedin.com',
+    'openai.com',
+  ];
 
   @override
   void initState() {
     super.initState();
+
+    // Setup MethodChannel Listener for Deep Links
+    platform.setMethodCallHandler((call) async {
+      if (call.method == 'openUrl') {
+        final String? url = call.arguments as String?;
+        if (url != null) {
+          _controller.loadRequest(Uri.parse(url));
+        }
+      } else if (call.method == 'processText') {
+        final String? text = call.arguments as String?;
+        if (text != null && mounted) {
+          _showAIActionDialog(text);
+        }
+      }
+    });
+
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(const Color(0x00000000))
@@ -63,6 +105,26 @@ class _BrowserPageState extends State<BrowserPage> {
     FocusScope.of(context).unfocus();
   }
 
+  Future<void> _addToHomeScreen() async {
+    final url = await _controller.currentUrl();
+    final title = await _controller.getTitle();
+    if (url != null && title != null) {
+      try {
+        await platform.invokeMethod('createShortcut', {
+          'url': url,
+          'title': title,
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Shortcut created on Home Screen')),
+          );
+        }
+      } catch (e) {
+        debugPrint("Error creating shortcut: $e");
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -78,10 +140,26 @@ class _BrowserPageState extends State<BrowserPage> {
               height: 300,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: Colors.cyan.withOpacity(0.15),
+                color: Colors.cyan.withOpacity(0.2),
               ),
               child: BackdropFilter(
                 filter: ImageFilter.blur(sigmaX: 100, sigmaY: 100),
+                child: Container(color: Colors.transparent),
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: -50,
+            left: -50,
+            child: Container(
+              width: 250,
+              height: 250,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.purpleAccent.withOpacity(0.15),
+              ),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 80, sigmaY: 80),
                 child: Container(color: Colors.transparent),
               ),
             ),
@@ -93,13 +171,33 @@ class _BrowserPageState extends State<BrowserPage> {
               children: [
                 // Top Bar (Address Bar)
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
                   child: Row(
                     children: [
                       _buildGlassButton(
                         icon: LucideIcons.settings,
                         onTap: () {
-                          // Handle settings
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => SettingsPage(
+                                musicService: Provider.of<MusicService>(
+                                  context,
+                                  listen: false,
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(width: 12),
+                      _buildGlassButton(
+                        icon: Icons.add_to_home_screen,
+                        onTap: () {
+                          _addToHomeScreen();
                         },
                       ),
                       const SizedBox(width: 12),
@@ -109,23 +207,191 @@ class _BrowserPageState extends State<BrowserPage> {
                           decoration: BoxDecoration(
                             color: Colors.white.withOpacity(0.05),
                             borderRadius: BorderRadius.circular(24),
-                            border: Border.all(color: Colors.white.withOpacity(0.1)),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.1),
+                            ),
                           ),
                           child: Row(
                             children: [
-                              const SizedBox(width: 14),
-                              Icon(LucideIcons.shieldCheck, size: 18, color: Colors.cyan[400]),
-                              const SizedBox(width: 8),
+                              const SizedBox(width: 4),
+                              Consumer<SyncService>(
+                                builder: (context, syncService, _) {
+                                  if (syncService.user?.photoURL != null) {
+                                    return Padding(
+                                      padding: const EdgeInsets.only(
+                                        left: 8.0,
+                                        right: 4.0,
+                                      ),
+                                      child: CircleAvatar(
+                                        radius: 10,
+                                        backgroundImage: NetworkImage(
+                                          syncService.user!.photoURL!,
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                  return Padding(
+                                    padding: const EdgeInsets.only(
+                                      left: 8.0,
+                                      right: 4.0,
+                                    ),
+                                    child: Icon(
+                                      LucideIcons.shieldCheck,
+                                      size: 18,
+                                      color: Colors.cyan[400],
+                                    ),
+                                  );
+                                },
+                              ),
+                              const SizedBox(width: 4),
                               Expanded(
-                                child: TextField(
-                                  controller: _urlController,
-                                  style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500),
-                                  decoration: const InputDecoration(
-                                    border: InputBorder.none,
-                                    hintText: 'Search or enter URL',
-                                    hintStyle: TextStyle(color: Colors.white24),
-                                  ),
-                                  onSubmitted: (_) => _loadUrl(),
+                                child: LayoutBuilder(
+                                  builder: (context, constraints) {
+                                    return Autocomplete<String>(
+                                      optionsBuilder:
+                                          (TextEditingValue textEditingValue) {
+                                            if (textEditingValue.text.isEmpty) {
+                                              return const Iterable<
+                                                String
+                                              >.empty();
+                                            }
+                                            final history =
+                                                Provider.of<SyncService>(
+                                                      context,
+                                                      listen: false,
+                                                    ).history
+                                                    .map(
+                                                      (e) => e['url'] as String,
+                                                    )
+                                                    .toList();
+
+                                            final allSites = {
+                                              ..._topSites,
+                                              ...history,
+                                            }.toList();
+
+                                            return allSites.where((
+                                              String option,
+                                            ) {
+                                              return option.contains(
+                                                textEditingValue.text
+                                                    .toLowerCase(),
+                                              );
+                                            });
+                                          },
+                                      onSelected: (String selection) {
+                                        _urlController.text = selection;
+                                        _loadUrl();
+                                      },
+                                      fieldViewBuilder:
+                                          (
+                                            context,
+                                            textEditingController,
+                                            focusNode,
+                                            onFieldSubmitted,
+                                          ) {
+                                            // Sync internal controller with our _urlController
+                                            // Note: reusing _urlController for Autocomplete is tricky, standard practice
+                                            // is to let Autocomplete manage it or sync.
+                                            // Here we will use the Autocomplete's controller to drive the UI but sync changes to _urlController manually if needed,
+                                            // OR just replace _urlController usage with this one.
+                                            // For simplicity in this diff, we bind to the provided controller.
+
+                                            return TextField(
+                                              controller: textEditingController,
+                                              focusNode: focusNode,
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                              decoration: const InputDecoration(
+                                                border: InputBorder.none,
+                                                hintText: 'Search or enter URL',
+                                                hintStyle: TextStyle(
+                                                  color: Colors.white24,
+                                                ),
+                                                contentPadding: EdgeInsets.only(
+                                                  bottom: 12,
+                                                ), // Align vertically
+                                              ),
+                                              onSubmitted: (val) {
+                                                _urlController.text = val;
+                                                _loadUrl();
+                                              },
+                                              onChanged: (val) =>
+                                                  _urlController.text = val,
+                                            );
+                                          },
+                                      optionsViewBuilder:
+                                          (context, onSelected, options) {
+                                            return Align(
+                                              alignment: Alignment.topLeft,
+                                              child: Material(
+                                                color: const Color(0xFF0D0D15),
+                                                elevation: 4.0,
+                                                borderRadius:
+                                                    BorderRadius.circular(16),
+                                                child: Container(
+                                                  width: constraints.maxWidth,
+                                                  constraints:
+                                                      const BoxConstraints(
+                                                        maxHeight: 250,
+                                                      ),
+                                                  decoration: BoxDecoration(
+                                                    border: Border.all(
+                                                      color: Colors.white
+                                                          .withOpacity(0.1),
+                                                    ),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          16,
+                                                        ),
+                                                    color: const Color(
+                                                      0xFF0D0D15,
+                                                    ),
+                                                  ),
+                                                  child: ListView.builder(
+                                                    padding: EdgeInsets.zero,
+                                                    itemCount: options.length,
+                                                    itemBuilder:
+                                                        (
+                                                          BuildContext context,
+                                                          int index,
+                                                        ) {
+                                                          final String option =
+                                                              options.elementAt(
+                                                                index,
+                                                              );
+                                                          return ListTile(
+                                                            leading: const Icon(
+                                                              Icons.history,
+                                                              size: 16,
+                                                              color: Colors
+                                                                  .white38,
+                                                            ),
+                                                            title: Text(
+                                                              option,
+                                                              style:
+                                                                  const TextStyle(
+                                                                    color: Colors
+                                                                        .white70,
+                                                                  ),
+                                                            ),
+                                                            onTap: () {
+                                                              onSelected(
+                                                                option,
+                                                              );
+                                                            },
+                                                          );
+                                                        },
+                                                  ),
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                    );
+                                  },
                                 ),
                               ),
                               if (_isLoading)
@@ -136,7 +402,9 @@ class _BrowserPageState extends State<BrowserPage> {
                                     height: 16,
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.cyan[400]!),
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        Colors.cyan[400]!,
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -161,7 +429,9 @@ class _BrowserPageState extends State<BrowserPage> {
                           child: LinearProgressIndicator(
                             value: _progress,
                             backgroundColor: Colors.transparent,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.cyan[400]!),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.cyan[400]!,
+                            ),
                             minHeight: 2,
                           ),
                         ),
@@ -177,22 +447,39 @@ class _BrowserPageState extends State<BrowserPage> {
                   ),
                   decoration: BoxDecoration(
                     color: const Color(0xFF020205),
-                    border: Border(top: BorderSide(color: Colors.white.withOpacity(0.05))),
+                    border: Border(
+                      top: BorderSide(color: Colors.white.withOpacity(0.05)),
+                    ),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      _buildNavIcon(LucideIcons.arrowLeft, onTap: () async {
-                        if (await _controller.canGoBack()) _controller.goBack();
-                      }),
-                      _buildNavIcon(LucideIcons.arrowRight, onTap: () async {
-                        if (await _controller.canGoForward()) _controller.goForward();
-                      }),
+                      _buildNavIcon(
+                        LucideIcons.arrowLeft,
+                        onTap: () async {
+                          if (await _controller.canGoBack())
+                            _controller.goBack();
+                        },
+                      ),
+                      _buildNavIcon(
+                        LucideIcons.arrowRight,
+                        onTap: () async {
+                          if (await _controller.canGoForward())
+                            _controller.goForward();
+                        },
+                      ),
                       _buildCenterButton(),
-                      _buildNavIcon(LucideIcons.sparkles, color: Colors.amber[400], onTap: () {
-                        _showAISummary();
-                      }),
-                      _buildNavIcon(LucideIcons.rotateCw, onTap: () => _controller.reload()),
+                      _buildNavIcon(
+                        LucideIcons.sparkles,
+                        color: Colors.amber[400],
+                        onTap: () {
+                          _showAISummary();
+                        },
+                      ),
+                      _buildNavIcon(
+                        LucideIcons.rotateCw,
+                        onTap: () => _controller.reload(),
+                      ),
                     ],
                   ),
                 ),
@@ -204,9 +491,78 @@ class _BrowserPageState extends State<BrowserPage> {
     );
   }
 
+  Future<void> _showAIActionDialog(String text) async {
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF0D0D15),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: const Text(
+          "Comet AI Actions",
+          style: TextStyle(color: Colors.white),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              "Selected Text: \"${text.length > 50 ? '${text.substring(0, 50)}...' : text}\"",
+              style: const TextStyle(color: Colors.white54),
+            ),
+            const SizedBox(height: 20),
+            _actionTile(LucideIcons.fileText, "Summarize", () {
+              Navigator.pop(context);
+              _showAISummaryOverlay(
+                "Summary: " + text.split(' ').take(5).join(' ') + "...",
+              );
+            }),
+            _actionTile(LucideIcons.mail, "Write Email Reply", () {
+              Navigator.pop(context);
+              _showAISummaryOverlay(
+                "Draft: Dear Sender,\n\nRegarding '$text', I would like to say...",
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _actionTile(IconData icon, String label, VoidCallback onTap) {
+    return ListTile(
+      leading: Icon(icon, color: Colors.cyan),
+      title: Text(label, style: const TextStyle(color: Colors.white)),
+      onTap: onTap,
+    );
+  }
+
+  void _showAISummaryOverlay(String content) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (c) => Container(
+        padding: const EdgeInsets.all(24),
+        decoration: const BoxDecoration(
+          color: Color(0xFF0D0D15),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+        ),
+        child: Text(content, style: const TextStyle(color: Colors.white)),
+      ),
+    );
+  }
+
   void _showAISummary() async {
     final url = await _controller.currentUrl();
     if (url == null) return;
+
+    String aiInsight;
+    try {
+      final String result = await platform.invokeMethod('analyzeWebPage', {
+        'url': url,
+      });
+      aiInsight = result;
+    } on PlatformException catch (e) {
+      aiInsight = "Failed to get insight: '${e.message}'.";
+    }
 
     if (!mounted) return;
     showModalBottomSheet(
@@ -214,7 +570,7 @@ class _BrowserPageState extends State<BrowserPage> {
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (context) => Container(
-        height: MediaQuery.of(context).size.height * 0.5,
+        height: MediaQuery.of(context).size.height * 0.7,
         decoration: BoxDecoration(
           color: const Color(0xFF0D0D15),
           borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
@@ -230,16 +586,37 @@ class _BrowserPageState extends State<BrowserPage> {
                 const SizedBox(width: 12),
                 const Text(
                   'COMET AI INSIGHT',
-                  style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: 1.5),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.5,
+                  ),
+                ),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.star, color: Colors.cyan),
+                  onPressed: () {
+                    showModalBottomSheet(
+                      context: context,
+                      builder: (c) => const FeaturesOverlay(),
+                    );
+                  },
                 ),
               ],
             ),
+            const SizedBox(height: 16),
+            const SizedBox(height: 100, child: Visualizer()),
             const SizedBox(height: 24),
-            const Expanded(
+            Expanded(
               child: SingleChildScrollView(
                 child: Text(
-                  'Summarizing the current page content...\n\nThis page appears to be a search engine or a web portal. Comet AI is ready to help you analyze data, translate text, or extract key insights from this URL.\n\n[Feature Integration: Gemini 3.5 Pro & Flash Support Ready]',
-                  style: TextStyle(color: Colors.white70, fontSize: 14, height: 1.6),
+                  aiInsight,
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 14,
+                    height: 1.6,
+                  ),
                 ),
               ),
             ),
@@ -254,7 +631,11 @@ class _BrowserPageState extends State<BrowserPage> {
               child: const Center(
                 child: Text(
                   'FULL ANALYTICS',
-                  style: TextStyle(color: Colors.black, fontWeight: FontWeight.w900, fontSize: 12),
+                  style: TextStyle(
+                    color: Colors.black,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 12,
+                  ),
                 ),
               ),
             ),
@@ -264,7 +645,10 @@ class _BrowserPageState extends State<BrowserPage> {
     );
   }
 
-  Widget _buildGlassButton({required IconData icon, required VoidCallback onTap}) {
+  Widget _buildGlassButton({
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -279,10 +663,18 @@ class _BrowserPageState extends State<BrowserPage> {
     );
   }
 
-  Widget _buildNavIcon(IconData icon, {Color? color, required VoidCallback onTap}) {
+  Widget _buildNavIcon(
+    IconData icon, {
+    Color? color,
+    required VoidCallback onTap,
+  }) {
     return GestureDetector(
       onTap: onTap,
-      child: Icon(icon, size: 24, color: color ?? Colors.white.withOpacity(0.6)),
+      child: Icon(
+        icon,
+        size: 24,
+        color: color ?? Colors.white.withOpacity(0.6),
+      ),
     );
   }
 
@@ -293,10 +685,8 @@ class _BrowserPageState extends State<BrowserPage> {
           context: context,
           backgroundColor: Colors.transparent,
           isScrollControlled: true,
-          builder: (context) => const FractionallySizedBox(
-            heightFactor: 0.8,
-            child: TabsPanel(),
-          ),
+          builder: (context) =>
+              const FractionallySizedBox(heightFactor: 0.8, child: TabsPanel()),
         );
         if (url != null && mounted) {
           _controller.loadRequest(Uri.parse(url));
