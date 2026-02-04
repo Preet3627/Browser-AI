@@ -16,7 +16,6 @@ allprojects {
     }
 }
 
-
 def newBuildDir = rootProject.layout.buildDirectory
     .dir("../../build")
     .get()
@@ -25,10 +24,10 @@ rootProject.layout.buildDirectory.value(newBuildDir)
 subprojects {
     def newSubprojectBuildDir = newBuildDir.dir(project.name)
     project.layout.buildDirectory.value(newSubprojectBuildDir)
-}
-
-subprojects {
-    project.evaluationDependsOn(":app")
+    
+    if (name != 'app') {
+        evaluationDependsOn(':app')
+    }
 }
 
 tasks.register('clean', Delete) {
@@ -36,18 +35,30 @@ tasks.register('clean', Delete) {
 }
 
 subprojects {
-    afterEvaluate { project ->
-        if (project.hasProperty('android')) {
-            if (project.android.namespace == null) {
-                def manifestFile = project.file('src/main/AndroidManifest.xml')
-                if (manifestFile.exists()) {
-                    def manifestXml = new XmlParser().parse(manifestFile)
-                    def packageName = manifestXml.attribute('package')
-                    if (packageName != null) {
-                        project.android.namespace = packageName
+    def configureNamespace = { p ->
+        try {
+            if (p.hasProperty('android')) {
+                if (p.android.namespace == null) {
+                    def manifestFile = p.file('src/main/AndroidManifest.xml')
+                    if (manifestFile.exists()) {
+                        def contents = manifestFile.text
+                        def matcher = contents =~ /package="([^"]+)"/
+                        if (matcher.find()) {
+                            p.android.namespace = matcher.group(1)
+                        }
                     }
                 }
             }
+        } catch (Exception e) {
+            // Ignore errors
+        }
+    }
+
+    if (project.state.executed) {
+        configureNamespace(project)
+    } else {
+        project.afterEvaluate { p ->
+            configureNamespace(p)
         }
     }
 }
