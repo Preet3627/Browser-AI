@@ -88,9 +88,9 @@ Direct device-to-device synchronization using WebRTC.
 ### 🖥️ Desktop
 | Platform | Binary | Status |
 | :--- | :--- | :--- |
-| **Windows** | [Download .exe](https://github.com/Preet3627/Browser-AI/releases/download/Comet-Browser/Comet.Browser.Setup.0.1.3-beta.exe) | ✅ Stable Beta |
-| **macOS** | Coming Soon | 🧪 In Dev |
-| **Linux** | Coming Soon | 🧪 In Dev |
+| **Windows** | [Download .exe](https://github.com/Preet3627/Browser-AI/actions/runs/21679902806/artifacts/5377464680) | ✅ Stable Beta |
+| **macOS** | [Download .dmg](https://github.com/Preet3627/Browser-AI/actions/runs/21679902806/artifacts/5377510774) | 🧪 In Dev |
+| **Linux** | [Download AppImage](https://github.com/Preet3627/Browser-AI/actions/runs/21679902806/artifacts/5377413855) | 🧪 In Dev |
 
 ### 📱 Mobile
 > Note: APK and TestFlight links will be available shortly. Currently requires manual build.

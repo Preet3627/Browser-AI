@@ -1,0 +1,61 @@
+# Podfile for Comet Browser Mobile
+platform :ios, '13.0'
+
+# CocoaPods analytics sends network stats synchronously affecting build performance.
+ENV['COCOAPODS_DISABLE_STATS'] = '1'
+
+project 'Runner', {
+  'Debug' => :debug,
+  'Release' => :release,
+  'Profile' => :profile,
+}
+
+def flutter_root
+  generated_xcode_build_settings_path = File.expand_path(File.join('..', 'Flutter', 'Generated.xcconfig'), __FILE__)
+  unless File.exist?(generated_xcode_build_settings_path)
+    raise "#{generated_xcode_build_settings_path} must exist. If you're running pod install manually, make sure flutter pub get is executed first"
+  end
+
+  File.foreach(generated_xcode_build_settings_path) do |line|
+    matches = line.match(/\AFLUTTER_ROOT=(.*)\z/)
+    return matches[1] if matches
+  end
+  raise "FLUTTER_ROOT not found in #{generated_xcode_build_settings_path}. Try deleting Generated.xcconfig and rerunning flutter pub get"
+end
+
+require File.expand_path(File.join('..', 'Flutter', 'podhelper.rb'), __FILE__)
+
+target 'Runner' do
+  use_frameworks!
+  use_modular_headers!
+
+  flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
+
+  target 'RunnerTests' do
+    inherit! :search_paths
+  end
+end
+
+post_install do |installer|
+  installer.pods_project.targets.each do |target|
+    flutter_additional_ios_build_settings(target)
+    
+    target.build_configurations.each do |config|
+      # Fix deployment target for all pods
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
+      
+      # Optimization for memory-heavy builds on CI
+      # Disabling LTO can significantly reduce memory usage during linking phase
+      config.build_settings['LLVM_LTO'] = 'NO'
+      
+      # Ensure BITCODE is disabled as it's deprecated and uses more memory
+      config.build_settings['ENABLE_BITCODE'] = 'NO'
+      
+      # Additional flags to reduce memory pressure during linking
+      config.build_settings['OTHER_LDFLAGS'] ||= ['$(inherited)']
+      if config.name == 'Release'
+        config.build_settings['OTHER_LDFLAGS'] << '-Xlinker' << '-no_deduplicate'
+      end
+    end
+  end
+end

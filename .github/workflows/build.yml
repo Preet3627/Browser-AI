@@ -41,22 +41,41 @@ jobs:
 
   build-ios:
     name: Build iOS App
-    runs-on: macos-latest
+    runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
+
+      - name: Free Disk Space
+        run: |
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf "/usr/local/share/boost"
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
+          cache: true
 
       - name: Install dependencies
         working-directory: CometBrowserMobile/comet_ai
         run: flutter pub get
 
+      - name: Cache CocoaPods
+        uses: actions/cache@v4
+        with:
+          path: CometBrowserMobile/comet_ai/ios/Pods
+          key: ${{ runner.os }}-pods-${{ hashFiles('CometBrowserMobile/comet_ai/ios/Podfile.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pods-
+
       - name: Build iOS
         working-directory: CometBrowserMobile/comet_ai
-        run: flutter build ios --release --no-codesign
+        run: |
+          # Increase memory limit for node if needed (though not directly for flutter, helpful if scripts run)
+          export NODE_OPTIONS="--max-old-space-size=4096"
+          flutter build ios --release --no-codesign
 
       - name: Upload iOS App
         uses: actions/upload-artifact@v4
