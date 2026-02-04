@@ -88,10 +88,7 @@
       "package.json",
       "LICENSE.txt",
       "icon.ico",
-      "node_modules/**/*"
-    ],
-    "npmArgs": [
-      "--no-workspaces"
+      "icon.png"
     ],
     "nsis": {
       "oneClick": false,
@@ -108,11 +105,20 @@
       ]
     },
     "mac": {
-      "icon": "icon.ico",
+      "icon": "icon.png",
       "target": [
         "dmg",
         "zip"
-      ]
+      ],
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false
+    },
+    "linux": {
+      "icon": "icon.png",
+      "target": [
+        "AppImage"
+      ],
+      "category": "Network;WebBrowser"
     },
     "directories": {
       "buildResources": "assets",
