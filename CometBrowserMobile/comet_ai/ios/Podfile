@@ -1,5 +1,5 @@
 # Podfile for Comet Browser Mobile
-platform :ios, '13.0'
+platform :ios, '14.0'
 
 # CocoaPods analytics sends network stats synchronously affecting build performance.
 ENV['COCOAPODS_DISABLE_STATS'] = '1'
@@ -35,7 +35,6 @@ target 'Runner' do
 
   if defined? flutter_install_all_ios_pods
     flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
-    pod 'GoogleUtilities', '8.0.0'
   end
 
   target 'RunnerTests' do
@@ -49,7 +48,7 @@ post_install do |installer|
     
     target.build_configurations.each do |config|
       # Fix deployment target for all pods
-      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '14.0'
       
       # Optimization for memory-heavy builds on CI
       # Disabling LTO can significantly reduce memory usage during linking phase
