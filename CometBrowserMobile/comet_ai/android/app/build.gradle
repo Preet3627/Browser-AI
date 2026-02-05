@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.example.comet_ai"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -28,7 +28,7 @@ android {
     defaultConfig {
         applicationId = "com.example.comet_ai"
         minSdk = 21 // Updated to 21 for better compatibility with desugaring
-        targetSdk = flutter.targetSdkVersion
+        targetSdk = 34
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }

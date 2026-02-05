@@ -35,6 +35,7 @@ target 'Runner' do
 
   if defined? flutter_install_all_ios_pods
     flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
+    pod 'GoogleUtilities', '8.0.0'
   end
 
   target 'RunnerTests' do

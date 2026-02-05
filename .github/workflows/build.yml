@@ -24,10 +24,13 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
-
       - name: Install dependencies
         working-directory: CometBrowserMobile/comet_ai
         run: flutter pub get
+
+      - name: Upgrade dependencies
+        working-directory: CometBrowserMobile/comet_ai
+        run: flutter pub upgrade
 
       - name: Build APK
         working-directory: CometBrowserMobile/comet_ai
@@ -63,7 +66,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: CometBrowserMobile/comet_ai
-        run: flutter pub get
+        run: flutter pub upgrade
 
       - name: Cache CocoaPods
         uses: actions/cache@v4
@@ -73,6 +76,10 @@ jobs:
           key: ${{ runner.os }}-pods-${{ hashFiles('CometBrowserMobile/comet_ai/ios/Podfile.lock', 'CometBrowserMobile/comet_ai/ios/Podfile') }}
           restore-keys: |
             ${{ runner.os }}-pods-
+
+      - name: Install pods
+        working-directory: CometBrowserMobile/comet_ai/ios
+        run: pod install --repo-update
 
       - name: Build iOS
         working-directory: CometBrowserMobile/comet_ai
