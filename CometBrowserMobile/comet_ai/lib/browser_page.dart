@@ -8,7 +8,7 @@ import 'visualizer.dart';
 import 'features_overlay.dart';
 
 import 'package:provider/provider.dart';
-import 'services/music_service.dart';
+// import 'services/music_service.dart'; // Disabled for iOS build fix
 import 'pages/settings_page.dart';
 import 'sync_service.dart';
 
@@ -183,12 +183,8 @@ class _BrowserPageState extends State<BrowserPage> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => SettingsPage(
-                                musicService: Provider.of<MusicService>(
-                                  context,
-                                  listen: false,
-                                ),
-                              ),
+                              builder: (context) => const SettingsPage(),
+                              // musicService disabled for iOS build fix
                             ),
                           );
                         },

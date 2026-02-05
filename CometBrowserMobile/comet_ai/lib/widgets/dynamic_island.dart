@@ -224,9 +224,9 @@ import '../services/music_service.dart';
 
 // Stub widget to prevent compilation errors
 class DynamicIsland extends StatelessWidget {
-  final MusicService musicService;
+  final MusicService? musicService;
 
-  const DynamicIsland({super.key, required this.musicService});
+  const DynamicIsland({super.key, this.musicService});
 
   @override
   Widget build(BuildContext context) {

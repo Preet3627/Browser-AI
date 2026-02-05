@@ -9,7 +9,7 @@ import 'l10n/app_localizations.dart';
 import 'browser_page.dart';
 import 'sync_service.dart';
 import 'services/ai_service.dart';
-import 'services/music_service.dart';
+// import 'services/music_service.dart'; // DISABLED FOR iOS BUILD FIX
 import 'widgets/dynamic_island.dart';
 
 // Global Services
@@ -35,19 +35,23 @@ void main() async {
   final flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
   const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
   const initSettings = InitializationSettings(android: androidSettings);
-  await flutterLocalNotificationsPlugin.initialize(initSettings);
+  await flutterLocalNotificationsPlugin.initialize(
+    initSettings,
+    onDidReceiveNotificationResponse: (NotificationResponse response) {},
+  );
 
   // Init Audio Service - TEMPORARILY DISABLED FOR iOS BUILD FIX
   // See: IOS_BUILD_FIX.md for re-enabling instructions
-  final musicService = MusicService();
+  // final musicService = MusicService();
 
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => SyncService()),
 
+        // DISABLED FOR iOS BUILD FIX
         // Provide stub MusicService (audio features temporarily disabled)
-        Provider<MusicService>.value(value: musicService),
+        // Provider<MusicService>.value(value: musicService),
       ],
       child: const CometApp(),
     ),
@@ -88,9 +92,8 @@ class CometApp extends StatelessWidget {
         return Stack(
           children: [
             child!,
-            DynamicIsland(
-              musicService: Provider.of<MusicService>(context, listen: false),
-            ),
+            const DynamicIsland(),
+            // musicService disabled for iOS build fix
           ],
         );
       },

@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import '../services/ai_service.dart';
-import '../services/music_service.dart';
+// DISABLED FOR iOS BUILD FIX
+// import '../services/music_service.dart';
 
 class SettingsPage extends StatefulWidget {
-  final MusicService musicService;
+  // DISABLED FOR iOS BUILD FIX - musicService no longer required
+  // final MusicService musicService;
 
-  const SettingsPage({super.key, required this.musicService});
+  const SettingsPage({super.key});
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -23,7 +25,7 @@ class _SettingsPageState extends State<SettingsPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 1, vsync: this);
     _loadSettings();
   }
 
@@ -52,13 +54,15 @@ class _SettingsPageState extends State<SettingsPage>
           unselectedLabelColor: Colors.white60,
           tabs: const [
             Tab(icon: Icon(Icons.psychology), text: "AI Brain"),
-            Tab(icon: Icon(Icons.music_note), text: "Music"),
+            // Music section disabled for iOS build compatibility
+            // Tab(icon: Icon(Icons.music_note), text: "Music"),
           ],
         ),
       ),
       body: TabBarView(
         controller: _tabController,
-        children: [_buildAISection(), _buildMusicSection()],
+        children: [_buildAISection()],
+        // _buildMusicSection() disabled - see line 257 onwards
       ),
     );
   }
@@ -252,6 +256,8 @@ class _SettingsPageState extends State<SettingsPage>
     );
   }
 
+  // DISABLED FOR iOS BUILD FIX - MusicService is disabled
+  /* Disabled music section
   Widget _buildMusicSection() {
     return StreamBuilder<List<MediaItem>>(
       stream: widget.musicService.queue,
@@ -317,4 +323,5 @@ class _SettingsPageState extends State<SettingsPage>
       },
     );
   }
+  */
 }
