@@ -457,15 +457,17 @@ class _BrowserPageState extends State<BrowserPage> {
                       _buildNavIcon(
                         LucideIcons.arrowLeft,
                         onTap: () async {
-                          if (await _controller.canGoBack())
+                          if (await _controller.canGoBack()) {
                             _controller.goBack();
+                          }
                         },
                       ),
                       _buildNavIcon(
                         LucideIcons.arrowRight,
                         onTap: () async {
-                          if (await _controller.canGoForward())
+                          if (await _controller.canGoForward()) {
                             _controller.goForward();
+                          }
                         },
                       ),
                       _buildCenterButton(),
@@ -512,7 +514,7 @@ class _BrowserPageState extends State<BrowserPage> {
             _actionTile(LucideIcons.fileText, "Summarize", () {
               Navigator.pop(context);
               _showAISummaryOverlay(
-                "Summary: " + text.split(' ').take(5).join(' ') + "...",
+                "Summary: ${text.split(' ').take(5).join(' ')}...",
               );
             }),
             _actionTile(LucideIcons.mail, "Write Email Reply", () {
