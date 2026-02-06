@@ -31,17 +31,17 @@ void main() async {
   // Init AI Service
   await AIService().loadKeys();
 
-  // Init Notifications
-  final flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
-  const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
-  const initSettings = InitializationSettings(android: androidSettings);
-  await flutterLocalNotificationsPlugin.initialize(
-    settings: initSettings,
-    onDidReceiveNotificationResponse: (NotificationResponse response) {
-      // Handle notification response
-      debugPrint('Notification received: ${response.payload}');
-    },
-  );
+  // Init Notifications - TEMPORARILY COMMENTED OUT FOR BUILD FIX
+  // final flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
+  // const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+  // const initSettings = InitializationSettings(android: androidSettings);
+  // await flutterLocalNotificationsPlugin.initialize(
+  //   settings: initSettings,
+  //   onDidReceiveNotificationResponse: (NotificationResponse response) {
+  //     // Handle notification response
+  //     debugPrint('Notification received: ${response.payload}');
+  //   },
+  // );
 
   // Init Audio Service - TEMPORARILY DISABLED FOR iOS BUILD FIX
   // See: IOS_BUILD_FIX.md for re-enabling instructions
