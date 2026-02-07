@@ -17,141 +17,252 @@
 
 ***
 
-## 🚀 Development Status
 
-Comet AI Browser is a multi-platform project in active development. We are currently in **v0.1.3‑beta**.
+🌌 Why Comet Exists
 
-### 🖥️ Desktop (Windows/macOS/Linux)
-*Current Framework: Electron + Next.js*
-- ✅ **Windows**: Fully functional, installable beta available.
-- 🧪 **macOS**: Under development (Build scripts being refined).
-- 🧪 **Linux**: Under development (Testing AppImage/Debian packages).
+Modern browsers are built for scale, monetization, and cloud-first users. Comet exists for a different reason:
 
-### 📱 Mobile (Android/iOS)
-*Current Framework: Flutter*
-- 🧪 **Android**: Implementation in progress. Core browser and UI ready. P2P Sync & Offline AI being integrated.
-- 🧪 **iOS**: Design phase. Core UI matches Android; testing on simulators.
+To prove high-performance browsing is possible on modest hardware
 
-***
+To give AI access without forcing subscriptions
 
-## ✨ Feature Matrix (Desktop vs Mobile)
+To stay local-first, privacy-first, and transparent
 
-| Feature | 🖥️ Desktop | 📱 Mobile | Status |
-| :--- | :---: | :---: | :--- |
-| **Glassmorphic UI** | ✅ | ✅ | Production Ready |
-| **AI Sidebar (Cloud)** | ✅ | ✅ | OpenAI / Gemini Integration |
-| **Offline AI Model** | ✅ | 🧪 | Optimizing for mobile NPU |
-| **AI Web Agency** | ✅ | 🧪 | Navigation commands in testing |
-| **P2P File Sync** | ✅ | 🧪 | WebRTC handshake optimization |
-| **Music Lab / Visualizer**| ✅ | ✅ | Local & Cloud support |
-| **Phone Call Control** | ✅ | 🚧 | Bluetooth HID profile in dev |
-| **Auto OTP Detection** | ✅ | ✅ | Native SMS listener implemented |
-| **PDF Workspace + OCR** | ✅ | 🧪 | Tesseract WASM porting to mobile |
-| **Chrome Extensions** | ✅ | ❌ | Desktop only |
-| **Cross-Device Sync** | ✅ | ✅ | Firebase Realtime DB backend |
+To explore what a browser can become when AI is treated as a core system, not a plugin
 
-***
 
-## 🤖 Intelligent AI Assistant
+Comet is intentionally experimental. Some choices (like Electron) are pragmatic tradeoffs to move fast and learn deeply. The long-term goal is a native Chromium-based core once hardware and time allow.
 
-Comet AI is not just a chatbot; it's an **Autonomous Web Agent**.
 
-- **Smart Mode Switching**: Automatically switches between cloud providers (OpenAI, Gemini, Groq) and local models.
-- **AI Agency**: Use commands like "Go to YouTube", "Search for JEE news", or "Change theme to dark".
-- **Dynamic Action Tags**:
-  - `[NAVIGATE: url]`
-  - `[SEARCH: query]`
-  - `[SET_THEME: dark|light|system]`
-  - `[OPEN_VIEW: view_name]`
+---
 
-***
+📊 Performance Snapshot
 
-## 📁 P2P File Sync (Zero Cloud)
+Measured on real hardware, not marketing slides.
 
-Direct device-to-device synchronization using WebRTC.
-- **Privacy-First**: Your files never touch a server.
-- **Selective Sync**: Choose specific folders (Images, PDFs, Documents).
-- **Background Sync**: Keep devices in sync automatically when connected to the same network.
+Metric	Value	Notes
 
-***
+Speedometer 3	~14 ms	Faster than Chrome/Edge on same system
+UI Load Time	< 2 seconds	Cold start observed
+Electron RAM (AI + 1 tab)	~700–800 MB	Expected Electron overhead
+System RAM	8 GB (6.9 GB used)	Still smooth, no visible lag
+Crashes	0 in 2+ months	Daily usage
 
-## 📞 Unity: Phone & Desktop Integration
 
-- **Call Control**: Answer/Reject phone calls directly from your PC via Bluetooth.
-- **OTP Auto-Fill**: Mobile listens for SMS OTPs and instantly sends them to your Desktop browser.
-- **Contact Sync**: Unified address book accessible across all your devices.
+Offline network conditions may cause temporary stalls due to AI/network fallback handling.
 
-***
 
-## 📦 Download & Installation
+---
 
-### 🖥️ Desktop
-| Platform | Binary | Status |
-| :--- | :--- | :--- |
-| **Windows** | [Download .exe](https://github.com/Preet3627/Browser-AI/actions/runs/21679902806/artifacts/5377464680) | ✅ Stable Beta |
-| **macOS** | [Download .dmg](https://github.com/Preet3627/Browser-AI/actions/runs/21679902806/artifacts/5377510774) | 🧪 In Dev |
-| **Linux** | [Download AppImage](https://github.com/Preet3627/Browser-AI/actions/runs/21679902806/artifacts/5377413855) | 🧪 In Dev |
+🧠 What I Learned Building This
 
-### 📱 Mobile
-> Note: APK and TestFlight links will be available shortly. Currently requires manual build.
+Building Comet taught me real-world system design beyond tutorials:
 
-***
+BrowserView rendering & z-index limitations
 
-## 🛠️ Quick Start for Developers
+IPC communication between renderer, main, and extensions
 
-### 1. Root Setup (Monorepo)
-```bash
+OS-level platform integration (macOS, Windows, Linux)
+
+Performance tradeoffs: memory vs UX vs features
+
+AI abstraction layers (local + cloud providers)
+
+Why Chromium is heavy — and when that cost is justified
+
+Open-source licensing, dependency responsibility, and transparency
+
+
+This project is less about perfection and more about engineering clarity.
+
+
+---
+
+⚠️ Project Disclaimer (Important)
+
+Comet AI Browser is a research and learning project, not a commercial product.
+
+Security audits are ongoing
+
+APIs and features may change rapidly
+
+Some features are experimental by design
+
+
+Feedback is welcome. Comparisons are inevitable — but Comet exists to explore, not to compete.
+
+
+---
+
+🚀 Development Status
+
+Comet AI Browser is a multi-platform, open-source project in active development. The current public release is v0.1.6‑beta.
+
+🖥️ Desktop (Windows / macOS / Linux)
+
+Framework: Electron + Next.js
+
+✅ Windows: Fully functional, installable beta available
+
+🧪 macOS: Under development (build & signing pipeline in progress)
+
+🧪 Linux: Under development (AppImage & Debian packaging)
+
+
+📱 Mobile (Android / iOS)
+
+Framework: Flutter
+
+🧪 Android: Core browser + UI ready, P2P sync & offline AI in progress
+
+🧪 iOS: Design & simulator testing phase
+
+
+
+---
+
+✨ Feature Matrix (Desktop vs Mobile)
+
+Feature	🖥️ Desktop	📱 Mobile	Status
+
+Glassmorphic UI	✅	✅	Production Ready
+AI Sidebar (Cloud)	✅	✅	OpenAI / Gemini
+Offline AI Models	✅	🧪	Local LLM optimization
+AI Web Agency	✅	🧪	Command-based navigation
+P2P Sync (WebRTC)	✅	🧪	Zero-cloud design
+Music Visualizer	✅	✅	Local + Cloud
+Phone Call Control	✅	🚧	Bluetooth HID
+OTP Auto Detection	✅	✅	Native listeners
+PDF Workspace + OCR	✅	🧪	Tesseract WASM
+Chrome Extensions	✅	❌	Desktop only
+Cross-device Sync	✅	✅	Firebase + P2P
+
+
+
+---
+
+🤖 Intelligent AI Assistant
+
+Comet AI is designed as an autonomous browser-level agent, not just a chat overlay.
+
+Smart Provider Switching: OpenAI, Gemini, Groq, or fully local models
+
+Natural Commands: "Open YouTube", "Search JEE news", "Switch to dark mode"
+
+Action Tags:
+
+[NAVIGATE: url]
+
+[SEARCH: query]
+
+[SET_THEME: dark|light|system]
+
+[OPEN_VIEW: view_name]
+
+[SCREENSHOT_ANALYSE]
+
+
+
+
+---
+
+📁 P2P Sync (Zero Cloud Philosophy)
+
+WebRTC-based device-to-device sync
+
+No mandatory cloud dependency
+
+Folder-level selective sync
+
+Encrypted local-first design
+
+
+
+---
+
+📞 Phone ↔ Desktop Integration
+
+Answer / reject phone calls from desktop
+
+OTP auto-fill from mobile to desktop
+
+Unified contact access
+
+
+
+---
+
+📦 Download & Installation
+
+🖥️ Desktop
+
+Platform	Binary	Status
+
+Windows	.exe	✅ Beta
+macOS	.dmg	🧪 In Dev
+Linux	AppImage	🧪 In Dev
+
+
+📱 Mobile
+
+> APK & TestFlight builds coming soon. Manual build required for now.
+
+
+
+
+---
+
+🛠️ Quick Start for Developers
+
 git clone https://github.com/Preet3627/Browser-AI.git
 cd Browser-AI
 npm install
-```
 
-### 2. Run Desktop
-```bash
+Run Desktop
+
 cd comet-browser
-# Create symlinks/junctions for dependencies
-.\setup-workspace.ps1
-# Setup environment
 cp .env.example .env.local
-# Launch
 npm run dev
-# In new terminal
 npm run electron-start
-```
 
-### 3. Run Mobile
-```bash
+Run Mobile
+
 cd CometBrowserMobile/comet_ai
 flutter pub get
 flutter run
-```
 
-***
-
-## 🗺️ Roadmap: The Path to v1.0
-
-- [ ] **Native Core**: Rebuild the browser using C++ and Chromium for maximum performance.
-- [ ] **Full Offline LLM**: Support for 1.5B - 3B parameter models running entirely on-device (Mobile & Desktop).
-- [ ] **Plugin Marketplace**: A privacy-focused extension gallery.
-- [ ] **Enterprise Suite**: Secure workspaces for corporate environments.
 
 ---
 
-## 🧑‍💻 About the Creator
+🗺️ Roadmap to v1.0.0
 
-Comet AI Browser is a passion project built by an 11th-grade student preparing for **JEE**. Inspired by the potential of AI to revolutionize browsing, it was born from a desire to create a privacy-first, power-user browser that works on modest hardware.
+[ ] Native Chromium-based core
 
-**Development Setup:** Acer Veriton | Intel i5 (U-series) | 8GB RAM | 256GB SSD.
+[ ] Fully offline LLM (1.5B–3B params)
+
+[ ] Extension marketplace
+
+[ ] Advanced tab & memory management
+
+
 
 ---
 
-## 📝 License
-This project is licensed under the **MIT License**.
+🧑‍💻 About the Creator
 
-<div align="center">
+Built by a 16‑year‑old student preparing for JEE, Comet AI Browser is a proof that skill, patience, and curiosity matter more than budget or hardware.
 
-**Built with ❤️ for privacy and performance**
+Primary Dev Machine: Intel i5‑U | 8GB RAM | SATA SSD
 
-[⬆ Back to Top](#-comet-ai-browser)
+
+---
+
+📝 License
+
+This project is licensed under the MIT License.
+
+<div align="center">Built with ❤️ for privacy, performance, and learning
+
+⬆ Back to Top
 
 </div>
