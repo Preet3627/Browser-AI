@@ -161,8 +161,10 @@ interface BrowserState {
     removeFromCart: (itemId: string) => void;
     ambientMusicUrl: string;
     enableAmbientMusic: boolean;
+    ambientMusicMode: 'always' | 'idle' | 'google' | 'off';
     setAmbientMusicUrl: (url: string) => void;
     setEnableAmbientMusic: (enable: boolean) => void;
+    setAmbientMusicMode: (mode: 'always' | 'idle' | 'google' | 'off') => void;
 
     // Search and bookmarks
     selectedEngine: string;
@@ -240,7 +242,7 @@ export const useAppStore = create<BrowserState>()(
             githubToken: null,
 
             // View and UI
-            activeView: 'landing-page',
+            activeView: 'browser',
 
             // Guest mode and sync
             isGuestMode: false,
@@ -265,8 +267,10 @@ export const useAppStore = create<BrowserState>()(
             theme: 'system',
             ambientMusicUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
             enableAmbientMusic: true,
+            ambientMusicMode: 'off',
             setAmbientMusicUrl: (url: string) => set({ ambientMusicUrl: url }),
             setEnableAmbientMusic: (enable: boolean) => set({ enableAmbientMusic: enable }),
+            setAmbientMusicMode: (mode) => set({ ambientMusicMode: mode }),
 
             // Online status
             isOnline: true,
@@ -692,7 +696,7 @@ export const useAppStore = create<BrowserState>()(
                 set({
                     user: null,
                     isAdmin: false,
-                    activeView: 'landing-page',
+                    activeView: 'browser',
                     history: [],
                     bookmarks: [],
                     passwords: [],

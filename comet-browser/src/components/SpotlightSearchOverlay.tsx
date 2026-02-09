@@ -18,6 +18,7 @@ const SpotlightSearchOverlay: React.FC<SpotlightSearchOverlayProps> = ({ show, o
     const [appSearchResults, setAppSearchResults] = useState<any[]>([]); // New state for app search results
     const [alarmMessage, setAlarmMessage] = useState<string | null>(null); // New state for alarm messages
     const [urlPrediction, setUrlPrediction] = useState<string | null>(null); // New state for URL prediction
+    const [urlPredictions, setUrlPredictions] = useState<string[]>([]); // Store multiple predictions
     const inputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
@@ -49,8 +50,8 @@ const SpotlightSearchOverlay: React.FC<SpotlightSearchOverlayProps> = ({ show, o
             const trimmedSearchTerm = searchTerm.trim();
             if (trimmedSearchTerm.length > 2 && !calculationResult && appSearchResults.length === 0 && !alarmMessage) {
                 const store = useAppStore(); // Get store
-                const pred = await BrowserAI.predictUrl(trimmedSearchTerm, store.history.map(h => h.url));
-                setUrlPrediction(pred);
+                const preds = await BrowserAI.predictUrl(trimmedSearchTerm, store.history.map(h => h.url));
+                setUrlPrediction(preds[0] || null);
             } else {
                 setUrlPrediction(null);
             }
@@ -58,7 +59,7 @@ const SpotlightSearchOverlay: React.FC<SpotlightSearchOverlayProps> = ({ show, o
         return () => clearTimeout(timer);
     }, [searchTerm, calculationResult, appSearchResults, alarmMessage]);
 
-    const handleSearch = () => {
+    const handleSearch = async () => {
         setCalculationResult(null); // Clear previous calculation
         const trimmedSearchTerm = searchTerm.trim();
 

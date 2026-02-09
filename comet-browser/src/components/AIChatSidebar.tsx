@@ -9,10 +9,10 @@ import firebaseService from '@/lib/FirebaseService';
 import ThinkingIndicator from './ThinkingIndicator';
 import { useAppStore } from '@/store/useAppStore';
 import {
-  Sparkles, Terminal, Code2, Image as ImageIcon, Maximize2, Minimize2, FileText, Download,
+  Terminal, Code2, Image as ImageIcon, Maximize2, Minimize2, FileText, Download,
   Wifi, WifiOff, X, LogOut, User as UserIcon, ShieldAlert, ShieldCheck, SlidersHorizontal,
   ChevronLeft, ChevronRight, ChevronDown, Zap, Send, ShoppingBag, Globe, Plus, Bookmark,
-  RotateCw, AlertTriangle, DownloadCloud, ShoppingCart, Copy as CopyIcon, Settings as GhostSettings,
+  RotateCw, AlertTriangle, DownloadCloud, ShoppingCart, Copy as CopyIcon,
   FolderOpen, ScanLine, Search, Puzzle, Briefcase, RefreshCcw, Layout, MoreVertical,
   CreditCard, ArrowRight, Languages, Share2, Lock, Shield, Volume2, Square, Music2, Waves
 } from 'lucide-react';
@@ -61,6 +61,7 @@ ACTION COMMANDS:
 - [OCR_COORDINATES: x,y,width,height] : Performs OCR on specific pixel coordinates of the current view.
 - [OCR_SCREEN: x,y,width,height] : Performs OCR on a specific screen region (or full screen if coordinates are omitted).
 - [CLICK_ELEMENT: selector] : Clicks on a browser element using CSS selector or tab ID.
+- [FIND_AND_CLICK: text] : Captures the screen, runs OCR, finds the visible text on the OS screen, and clicks it (e.g., buttons, labels).
 - [GMAIL_AUTHORIZE] : Authorizes Gmail API access.
 - [GMAIL_LIST_MESSAGES: query | maxResults] : Lists Gmail messages.
 - [GMAIL_GET_MESSAGE: messageId] : Gets a specific Gmail message.
@@ -139,6 +140,9 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = (props) => {
   const tesseractWorkerRef = useRef<Tesseract.Worker | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [showLLMProviderSettings, setShowLLMProviderSettings] = useState<boolean>(false); // New state for LLM settings
+
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [showActionsMenu, setShowActionsMenu] = useState(false);
 
   useEffect(() => {
     // Dynamically load mermaid for diagrams
@@ -243,7 +247,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = (props) => {
       });
       return cleanup;
     }
-  }, [store.activeTabId, handleSendMessage]);
+  }, [store.activeTabId]);
 
   // Auto-initialize AI Engine
   useEffect(() => {
@@ -815,19 +819,19 @@ ${pageContext || "Content not loaded. Use [READ_PAGE_CONTENT] command to read fu
                                                     
                                                                                                               const result = await window.electronAPI.openExternalApp(appNameOrPath);
                                                     
-                                                                                                              if (result.success) {
+                                                                                                                                                                                                                            if (result.success) {
                                                     
-                                                                                                                commandOutput = `✅ **Successfully opened application:** "${appNameOrPath}".`;
+                                                                                                                                                                                                                              commandOutput = `✅ **Successfully opened application:** "${appNameOrPath}".`;
                                                     
-                                                                                                              } else {
+                                                                                                                                                                                                                            } else {
                                                     
-                                                                                                                commandOutput = `❌ **Failed to open application:** "${appNameOrPath}". Error: ${result.error || 'Unknown error'}.`;
+                                                                                                                                                                                                                              commandOutput = `❌ **Failed to open application:** "${appNameOrPath}". Error: ${result.error || 'Unknown error'}.`;
                                                     
-                                                                                                              }
+                                                                                                                                                                                                                            }
                                                     
-                                                                                                            } catch (err) {
+                                                                                                                                                                                                                          } catch (err: any) {
                                                     
-                                                                                                              commandOutput = `❌ **Failed to open application:** "${appNameOrPath}". Error: ${err.message || 'Unknown error'}.`;
+                                                                                                                                                                                                                            commandOutput = `❌ **Failed to open application:** "${appNameOrPath}". Error: ${err.message || 'Unknown error'}.`;
                                                     
                                                                                                             }
                                                     
@@ -889,11 +893,11 @@ ${pageContext || "Content not loaded. Use [READ_PAGE_CONTENT] command to read fu
                                                     
                                                                                                                 commandOutput = `❌ **Failed to find or fill form field "${selector}".**`;
                                                     
-                                                                                                              }
+                                                                                                                                                                                                                            }
                                                     
-                                                                                                            } catch (err) {
+                                                                                                                                                                                                                          } catch (err: any) {
                                                     
-                                                                                                              commandOutput = `❌ **Error filling form field "${selector}": ${err.message || 'Unknown error'}.**`;
+                                                                                                                                                                                                                            commandOutput = `❌ **Error filling form field "${selector}": ${err.message || 'Unknown error'}.**`;
                                                     
                                                                                                             }
                                                     
@@ -1045,11 +1049,11 @@ ${pageContext || "Content not loaded. Use [READ_PAGE_CONTENT] command to read fu
                                                     
                                                                               
                                                     
-                                                                                                                                      } catch (err) {
+                                                                                                                                                                                                                                                                            } catch (err: any) {
                                                     
                                                                               
                                                     
-                                                                                                                                        commandOutput = `❌ **Error scrolling to "${target}": ${err.message || 'Unknown error'}.**`;
+                                                                                                                                                                                                                                                                              commandOutput = `❌ **Error scrolling to "${target}": ${err.message || 'Unknown error'}.**`;
                                                     
                                                                               
                                                     
@@ -1235,19 +1239,19 @@ ${pageContext || "Content not loaded. Use [READ_PAGE_CONTENT] command to read fu
                                                     
                                                                               
                                                     
-                                                                                                                                          commandOutput = `❌ **Element "${selector}" not found for data extraction.**`;
+                                                                                                                                                                                                                                                                                    commandOutput = `❌ **Element "${selector}" not found for data extraction.**`;
                                                     
                                                                               
                                                     
-                                                                                                                                        }
+                                                                                                                                                                                                                                                                                  }
                                                     
                                                                               
                                                     
-                                                                                                                                      } catch (err) {
+                                                                                                                                                                                                                                                                                } catch (err: any) {
                                                     
                                                                               
                                                     
-                                                                                                                                        commandOutput = `❌ **Error extracting data from "${selector}": ${err.message || 'Unknown error'}.**`;
+                                                                                                                                                                                                                                                                                  commandOutput = `❌ **Error extracting data from "${selector}": ${err.message || 'Unknown error'}.**`;
                                                     
                                                                               
                                                     
@@ -1283,25 +1287,25 @@ ${pageContext || "Content not loaded. Use [READ_PAGE_CONTENT] command to read fu
                           
                                                         try {
                                                           const screenshotDataUrl = await window.electronAPI.captureBrowserViewScreenshot();
-                                                          if (screenshotDataUrl && tesseractWorkerRef.current) {
-                                                            const img = new Image();
-                                                            img.onload = async () => {
-                                                              const canvas = document.createElement('canvas');
-                                                              canvas.width = width;
-                                                              canvas.height = height;
-                                                              const ctx = canvas.getContext('2d');
-                                                              if (ctx) {
-                                                                ctx.drawImage(img, x, y, width, height, 0, 0, width, height);
-                                                                const croppedDataUrl = canvas.toDataURL();
-                                                                const { data: { text: ocrText } } = await tesseractWorkerRef.current.recognize(croppedDataUrl);
-                                                                // Add to vector memory
-                                                                BrowserAI.addToVectorMemory(ocrText, { type: 'ocr_coordinates', url: store.currentUrl, x, y, width, height });
-                                                                await handleSendMessage(userMessage.content + `\n\n[OCR_RESULT]: ${ocrText}`);
-                                                              }
-                                                            };
-                                                            img.src = screenshotDataUrl;
-                                                          }
-                                                        } catch (err) {
+                                                                                                                                                    if (screenshotDataUrl && tesseractWorkerRef.current) {
+                                                                                                                                                      const tesseractWorker = tesseractWorkerRef.current; // Capture current value
+                                                                                                                                                      const img = new Image();
+                                                                                                                                                      img.onload = async () => {
+                                                                                                                                                        const canvas = document.createElement('canvas');
+                                                                                                                                                        canvas.width = width;
+                                                                                                                                                        canvas.height = height;
+                                                                                                                                                        const ctx = canvas.getContext('2d');
+                                                                                                                                                        if (ctx) {
+                                                                                                                                                          ctx.drawImage(img, x, y, width, height, 0, 0, width, height);
+                                                                                                                                                          const croppedDataUrl = canvas.toDataURL();
+                                                                                                                                                          const { data: { text: ocrText } } = await tesseractWorker.recognize(croppedDataUrl); // Use captured variable
+                                                                                                                                                          // Add to vector memory
+                                                                                                                                                          BrowserAI.addToVectorMemory(ocrText, { type: 'ocr_coordinates', url: store.currentUrl, x, y, width, height });
+                                                                                                                                                          await handleSendMessage(userMessage.content + `\n\n[OCR_RESULT]: ${ocrText}`);
+                                                                                                                                                        }
+                                                                                                                                                      };
+                                                                                                                                                      img.src = screenshotDataUrl;
+                                                                                                                                                    }                                                        } catch (err) {
                                                           await handleSendMessage(userMessage.content + `\n\n[OCR_ERROR]: Failed to perform OCR on coordinates`);
                                                         }
                                                         shouldReturn = true;
@@ -1363,6 +1367,30 @@ ${pageContext || "Content not loaded. Use [READ_PAGE_CONTENT] command to read fu
                               commandOutput = '⚠️ **Click element not available.**';
                             }
                             await delay(1000);
+                            break;
+
+                          case 'FIND_AND_CLICK':
+                            if (window.electronAPI?.findAndClickText) {
+                              const textToFind = cmd.value?.trim() || '';
+                              commandOutput = textToFind ? `🔍 **Finding and clicking:** "${textToFind}"` : '⚠️ **No text specified for Find & Click.**';
+                              setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
+                              if (textToFind) {
+                                try {
+                                  const result = await window.electronAPI.findAndClickText(textToFind);
+                                  if (result.success) {
+                                    await handleSendMessage(userMessage.content + `\n\n[FIND_AND_CLICK_SUCCESS]: Clicked at (${result.x}, ${result.y})`);
+                                  } else {
+                                    await handleSendMessage(userMessage.content + `\n\n[FIND_AND_CLICK_ERROR]: ${result.error}`);
+                                  }
+                                } catch (err) {
+                                  await handleSendMessage(userMessage.content + `\n\n[FIND_AND_CLICK_ERROR]: ${(err as Error)?.message || 'Failed'}`);
+                                }
+                                shouldReturn = true;
+                              }
+                            } else {
+                              commandOutput = '⚠️ **Find & Click not available in this environment.**';
+                            }
+                            await delay(1500);
                             break;
         
                           case 'GENERATE_PDF':
@@ -1566,6 +1594,7 @@ ${pageContext || "Content not loaded. Use [READ_PAGE_CONTENT] command to read fu
                                    - [SCREENSHOT_AND_ANALYZE]: I can take screenshots of the current browser view, perform OCR, and analyze the content visually. [WAIT: 1500]
                                    - [OCR_COORDINATES: x,y,width,height]: I can perform OCR on specific pixel coordinates within the browser view. [WAIT: 1000]
                                    - [OCR_SCREEN: x,y,width,height]: I can perform OCR on any part of your OS screen, or the full screen if no coordinates are specified. [WAIT: 1500]
+                                   - [FIND_AND_CLICK: text]: I can find visible text on your screen (e.g. buttons, labels) via OCR and click it automatically. [WAIT: 1500]
                                    - [GUIDE_CLICK: description | x,y,width,height]: I can guide you to click on specific areas of your OS screen by providing instructions and coordinates. [WAIT: 1500]
 
                                 **4. System & Integration Controls:** [WAIT: 500]
@@ -1795,15 +1824,15 @@ ${pageContext || "Content not loaded. Use [READ_PAGE_CONTENT] command to read fu
         `}</style>
       <header className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-<div className="w-8 h-8 rounded-xl bg-gradient-to-br from-cyan-400 via-blue-500 to-purple-600 flex items-center justify-center shadow-[0_0_20px_rgba(0,255,255,0.5)]">
-            <Sparkles size={16} className="text-white animate-pulse" />
+<div className="w-8 h-8 rounded-xl flex items-center justify-center">
+            <img src="/icon.png" alt="Comet AI Icon" className="w-full h-full object-contain" />
           </div>
           <h2 className="text-sm font-black uppercase tracking-[0.2em] text-white text-neon">Comet AI</h2>
           {isOnline ? <Wifi size={12} className="text-green-400" /> : <WifiOff size={12} className="text-orange-400" />}
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => setShowLLMProviderSettings(!showLLMProviderSettings)} className="w-6 h-6 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-secondary-text hover:text-primary-text transition-colors no-drag-region overflow-hidden" title="LLM Provider Settings">
-            <GhostSettings size={14} />
+            <img src="/icon.png" alt="Settings Icon" className="w-full h-full object-contain" />
           </button>
           <button onClick={() => setIsFullScreen(!isFullScreen)} className="p-2 text-secondary-text hover:text-primary-text transition-colors">
             {isFullScreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
@@ -1926,61 +1955,102 @@ ${pageContext || "Content not loaded. Use [READ_PAGE_CONTENT] command to read fu
         />
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <button onClick={() => fileInputRef.current?.click()} className="p-2 rounded-lg bg-white/5 text-white/40 hover:text-white text-[10px] font-bold uppercase tracking-widest transition-all">
-              📎 Attach
-            </button>
-            <button
-              onClick={() => {
-                const lastMessage = messages.filter((m) => m.role === 'model').pop();
-                if (lastMessage) {
-                  navigator.clipboard.writeText(lastMessage.content);
-                }
-              }}
-              className="p-2 rounded-lg bg-white/5 text-white/40 hover:text-white text-[10px] font-bold uppercase tracking-widest transition-all"
-            >
-              <CopyIcon size={14} />
-            </button>
-            <button
-              onClick={() => {
-                const lastMessage = messages.filter((m) => m.role === 'model').pop();
-                if (lastMessage && navigator.share) {
-                  navigator.share({
-                    title: 'Comet AI Response',
-                    text: lastMessage.content,
-                  });
-                }
-              }}
-              className="p-2 rounded-lg bg-white/5 text-white/40 hover:text-white text-[10px] font-bold uppercase tracking-widest transition-all"
-            >
-              <Share2 size={14} />
-            </button>
-            <button
-              onClick={() => {
-                const lastMessage = messages.filter((m) => m.role === 'model').pop();
-                if (lastMessage && window.electronAPI) {
-                  window.electronAPI.saveAiResponse(lastMessage.content);
-                }
-              }}
-              className="p-2 rounded-lg bg-white/5 text-white/40 hover:text-white text-[10px] font-bold uppercase tracking-widest transition-all"
-            >
-              <Download size={14} />
-            </button>
-            <button
-              onClick={handleExportTxt}
-              disabled={messages.length === 0}
-              className="p-2 rounded-lg bg-white/5 text-white/40 hover:text-white text-[10px] font-bold uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Export as Text"
-            >
-              <FileText size={14} />
-            </button>
-            <button
-              onClick={handleExportPdf}
-              disabled={messages.length === 0}
-              className="p-2 rounded-lg bg-white/5 text-white/40 hover:text-white text-[10px] font-bold uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Export as PDF"
-            >
-              <FileText size={14} /> PDF
-            </button>
+            <div className="relative">
+              <button
+                onClick={() => setShowActionsMenu(!showActionsMenu)}
+                className="p-2 rounded-lg bg-white/5 text-white/40 hover:text-white text-[10px] font-bold uppercase tracking-widest transition-all"
+                title="Actions"
+              >
+                <MoreVertical size={14} />
+              </button>
+              {showActionsMenu && (
+                <div className="absolute bottom-full mb-2 w-48 bg-black/80 backdrop-blur-md border border-white/10 rounded-lg shadow-lg">
+                  <button
+                    onClick={() => { fileInputRef.current?.click(); setShowActionsMenu(false); }}
+                    className="w-full flex items-center gap-2 px-4 py-2 text-xs text-left text-white/80 hover:bg-white/10"
+                  >
+                    📎
+                    <span>Attach File</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      const lastMessage = messages.filter((m) => m.role === 'model').pop();
+                      if (lastMessage) {
+                        navigator.clipboard.writeText(lastMessage.content);
+                      }
+                      setShowActionsMenu(false);
+                    }}
+                    className="w-full flex items-center gap-2 px-4 py-2 text-xs text-left text-white/80 hover:bg-white/10"
+                  >
+                    <CopyIcon size={14} />
+                    <span>Copy Last Response</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      const lastMessage = messages.filter((m) => m.role === 'model').pop();
+                      if (lastMessage && navigator.share) {
+                        navigator.share({
+                          title: 'Comet AI Response',
+                          text: lastMessage.content,
+                        });
+                      }
+                      setShowActionsMenu(false);
+                    }}
+                    className="w-full flex items-center gap-2 px-4 py-2 text-xs text-left text-white/80 hover:bg-white/10"
+                  >
+                    <Share2 size={14} />
+                    <span>Share Last Response</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      const lastMessage = messages.filter((m) => m.role === 'model').pop();
+                      if (lastMessage && window.electronAPI) {
+                        window.electronAPI.saveAiResponse(lastMessage.content);
+                      }
+                      setShowActionsMenu(false);
+                    }}
+                    className="w-full flex items-center gap-2 px-4 py-2 text-xs text-left text-white/80 hover:bg-white/10"
+                  >
+                    <Download size={14} />
+                    <span>Save Last Response</span>
+                  </button>
+                  <div className="h-[1px] bg-white/10 my-1" />
+                  <button
+                    onClick={() => { handleExportTxt(); setShowActionsMenu(false); }}
+                    className="w-full flex items-center gap-2 px-4 py-2 text-xs text-left text-white/80 hover:bg-white/10"
+                  >
+                    <FileText size={14} />
+                    <span>Export as Text</span>
+                  </button>
+                  <button
+                    onClick={() => { handleExportPdf(); setShowActionsMenu(false); }}
+                    className="w-full flex items-center gap-2 px-4 py-2 text-xs text-left text-white/80 hover:bg-white/10"
+                  >
+                    <FileText size={14} />
+                    <span>Export as PDF</span>
+                  </button>
+                  <div className="h-[1px] bg-white/10 my-1" />
+                  <button
+                    onClick={() => {
+                      setShowActionsMenu(false);
+                      if (window.electronAPI?.findAndClickText) {
+                        const text = window.prompt('Enter text to find and click on screen (e.g. Submit, Sign in):');
+                        if (text?.trim()) {
+                          window.electronAPI.findAndClickText(text.trim()).then((r: { success?: boolean; error?: string }) => {
+                            if (r.success) setMessages(prev => [...prev, { role: 'model', content: '✅ **Find & Click:** Clicked successfully.' }]);
+                            else setMessages(prev => [...prev, { role: 'model', content: `⚠️ **Find & Click:** ${r.error || 'Failed'}` }]);
+                          });
+                        }
+                      }
+                    }}
+                    className="w-full flex items-center gap-2 px-4 py-2 text-xs text-left text-white/80 hover:bg-white/10"
+                  >
+                    <ScanLine size={14} />
+                    <span>Find & Click (OCR)</span>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
           <input type="file" ref={fileInputRef} onChange={handleFileSelect} className="hidden" multiple />
           <button
@@ -1992,7 +2062,13 @@ ${pageContext || "Content not loaded. Use [READ_PAGE_CONTENT] command to read fu
             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent translate-x-[-200%] group-hover:translate-x-[200%] transition-transform duration-700" />
             <div className="relative flex items-center gap-2 text-black font-bold text-[10px] uppercase tracking-wider">
               <Send size={12} className="group-hover:rotate-12 transition-transform" />
-              <span>Launch</span>
+          <span>Launch</span>
             </div>
           </button>
         </div>
+      </footer>
+    </div>
+  );
+};
+
+export default AIChatSidebar;

@@ -128,6 +128,7 @@ const SettingsPanel = ({ onClose, defaultSection = 'profile' }: { onClose: () =>
         { id: 'integrations', icon: <Briefcase size={18} />, label: 'Integrations' },
         { id: 'mcp', icon: <Globe size={18} />, label: 'MCP Servers' },
         { id: 'system', icon: <Globe size={18} />, label: 'System' },
+        { id: 'ambient-music', icon: <Music2 size={18} />, label: 'Ambient Music' },
         ...(store.isAdmin ? [{ id: 'admin', icon: <ShieldAlert size={18} />, label: 'Admin Console' }] : []),
         { id: 'about', icon: <Info size={18} />, label: 'About Comet' },
     ];
@@ -394,7 +395,7 @@ const SettingsPanel = ({ onClose, defaultSection = 'profile' }: { onClose: () =>
 
                         {activeSection === 'shortcuts' && <KeyboardShortcutSettings />}
 
-                        {activeSection === 'sync' && (<SyncSettings onClose={onClose} />)}
+                        {activeSection === 'sync' && (<SyncSettings />)}
 
                         {activeSection === 'languages' && (
                             <div className="space-y-8">
@@ -444,6 +445,28 @@ const SettingsPanel = ({ onClose, defaultSection = 'profile' }: { onClose: () =>
                         )}
 
                         {activeSection === 'system' && <UserAgentSettings />}
+
+                        {activeSection === 'ambient-music' && (
+                            <div className="space-y-8">
+                                <div className="p-8 rounded-[2rem] bg-white/[0.03] border border-white/5 space-y-8">
+                                    <div>
+                                        <h3 className="text-lg font-bold text-white mb-2">Ambient Music Mode</h3>
+                                        <p className="text-xs text-white/30 mb-8">Choose when to play ambient background music.</p>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        {['off', 'always', 'idle', 'google'].map((mode) => (
+                                            <button
+                                                key={mode}
+                                                onClick={() => store.setAmbientMusicMode(mode as 'off' | 'always' | 'idle' | 'google')}
+                                                className={`p-6 rounded-2xl border transition-all text-left group ${store.ambientMusicMode === mode ? 'bg-deep-space-accent-neon/10 border-deep-space-accent-neon/40' : 'bg-white/5 border-white/5 hover:bg-white/10'}`}
+                                            >
+                                                <p className={`font-bold capitalize ${store.ambientMusicMode === mode ? 'text-white' : 'text-white/60'}`}>{mode === 'google' ? 'On Google Search' : mode}</p>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
                         {activeSection === 'integrations' && (
                             <div className="space-y-8">

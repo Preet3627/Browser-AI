@@ -1,13 +1,12 @@
+"use client";
 // src/components/SyncSettings.tsx
 import React, { useState, useEffect } from 'react';
 import { useAppStore } from '@/store/useAppStore';
 import { Cloud, Wifi, WifiOff, HardDrive, Key, UploadCloud, DownloadCloud, AlertTriangle, CheckCircle, RefreshCw, Info } from 'lucide-react';
 
-interface SyncSettingsProps {
-    onClose: () => void;
-}
+interface SyncSettingsProps {}
 
-const SyncSettings: React.FC<SyncSettingsProps> = ({ onClose }) => {
+const SyncSettings: React.FC<SyncSettingsProps> = () => {
     const store = useAppStore();
     const [remoteDeviceId, setRemoteDeviceId] = useState('');
     const [p2pConnected, setP2PConnected] = useState(false);

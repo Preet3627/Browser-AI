@@ -36,6 +36,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getOpenTabs: () => ipcRenderer.invoke('get-open-tabs'),
   extractPageContent: () => ipcRenderer.invoke('extract-page-content'),
   getSelectedText: () => ipcRenderer.invoke('get-selected-text'),
+  findAndClickText: (targetText) => ipcRenderer.invoke('find-and-click-text', targetText),
   setBrowserViewBounds: (bounds) => ipcRenderer.send('set-browser-view-bounds', bounds),
   setUserAgent: (userAgent) => ipcRenderer.invoke('set-user-agent', userAgent),
   setProxy: (config) => ipcRenderer.invoke('set-proxy', config),

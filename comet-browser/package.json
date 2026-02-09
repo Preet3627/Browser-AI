@@ -7,8 +7,8 @@
   "main": "main.js",
   "homepage": "./",
   "scripts": {
-    "dev": "concurrently \"npm:electron-dev\" \"wait-on http://localhost:3000 && electron .\"",
-    "electron-dev": "next dev",
+    "dev": "concurrently \"npm:electron-dev\" \"wait-on http://localhost:3003 && electron .\"",
+    "electron-dev": "next dev -p 3003",
     "electron-start": "electron .",
     "build": "next build",
     "start": "npx serve@latest out",
@@ -60,10 +60,14 @@
     "@eslint/compat": "^2.0.1",
     "@next/eslint-plugin-next": "^16.1.4",
     "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
-    "@types/react": "19.2.8",
+    "@types/chrome": "^0.1.36",
+    "@types/node": "^20.19.33",
+    "@types/react": "^19.2.8",
+    "@types/react-dom": "^19.2.3",
     "@types/react-syntax-highlighter": "^15.5.13",
+    "@types/tesseract.js": "^0.0.2",
     "concurrently": "^8.2.2",
+    "cross-env": "^10.1.0",
     "electron": "40.1.0",
     "electron-builder": "^26.0.12",
     "eslint": "^8.0.0",
@@ -127,6 +131,7 @@
     }
   },
   "optionalDependencies": {
-    "@next/swc-win32-x64-msvc": "^16.1.6"
+    "@next/swc-win32-x64-msvc": "^16.1.6",
+    "robotjs": "^0.6.0"
   }
 }

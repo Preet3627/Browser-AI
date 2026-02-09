@@ -169,6 +169,7 @@ export default function Home() {
   };
 
   useEffect(() => {
+    store.setActiveView('browser');
     if (window.electronAPI) {
       const cleanStart = window.electronAPI.on('download-started', (name: string) => {
         setDownloads(prev => [{ name, status: 'downloading' }, ...prev].slice(0, 10));
@@ -257,7 +258,23 @@ const handleMusicUpload = async () => {
 
   // Ambient Music Control
   useEffect(() => {
-    if (store.enableAmbientMusic && store.currentUrl.includes('google.com')) {
+    const shouldPlay = () => {
+        if (!store.enableAmbientMusic) return false;
+        switch (store.ambientMusicMode) {
+            case 'always':
+                return true;
+            case 'google':
+                return store.currentUrl.includes('google.com/search');
+            case 'idle':
+                // TODO: Implement idle detection
+                return false; // For now, idle is not implemented
+            case 'off':
+            default:
+                return false;
+        }
+    };
+
+    if (shouldPlay()) {
       if (ambientAudioRef.current) {
         ambientAudioRef.current.play().catch(e => console.log("Autoplay blocked", e));
         setIsAmbientPlaying(true);
@@ -268,7 +285,7 @@ const handleMusicUpload = async () => {
         setIsAmbientPlaying(false);
       }
     }
-  }, [store.currentUrl, store.enableAmbientMusic]);
+  }, [store.currentUrl, store.enableAmbientMusic, store.ambientMusicMode]);
 
   // Translation Trigger
   useEffect(() => {
@@ -497,15 +514,23 @@ const handleMusicUpload = async () => {
   // Debounced Predictor and Suggestions Fetcher
   useEffect(() => {
     const timer = setTimeout(async () => {
-      if (isTyping && inputValue.length > 2) {
+      if (isTyping && inputValue.length > 1) { // Trigger on 2+ chars
         // Fetch URL prediction
-        const pred = await BrowserAI.predictUrl(inputValue, store.history.map(h => h.url));
-        setUrlPrediction(pred);
+        const preds = await BrowserAI.predictUrl(inputValue, store.history.map(h => h.url));
+        setUrlPrediction(preds[0] || null);
 
         // Fetch additional suggestions
         if (window.electronAPI) {
-          const fetchedSuggestions = await window.electronAPI.getSuggestions(inputValue);
-          setSuggestions(fetchedSuggestions);
+          const webSuggestions = await window.electronAPI.getSuggestions(inputValue);
+          const appSearch = await window.electronAPI.searchApplications(inputValue);
+          const appSuggestions = appSearch.success ? appSearch.results.map((app: any) => ({
+            type: 'app',
+            text: app.name,
+            url: app.path, // Use URL field for path for simplicity
+            icon: <Briefcase size={14} />
+          })) : [];
+
+          setSuggestions([...webSuggestions, ...appSuggestions]);
         }
       } else {
         setUrlPrediction(null);
@@ -663,6 +688,20 @@ const handleMusicUpload = async () => {
       window.electronAPI.navigateBrowserView({ tabId: store.activeTabId, url });
     }
   };
+
+  // New function to handle suggestion clicks
+  const handleSuggestionClick = (suggestion: any) => {
+    if (suggestion.type === 'app') {
+        if (window.electronAPI && suggestion.url) {
+            window.electronAPI.openExternalApp(suggestion.url);
+        }
+    } else {
+        handleGo(suggestion.url);
+    }
+    setSuggestions([]); // Clear suggestions after selection
+    setIsTyping(false); // Stop typing state
+  };
+
 
   const handleOfflineSave = async () => {
     if (!window.electronAPI) return;
@@ -834,12 +873,18 @@ const handleMusicUpload = async () => {
   }, [store]);
 
   useEffect(() => {
+    if (!window.electronAPI) {
+      console.warn("electronAPI is not available. Running outside of Electron or preload script failed.");
+      return; // Exit early if electronAPI is not available
+    }
+
     const cleanup = window.electronAPI.onAuthCallback(async (event: any, url: string) => {
       console.log("Auth callback received in ClientOnlyPage:", url);
       try {
         const parsed = new URL(url);
         const status = parsed.searchParams.get("auth_status");
         const token = parsed.searchParams.get("id_token") || parsed.searchParams.get("token");
+
         const uid = parsed.searchParams.get("uid");
         const email = parsed.searchParams.get("email");
         const name = parsed.searchParams.get("name");
@@ -863,7 +908,7 @@ const handleMusicUpload = async () => {
             try {
               await firebaseService.signInWithCredential(credential);
               console.log("Firebase signed in successfully via deep link");
-            } catch (e: any) {
+            } catch (e) {
               console.error("Firebase sign-in failed:", e);
             }
           }
@@ -882,10 +927,11 @@ const handleMusicUpload = async () => {
           store.setActiveView('browser');
           store.startActiveSession();
         }
-      } catch (e: any) {
+      } catch (e) {
         console.error("Error processing auth callback:", e);
       }
     });
+
     return cleanup;
   }, [store]);
 
@@ -1029,6 +1075,7 @@ const handleMusicUpload = async () => {
                     onChange={(e) => { setInputValue(e.target.value); setIsTyping(true); }}
                     onFocus={() => setIsTyping(true)}
                     onBlur={() => setIsTyping(false)}
+                    onClick={(e) => (e.target as HTMLInputElement).select()}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') handleGo(inputValue); // Pass inputValue to handleGo
                       if (e.key === 'Tab' && urlPrediction && isTyping) {
@@ -1038,7 +1085,7 @@ const handleMusicUpload = async () => {
                         handleGo(urlPrediction); // Navigate to the predicted URL
                       }
                     }}
-                    placeholder="Search with Comet or enter URL..."
+                    placeholder={`Search with ${store.selectedEngine} or enter URL...`}
                     className="w-full bg-white/[0.03] border border-white/10 rounded-2xl py-2 pl-11 pr-4 text-xs text-primary-text placeholder:text-secondary-text focus:outline-none focus:ring-1 focus:ring-accent/50 focus:bg-white/[0.07] transition-all font-medium backdrop-blur-md relative z-10"
                   />
                   {urlPrediction && isTyping && (
@@ -1069,14 +1116,13 @@ const handleMusicUpload = async () => {
                           key={index}
                           className="flex items-center gap-3 px-4 py-2 hover:bg-accent/10 cursor-pointer text-sm"
                           onClick={() => {
-                            handleGo(s.url);
-                            setSuggestions([]); // Clear suggestions after selection
-                            setIsTyping(false); // Stop typing state
+                            handleSuggestionClick(s);
                           }}
                         >
                           {s.type === 'search' && <Search size={14} className="text-secondary-text" />}
                           {s.type === 'history' && <RefreshCcw size={14} className="text-secondary-text" />}
                           {s.type === 'bookmark' && <Bookmark size={14} className="text-secondary-text" />}
+                          {s.type === 'app' && s.icon} {/* Render app icon */}
                           <span className="flex-1 text-primary-text truncate">{s.text}</span>
                           <span className="text-secondary-text text-xs">{s.url}</span>
                         </div>
@@ -1087,7 +1133,6 @@ const handleMusicUpload = async () => {
               </div>
 
               <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1.5 px-2 bg-primary-bg/5 rounded-xl border border-white/5 h-9">
                   <button
                     onClick={() => setShowDownloads(!showDownloads)}
                     className={`p-1.5 rounded-lg transition-all 
@@ -1116,7 +1161,6 @@ const handleMusicUpload = async () => {
                   <button onClick={() => setShowExtensionsPopup(!showExtensionsPopup)} className={`p-1.5 rounded-lg transition-all ${showExtensionsPopup ? 'text-accent bg-primary-bg/10' : 'text-secondary-text hover:text-primary-text'}`} title="Extensions">
                     <Puzzle size={14} />
                   </button>
-                </div>
 
                 <div className="w-[1px] h-6 bg-border-color mx-1" />
 
@@ -1218,10 +1262,10 @@ const handleMusicUpload = async () => {
             <AnimatePresence>
               {showSettings && (
                 <SettingsPanel
-                  onClose={() => {
+                  onClose={useCallback(() => {
                     setShowSettings(false);
                     setSettingsSection('profile');
-                  }}
+                  }, [])}
                   defaultSection={settingsSection}
                 />
               )}

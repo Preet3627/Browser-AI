@@ -119,11 +119,16 @@ jobs:
         working-directory: comet-browser
         run: npm install
 
+      - name: Rebuild native modules for Electron
+        working-directory: comet-browser
+        run: npx electron-rebuild
+        continue-on-error: true
+
       - name: Build Desktop App
         working-directory: comet-browser
         env:
           NEXT_PUBLIC_APP_NAME: Comet
-          NEXT_PUBLIC_APP_VERSION: 0.1.6
+          NEXT_PUBLIC_APP_VERSION: 0.1.7
         run: ${{ matrix.build_cmd }}
 
       - name: Upload Desktop Artifact

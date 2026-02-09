@@ -21,7 +21,7 @@
 
 Comet is a high-performance, privacy-hardened browser built for architects of the future. Developed by **PreetPatel (Latestinssan)**, it combines native AI orchestration with military-grade privacy.
 
-*   **v0.1.7 Highlights**: Enhanced AI Features, Seamless Google Login, Improved UI/UX, Local Vector Memory, and Advanced Document Generation.
+*   **v0.1.7 Highlights**: Minimal Perplexity-inspired UI, Find & Click (OCR automation), App Search in URL bar, Resizable AI sidebar, Google Login + Continue as Guest, Export dropdown (PDF/Text), and enhanced AI agency.
 *   **Target**: High-performance browsing even on "potato PCs" (low-end hardware optimization).
 
 ---
@@ -30,6 +30,7 @@ Comet is a high-performance, privacy-hardened browser built for architects of th
 
 ### 🧠 Intelligence & RAG System
 *   **Neural Analysis Sidebar**: A context-aware analyst that "reads" the page with you. Ask it to summarize, extract data, or explain complex concepts.
+*   **Find & Click (OCR)**: Screen capture + OCR + mouse automation—tell the AI to find and click visible text (e.g., "Submit", "Sign in"). Uses Tesseract.js and robotjs.
 *   **Persistent Neural Memory**: Build local embeddings of your sessions using **TensorFlow.js**. Your intelligence persists across sessions on your local disk.
 *   **Predictive Intelligence**: Neural URL predictor with auto-completion for common sites and user history.
 *   **AI Mistake Guard**: Persistent, one-time intelligence disclaimer with customizable privacy toggles.
@@ -37,6 +38,9 @@ Comet is a high-performance, privacy-hardened browser built for architects of th
 *   **Advanced AI Search**: Predicts and synthesizes search results using native neural logic.
 
 ### 🎨 Design & Workspace
+*   **Minimal Perplexity-Inspired UI**: Clean, distraction-free interface with focus on content and clarity.
+*   **Resizable & Switchable AI Sidebar**: Drag to resize the AI panel; move it to left or right.
+*   **App Search in URL Bar**: Search and launch installed OS applications directly from the address bar.
 *   **Balanced Premium Layout**: Realigned toolbar with centered URL focus and split-group utility alignment.
 *   **Dynamic Tab Branding**: Real-time website favicons in the tab bar for intuitive navigation.
 *   **Glassmorphic UI**: Vibrant, hardware-accelerated interface built with **Framer Motion** and **Tailwind 4**.
@@ -49,6 +53,8 @@ Comet is a high-performance, privacy-hardened browser built for architects of th
 ### 🌐 Cross-Device & Sync
 *   **Quantum E2EE Sync**: Sync tabs and clipboards via **WebRTC P2P**—no cloud required.
 *   **Secure Auth Relay**: Google OAuth via `browser.ponsrischool.in` with deep-link synchronization using custom protocol handlers (`comet-browser://`).
+*   **Google Login & Continue as Guest**: Sign in with Google or browse immediately as a guest—full browser access either way.
+*   **Export Dropdown**: Export AI chats as PDF or plain text from the actions menu.
 *   **Phone Call Control**: Answer/reject calls and monitor battery levels of your phone directly from the desktop (Experimental).
 *   **Automatic OTP Verification**: SMS and Email OTP capture with cross-device auto-fill (Experimental).
 
@@ -108,6 +114,13 @@ npm run dev
 # Package into an installable .exe
 npm run dist:win
 ```
+
+### 5. CI/CD (GitHub Actions)
+Builds run automatically on tag push (`v*`) or manual workflow dispatch. Supported outputs:
+* **Desktop**: Windows (.exe), macOS (.dmg), Linux (AppImage)
+* **Mobile**: Android (APK), iOS (App Bundle)
+
+Native modules (e.g. `robotjs` for Find & Click) are rebuilt for Electron via `electron-rebuild`. If `robotjs` fails to build, the app still runs; Find & Click is disabled.
 
 ### 💡 Environment Configuration
 Create a `.env.local` file:

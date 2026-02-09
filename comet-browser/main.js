@@ -6,6 +6,15 @@ const path = require('path');
 const { exec } = require('child_process');
 const Store = require('electron-store');
 const store = new Store();
+const { createWorker } = require('tesseract.js');
+let robot = null;
+try {
+  robot = require('robotjs');
+} catch (e) {
+  console.warn('[Main] robotjs not available (Find & Click disabled):', e.message);
+}
+
+let tesseractWorker; // Declare tesseractWorker here
 // Production mode detection:
 // 1. app.isPackaged - true when running from built .exe
 // 2. NODE_ENV === 'production' - for manual testing before build
@@ -359,6 +368,10 @@ ipcMain.handle('extract-search-results', async (event, tabId) => {
   }
 });
 
+// Remove any existing handler before registering to prevent "Attempted to register a second handler" errors during hot-reloads
+if (ipcMain.removeHandler) { // Check if removeHandler exists (might not in older Electron versions)
+  ipcMain.removeHandler('extract-search-results');
+}
 // When menu opens
 ipcMain.handle('extract-search-results', async (event, tabId) => {
   const view = tabViews.get(tabId);
@@ -406,6 +419,45 @@ ipcMain.handle('get-suggestions', async (event, query) => {
   return suggestions;
 });
 
+ipcMain.handle('search-applications', async (event, query) => {
+  const platform = process.platform;
+  let command = '';
+  let parser = (stdout) => { }; // Function to parse command output
+
+  if (platform === 'win32') {
+    command = `powershell -Command "Get-StartApps | Where-Object { $_.Name -like '*${query}*' } | Select-Object -Property Name, AppID"`;
+    parser = (stdout) => {
+        // This is a simplified parser for PowerShell output
+        // A more robust solution would handle different output formats
+        const lines = stdout.trim().split('\n').slice(2); // Skip header
+        return lines.map(line => {
+            const parts = line.trim().split(/\s{2,}/);
+            if (parts.length >= 2) {
+                return { name: parts[0], path: parts[1] };
+            }
+            return null;
+        }).filter(Boolean);
+    };
+  } else if (platform === 'darwin') {
+    command = `mdfind 'kMDItemKind == "Application" && kMDItemDisplayName == "*${query}*"'`;
+    parser = (stdout) => stdout.split('\n').filter(line => line.trim().length > 0).map(p => ({ name: path.basename(p, '.app'), path: p.trim() }));
+  } else {
+    return { success: false, error: `Unsupported platform: ${platform}` };
+  }
+
+  return new Promise((resolve) => {
+    exec(command, { timeout: 2000 }, (error, stdout, stderr) => {
+      if (error) {
+        console.error(`App search error on ${platform}:`, error);
+        resolve({ success: false, error: stderr || error.message });
+      } else {
+        const results = parser(stdout);
+        resolve({ success: true, results });
+      }
+    });
+  });
+});
+
 // When menu opens
 function hideWebview() {
   if (!mainWindow) return;
@@ -428,7 +480,7 @@ function showWebview() {
 
 
 
-function createWindow() {
+async function createWindow() {
   // GPU compositing optimizations for transparent overlays
   app.commandLine.appendSwitch('--enable-gpu-rasterization');
   app.commandLine.appendSwitch('--enable-zero-copy');
@@ -502,7 +554,7 @@ function createWindow() {
   mainWindow.setMenuBarVisibility(false);
 
   const url = isDev
-    ? 'http://localhost:3000'
+    ? 'http://localhost:3003'
     : `file://${path.join(__dirname, 'out/index.html')}`;
 
   console.log(`[Main] Loading URL: ${url}`);
@@ -534,6 +586,10 @@ function createWindow() {
       windowShown = true;
     }
   });
+
+  console.log('[Main] Initializing Tesseract.js worker...');
+  tesseractWorker = await createWorker('eng');
+  console.log('[Main] Tesseract.js worker initialized.');
 
   // Handle load failures
   mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
@@ -618,6 +674,11 @@ function createWindow() {
       console.log("[Main] No extensions found in extensions directory.");
     }
     extensionDirs.forEach(dir => {
+      // Skip the problematic QuickFill extension for now
+      if (dir === 'google-forms-autofill-extension-main') {
+        console.warn(`[Main] Skipping problematic extension: ${dir}`);
+        return;
+      }
       const extPath = path.join(extensionsPath, dir);
       if (fs.lstatSync(extPath).isDirectory()) {
         const manifestPath = path.join(extPath, 'manifest.json');
@@ -1368,6 +1429,116 @@ ipcMain.handle('capture-screen-region', async (event, { x, y, width, height }) =
   }
 });
 
+/**
+ * Maps OCR result coordinates (from Tesseract) to screen coordinates.
+ * When the capture region is a subset of the screen, adds the capture offset.
+ * @param {Object} ocrResult - Tesseract word result with bbox: { x0, y0, x1, y1 }
+ * @param {Object} captureRegion - { x, y, width, height } - screen region that was captured
+ * @returns {{ x: number, y: number, width: number, height: number }} screen coordinates
+ */
+function mapOcrCoordsToScreenCoords(ocrResult, captureRegion) {
+  const box = ocrResult.bbox || ocrResult.box || {};
+  const x0 = box.x0 ?? box.x ?? 0;
+  const y0 = box.y0 ?? box.y ?? 0;
+  const x1 = box.x1 ?? (box.x || 0) + (box.width || 0);
+  const y1 = box.y1 ?? (box.y || 0) + (box.height || 0);
+  const width = x1 - x0;
+  const height = y1 - y0;
+  const screenX = (captureRegion?.x ?? 0) + x0;
+  const screenY = (captureRegion?.y ?? 0) + y0;
+  return { x: Math.round(screenX), y: Math.round(screenY), width: Math.round(width), height: Math.round(height) };
+}
+
+/**
+ * find-and-click-text: Captures the primary screen, runs OCR, finds target text, and clicks it.
+ * Uses Tesseract.js for OCR and robotjs for mouse simulation.
+ * NOTE: On macOS, Accessibility permission is required for robotjs to control the mouse.
+ * On Windows/Linux, may require running with appropriate privileges.
+ */
+ipcMain.handle('find-and-click-text', async (event, targetText) => {
+  if (!targetText || typeof targetText !== 'string' || targetText.trim().length === 0) {
+    return { success: false, error: 'Target text is required.' };
+  }
+
+  const searchText = targetText.trim().toLowerCase();
+
+  try {
+    const primaryDisplay = screen.getPrimaryDisplay();
+    const { width, height } = primaryDisplay.size;
+    const scaleFactor = primaryDisplay.scaleFactor || 1;
+    const thumbnailSize = {
+      width: Math.min(4096, Math.round(width * scaleFactor)),
+      height: Math.min(4096, Math.round(height * scaleFactor))
+    };
+
+    const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize });
+    const primaryDisplayId = String(primaryDisplay.id);
+    const primaryScreenSource = sources.find(s => s.display_id === primaryDisplayId);
+
+    if (!primaryScreenSource || !primaryScreenSource.thumbnail) {
+      return { success: false, error: 'Could not capture primary screen.' };
+    }
+
+    const tempDir = app.getPath('temp');
+    const tempPath = path.join(tempDir, `comet-ocr-${Date.now()}.png`);
+
+    try {
+      const pngBuffer = primaryScreenSource.thumbnail.toPNG();
+      fs.writeFileSync(tempPath, pngBuffer);
+    } catch (writeErr) {
+      console.error('[Main] Failed to write temp image:', writeErr);
+      return { success: false, error: 'Failed to prepare image for OCR.' };
+    }
+
+    if (!tesseractWorker) {
+      try { fs.unlinkSync(tempPath); } catch (e) { }
+      return { success: false, error: 'OCR worker not initialized.' };
+    }
+
+    const captureRegion = { x: 0, y: 0, width: thumbnailSize.width, height: thumbnailSize.height };
+
+    const { data } = await tesseractWorker.recognize(tempPath);
+
+    try { fs.unlinkSync(tempPath); } catch (e) { }
+
+    const words = data?.words || [];
+    let bestMatch = null;
+
+    for (const word of words) {
+      const text = (word.text || '').toLowerCase();
+      if (text.includes(searchText) || searchText.includes(text)) {
+        bestMatch = word;
+        break;
+      }
+    }
+
+    if (!bestMatch) {
+      return { success: false, error: `Text "${targetText}" not found on screen.`, foundText: data?.text?.substring(0, 200) };
+    }
+
+    const screenCoords = mapOcrCoordsToScreenCoords(bestMatch, captureRegion);
+    const centerX = Math.round(screenCoords.x + screenCoords.width / 2);
+    const centerY = Math.round(screenCoords.y + screenCoords.height / 2);
+
+    if (!robot) {
+      return { success: false, error: 'Find & Click requires robotjs. Run: npm install robotjs, then electron-rebuild.' };
+    }
+
+    try {
+      robot.moveMouse(centerX, centerY);
+      robot.mouseClick();
+      console.log(`[Main] Find-and-click: clicked at (${centerX}, ${centerY}) for "${targetText}"`);
+      return { success: true, x: centerX, y: centerY };
+    } catch (robotErr) {
+      console.error('[Main] robotjs error (may need Accessibility permission on macOS):', robotErr);
+      return { success: false, error: `Could not simulate click. ${process.platform === 'darwin' ? 'Ensure Accessibility permission is granted.' : robotErr.message}` };
+    }
+  } catch (error) {
+    console.error('[Main] find-and-click-text failed:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 ipcMain.handle('save-offline-page', async (event, { url, title, html }) => {
   console.log(`[Offline] Saved ${title}`);
   return true;
@@ -1658,6 +1829,22 @@ ipcMain.handle('search-applications', async (event, query) => {
       }
     });
   });
+});
+
+// Open External Application
+ipcMain.handle('open-external-app', async (event, app_name_or_path) => {
+  try {
+    const fullPath = path.resolve(app_name_or_path); // Resolve to absolute path
+    const result = await shell.openPath(fullPath);
+    if (result) {
+      // If result is a string, it indicates an error message
+      return { success: false, error: result };
+    }
+    return { success: true };
+  } catch (error) {
+    console.error('[Main] Failed to open external app:', error);
+    return { success: false, error: error.message };
+  }
 });
 
 // Deep Linking and persist handling on startup (merged into single instance lock above)
@@ -2185,13 +2372,19 @@ app.on('will-quit', () => {
   globalShortcut.unregisterAll();
 });
 
-app.on('window-all-closed', () => {
+app.on('window-all-closed', async () => {
+  // Terminate the Tesseract worker when the app quits
+  if (tesseractWorker) {
+      console.log('[Main] Terminating Tesseract.js worker...');
+      await tesseractWorker.terminate();
+      console.log('[Main] Tesseract.js worker terminated.');
+  }
   if (process.platform !== 'darwin') {
     app.quit();
   }
 });
 
 // Final fallback to ensure process exits
-app.on('quit', () => {
+app.on('quit', async () => {
   process.exit(0);
 });

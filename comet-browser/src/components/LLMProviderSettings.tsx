@@ -8,7 +8,7 @@ import BackendSettings from './BackendSettings';
 import { motion, AnimatePresence } from 'framer-motion';
 import { OpenAICompatibleProvider } from '@/lib/llm/providers/openai-compatible';
 import { useAppStore } from '@/store/useAppStore';
-import { Cpu, Cloud, Settings, Save, Shield, Database, ChevronDown, Check, Sparkles } from 'lucide-react';
+import { Cpu, Cloud, Settings, Save, Shield, Database, ChevronDown, Check, Sparkles, Puzzle, FolderOpen } from 'lucide-react';
 
 interface LLMProviderSettingsProps {
   selectedEngine: string;
@@ -127,19 +127,21 @@ const LLMProviderSettings: React.FC<LLMProviderSettingsProps> = (props) => {
               <SearchEngineSettings {...props} />
               <BackendSettings {...props} />
 
-              <div className="space-y-4 pt-4 border-t border-white/5">
-                <div className="flex items-center gap-2 mb-2">
-                  <Cloud size={12} className="text-deep-space-accent-neon" />
-                  <label className="block text-[10px] uppercase font-black tracking-widest text-white/40">AI Orchestration</label>
-                </div>
+                <div className="space-y-4 pt-4 border-t border-white/5">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Cloud size={12} className="text-deep-space-accent-neon" />
+                    <label htmlFor="ai-orchestration-select" className="block text-[10px] uppercase font-black tracking-widest text-white/40">AI Orchestration</label>
+                  </div>
 
-                <select
-                  className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-deep-space-accent-neon/50 transition-all font-bold"
-                  value={activeProviderId || ''}
-                  onChange={handleProviderChange}
-                >
-                  {providers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </select>
+                  <select
+                    id="ai-orchestration-select"
+                    aria-label="AI Orchestration Provider Selection"
+                    className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-deep-space-accent-neon/50 transition-all font-bold"
+                    value={activeProviderId || ''}
+                    onChange={handleProviderChange}
+                  >
+                    {providers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
 
                 <div className="space-y-4">
                   <p className="text-[10px] uppercase font-black tracking-widest text-white/40 mb-2">MCP Server Settings</p>
@@ -200,8 +202,10 @@ const LLMProviderSettings: React.FC<LLMProviderSettingsProps> = (props) => {
 
                         {/* Model Selection Dropdown */}
                         <div className="space-y-1">
-                          <label className="text-[9px] text-white/30 uppercase font-bold">Select Active Model</label>
+                          <label htmlFor="ollama-model-select" className="text-[9px] text-white/30 uppercase font-bold">Select Active Model</label>
                           <select
+                            id="ollama-model-select"
+                            aria-label="Ollama Model Selection"
                             className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-deep-space-accent-neon/50 transition-all font-bold"
                             value={store.ollamaModel}
                             onChange={async (e) => {
@@ -362,6 +366,8 @@ const LLMProviderSettings: React.FC<LLMProviderSettingsProps> = (props) => {
                           onChange={(e) => store.setLocalLLMBaseUrl(e.target.value)}
                         />
                         <select
+                          id="openai-model-select"
+                          aria-label="OpenAI Model Selection"
                           className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-deep-space-accent-neon/50 transition-all font-bold"
                           value={store.localLLMModel || 'gpt-4o'}
                           onChange={(e) => store.setLocalLLMModel(e.target.value)}
@@ -415,6 +421,8 @@ const LLMProviderSettings: React.FC<LLMProviderSettingsProps> = (props) => {
                           onChange={(e) => store.setAnthropicApiKey(e.target.value)}
                         />
                         <select
+                          id="claude-model-select"
+                          aria-label="Claude Model Selection"
                           className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-deep-space-accent-neon/50 transition-all font-bold"
                           value={store.localLLMModel || 'claude-3-5-sonnet-20240620'}
                           onChange={(e) => store.setLocalLLMModel(e.target.value)}

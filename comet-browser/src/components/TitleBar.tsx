@@ -59,6 +59,11 @@ const TitleBar = ({ onToggleSpotlightSearch }: TitleBarProps) => {
                     <Maximize2 size={8} className="text-black opacity-0 group-hover:opacity-100" />
                 </button>
             </div>
+            {/* Comet AI Logo and Text */}
+            <div className="flex items-center gap-2 px-3 no-drag-region">
+                <img src="/icon.png" alt="Comet AI Logo" className="w-5 h-5 object-contain" />
+                <span className="text-xs font-black uppercase tracking-widest text-white/80">Comet-AI</span>
+            </div>
             {showTabBar && (
                 <div className="flex-1 min-w-0">
                     <VirtualizedTabBar
