@@ -67,7 +67,7 @@ const CrossAppOCR: React.FC<CrossAppOCRProps> = ({ isActive, onClose }) => {
                 logger: (m: any) => console.log(m)
             });
 
-            const results: OCRResult[] = (data.words || [])
+            const results: OCRResult[] = ((data as any).words || [])
                 .filter((word: any) => word.confidence > 60)
                 .map((word: any) => ({
                     text: word.text,
