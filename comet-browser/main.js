@@ -19,7 +19,7 @@ let tesseractWorker; // Declare tesseractWorker here
 // 1. app.isPackaged - true when running from built .exe
 // 2. NODE_ENV === 'production' - for manual testing before build
 // 3. Check if out/index.html exists - fallback to prod if dev server isn't available
-const isDev = !app.isPackaged && process.env.NODE_ENV !== 'production';
+const isDev = !app.isPackaged;
 const express = require('express');
 const bodyParser = require('body-parser');
 const { getP2PSync } = require('./src/lib/P2PFileSyncService.js'); // Import the P2P service
@@ -368,44 +368,6 @@ ipcMain.handle('extract-search-results', async (event, tabId) => {
   }
 });
 
-// Remove any existing handler before registering to prevent "Attempted to register a second handler" errors during hot-reloads
-if (ipcMain.removeHandler) { // Check if removeHandler exists (might not in older Electron versions)
-  ipcMain.removeHandler('extract-search-results');
-}
-// When menu opens
-ipcMain.handle('extract-search-results', async (event, tabId) => {
-  const view = tabViews.get(tabId);
-  if (!view) return { error: 'No active view for extraction' };
-
-  try {
-    const results = await view.webContents.executeJavaScript(`
-      (() => {
-        const organicResults = Array.from(document.querySelectorAll('div.g, li.g, div.rc')); // Common Google search result selectors
-        const extracted = [];
-        for (let i = 0; i < Math.min(3, organicResults.length); i++) {
-          const result = organicResults[i];
-          const titleElement = result.querySelector('h3');
-          const linkElement = result.querySelector('a');
-          const snippetElement = result.querySelector('span.st, div.s > div > span'); // Common snippet selectors
-
-          if (titleElement && linkElement) {
-            extracted.push({
-              title: titleElement.innerText,
-              url: linkElement.href,
-              snippet: snippetElement ? snippetElement.innerText : ''
-            });
-          }
-        }
-        return extracted;
-      })();
-    `);
-    return { success: true, results };
-  } catch (e) {
-    console.error("Failed to extract search results:", e);
-    return { success: false, error: e.message };
-  }
-});
-
 // IPC handler for search suggestions
 ipcMain.handle('get-suggestions', async (event, query) => {
   // TODO: Implement actual history and bookmark suggestions
@@ -419,44 +381,6 @@ ipcMain.handle('get-suggestions', async (event, query) => {
   return suggestions;
 });
 
-ipcMain.handle('search-applications', async (event, query) => {
-  const platform = process.platform;
-  let command = '';
-  let parser = (stdout) => { }; // Function to parse command output
-
-  if (platform === 'win32') {
-    command = `powershell -Command "Get-StartApps | Where-Object { $_.Name -like '*${query}*' } | Select-Object -Property Name, AppID"`;
-    parser = (stdout) => {
-        // This is a simplified parser for PowerShell output
-        // A more robust solution would handle different output formats
-        const lines = stdout.trim().split('\n').slice(2); // Skip header
-        return lines.map(line => {
-            const parts = line.trim().split(/\s{2,}/);
-            if (parts.length >= 2) {
-                return { name: parts[0], path: parts[1] };
-            }
-            return null;
-        }).filter(Boolean);
-    };
-  } else if (platform === 'darwin') {
-    command = `mdfind 'kMDItemKind == "Application" && kMDItemDisplayName == "*${query}*"'`;
-    parser = (stdout) => stdout.split('\n').filter(line => line.trim().length > 0).map(p => ({ name: path.basename(p, '.app'), path: p.trim() }));
-  } else {
-    return { success: false, error: `Unsupported platform: ${platform}` };
-  }
-
-  return new Promise((resolve) => {
-    exec(command, { timeout: 2000 }, (error, stdout, stderr) => {
-      if (error) {
-        console.error(`App search error on ${platform}:`, error);
-        resolve({ success: false, error: stderr || error.message });
-      } else {
-        const results = parser(stdout);
-        resolve({ success: true, results });
-      }
-    });
-  });
-});
 
 // When menu opens
 function hideWebview() {
@@ -1257,7 +1181,7 @@ setInterval(() => {
       if (view) {
         // We don't want to suspend audible tabs
         if (audibleTabs.has(tabId)) continue;
-        
+
         console.log(`Suspending inactive tab: ${tabId}`);
         ipcMain.emit('suspend-tab', {}, tabId);
       }
@@ -1696,9 +1620,9 @@ ipcMain.handle('select-local-file', async (event, options = {}) => {
     properties: ['openFile'],
     filters: [{ name: 'All Files', extensions: ['*'] }]
   };
-  
+
   const dialogOptions = { ...defaultOptions, ...options };
-  
+
   const result = await dialog.showOpenDialog(mainWindow, dialogOptions);
   if (!result.canceled && result.filePaths.length > 0) {
     return result.filePaths[0];
@@ -1742,7 +1666,7 @@ ipcMain.handle('click-element', async (event, selector) => {
     if (!activeView) {
       return { success: false, error: 'No active browser view' };
     }
-    
+
     await activeView.webContents.executeJavaScript(`
       const element = document.querySelector('${selector}');
       if (element) {
@@ -1752,7 +1676,7 @@ ipcMain.handle('click-element', async (event, selector) => {
         false;
       }
     `);
-    
+
     return { success: true };
   } catch (error) {
     return { success: false, error: error.message };
@@ -1795,56 +1719,39 @@ ipcMain.handle('ollama-list-models', async () => {
   });
 });
 
-ipcMain.handle('search-applications', async (event, query) => {
-  const platform = process.platform;
-  let command = '';
-  let parser = (stdout) => { }; // Function to parse command output
+// Removed duplicate ipcMain.handle('search-applications', ...) registration start (original line ~422)
+const platform = process.platform;
+let command = '';
+let parser = (stdout) => { }; // Function to parse command output
 
-  if (platform === 'win32') {
-    // Windows: Search in Start Menu programs and common install locations
-    // This is a simplified approach. A more robust solution might involve PowerShell to query installed apps.
-    // For now, let's just search for executables in PATH and common locations.
-    command = `where ${query}.exe 2>nul || dir /s /b "C:\\Program Files\\**\\${query}.exe" 2>nul || dir /s /b "C:\\Program Files (x86)\\**\\${query}.exe" 2>nul`;
-    parser = (stdout) => stdout.split('\n').filter(line => line.trim().length > 0).map(p => ({ name: path.basename(p, path.extname(p)), path: p.trim() }));
-  } else if (platform === 'darwin') {
-    // macOS: Use mdfind (Spotlight)
-    command = `mdfind 'kMDItemKind == "Application" && kMDItemDisplayName == "*${query}*"'`;
-    parser = (stdout) => stdout.split('\n').filter(line => line.trim().length > 0).map(p => ({ name: path.basename(p, '.app'), path: p.trim() }));
-  } else if (platform === 'linux') {
-    // Linux: Search for .desktop files and executables in common PATHs
-    command = `find /usr/share/applications /usr/local/share/applications ~/.local/share/applications -name "*${query}*.desktop" -print 2>/dev/null | xargs -r grep -l '^Exec=.*${query}' | while read -r f; do basename "$f"; done`;
-    parser = (stdout) => stdout.split('\n').filter(line => line.trim().length > 0).map(name => ({ name: name.replace('.desktop', ''), path: '' })); // Path is harder to get directly for desktop files
-  } else {
-    return { success: false, error: `Unsupported platform: ${platform}` };
-  }
+if (platform === 'win32') {
+  // Windows: Search in Start Menu programs and common install locations
+  // This is a simplified approach. A more robust solution might involve PowerShell to query installed apps.
+  // For now, let's just search for executables in PATH and common locations.
+  command = `where ${query}.exe 2>nul || dir /s /b "C:\\Program Files\\**\\${query}.exe" 2>nul || dir /s /b "C:\\Program Files (x86)\\**\\${query}.exe" 2>nul`;
+  parser = (stdout) => stdout.split('\n').filter(line => line.trim().length > 0).map(p => ({ name: path.basename(p, path.extname(p)), path: p.trim() }));
+} else if (platform === 'darwin') {
+  // macOS: Use mdfind (Spotlight)
+  command = `mdfind 'kMDItemKind == "Application" && kMDItemDisplayName == "*${query}*"'`;
+  parser = (stdout) => stdout.split('\n').filter(line => line.trim().length > 0).map(p => ({ name: path.basename(p, '.app'), path: p.trim() }));
+} else if (platform === 'linux') {
+  // Linux: Search for .desktop files and executables in common PATHs
+  command = `find /usr/share/applications /usr/local/share/applications ~/.local/share/applications -name "*${query}*.desktop" -print 2>/dev/null | xargs -r grep -l '^Exec=.*${query}' | while read -r f; do basename "$f"; done`;
+  parser = (stdout) => stdout.split('\n').filter(line => line.trim().length > 0).map(name => ({ name: name.replace('.desktop', ''), path: '' })); // Path is harder to get directly for desktop files
+} else {
+  return { success: false, error: `Unsupported platform: ${platform}` };
+}
 
-  return new Promise((resolve) => {
-    exec(command, { timeout: 5000 }, (error, stdout, stderr) => {
-      if (error) {
-        console.error(`App search error on ${platform}:`, error);
-        resolve({ success: false, error: stderr || error.message });
-      } else {
-        const results = parser(stdout);
-        resolve({ success: true, results });
-      }
-    });
-  });
-});
-
-// Open External Application
-ipcMain.handle('open-external-app', async (event, app_name_or_path) => {
-  try {
-    const fullPath = path.resolve(app_name_or_path); // Resolve to absolute path
-    const result = await shell.openPath(fullPath);
-    if (result) {
-      // If result is a string, it indicates an error message
-      return { success: false, error: result };
+return new Promise((resolve) => {
+  exec(command, { timeout: 5000 }, (error, stdout, stderr) => {
+    if (error) {
+      console.error(`App search error on ${platform}:`, error);
+      resolve({ success: false, error: stderr || error.message });
+    } else {
+      const results = parser(stdout);
+      resolve({ success: true, results });
     }
-    return { success: true };
-  } catch (error) {
-    console.error('[Main] Failed to open external app:', error);
-    return { success: false, error: error.message };
-  }
+  });
 });
 
 // Deep Linking and persist handling on startup (merged into single instance lock above)
@@ -2351,6 +2258,487 @@ ipcMain.handle('set-alarm', async (event, { time, message }) => {
   });
 });
 
+// ============================================================================
+// POPUP WINDOW SYSTEM - Fix for panels appearing behind browser view
+// ============================================================================
+let popupWindows = new Map(); // Track all popup windows
+
+/**
+ * Creates a popup window that appears on top of the browser view
+ * This solves the z-index issue where panels appear behind the webview
+ */
+function createPopupWindow(type, options = {}) {
+  // Close existing popup of the same type
+  if (popupWindows.has(type)) {
+    const existing = popupWindows.get(type);
+    if (existing && !existing.isDestroyed()) {
+      existing.close();
+    }
+    popupWindows.delete(type);
+  }
+
+  const defaultOptions = {
+    width: 1000,
+    height: 700,
+    frame: false,
+    transparent: true,
+    backgroundColor: '#00000000',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      nodeIntegration: false,
+      contextIsolation: true,
+      sandbox: false,
+    },
+    parent: mainWindow,
+    modal: false,
+    alwaysOnTop: true, // Critical: ensures popup appears above browser view
+    skipTaskbar: true,
+    resizable: true,
+    minimizable: false,
+    maximizable: false,
+    show: false,
+  };
+
+  const popup = new BrowserWindow({ ...defaultOptions, ...options });
+
+  // Load the appropriate content
+  const baseUrl = isDev
+    ? 'http://localhost:3003'
+    : `file://${path.join(__dirname, 'out')}`;
+
+  let route = '';
+  switch (type) {
+    case 'settings':
+      route = '/settings';
+      break;
+    case 'profile':
+      route = '/profile';
+      break;
+    case 'plugins':
+      route = '/plugins';
+      break;
+    case 'downloads':
+      route = '/downloads';
+      break;
+    case 'clipboard':
+      route = '/clipboard';
+      break;
+    case 'cart':
+      route = '/cart';
+      break;
+    default:
+      route = `/${type}`;
+  }
+
+  const url = isDev ? `${baseUrl}${route}` : `${baseUrl}/index.html#${route}`;
+  popup.loadURL(url);
+
+  popup.once('ready-to-show', () => {
+    popup.show();
+    popup.focus();
+  });
+
+  popup.on('closed', () => {
+    popupWindows.delete(type);
+  });
+
+  popupWindows.set(type, popup);
+  return popup;
+}
+
+// IPC Handlers for popup windows
+ipcMain.on('open-popup-window', (event, { type, options }) => {
+  createPopupWindow(type, options);
+});
+
+ipcMain.on('close-popup-window', (event, type) => {
+  if (popupWindows.has(type)) {
+    const popup = popupWindows.get(type);
+    if (popup && !popup.isDestroyed()) {
+      popup.close();
+    }
+    popupWindows.delete(type);
+  }
+});
+
+ipcMain.on('close-all-popups', () => {
+  popupWindows.forEach((popup, type) => {
+    if (popup && !popup.isDestroyed()) {
+      popup.close();
+    }
+  });
+  popupWindows.clear();
+});
+
+// Specific popup handlers
+ipcMain.on('open-settings-popup', (event, section = 'profile') => {
+  createPopupWindow('settings', {
+    width: 1200,
+    height: 800,
+  });
+  // Send the section to open after window is ready
+  setTimeout(() => {
+    const popup = popupWindows.get('settings');
+    if (popup && !popup.isDestroyed()) {
+      popup.webContents.send('set-settings-section', section);
+    }
+  }, 500);
+});
+
+ipcMain.on('open-profile-popup', () => {
+  createPopupWindow('profile', {
+    width: 600,
+    height: 700,
+  });
+});
+
+ipcMain.on('open-plugins-popup', () => {
+  createPopupWindow('plugins', {
+    width: 900,
+    height: 700,
+  });
+});
+
+ipcMain.on('open-downloads-popup', () => {
+  createPopupWindow('downloads', {
+    width: 400,
+    height: 600,
+  });
+});
+
+ipcMain.on('open-clipboard-popup', () => {
+  createPopupWindow('clipboard', {
+    width: 450,
+    height: 650,
+  });
+});
+
+ipcMain.on('open-cart-popup', () => {
+  createPopupWindow('cart', {
+    width: 500,
+    height: 700,
+  });
+});
+
+// Google OAuth Integration - Direct browser engine authentication
+ipcMain.on('google-oauth-login', (event) => {
+  const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '601898745585-8g9t0k72gq4q1a4s1o4d1t6t7e5v4c4g.apps.googleusercontent.com';
+  const REDIRECT_URI = 'http://localhost:3003/auth/google/callback';
+
+  const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
+    `client_id=${GOOGLE_CLIENT_ID}&` +
+    `redirect_uri=${encodeURIComponent(REDIRECT_URI)}&` +
+    `response_type=code&` +
+    `scope=${encodeURIComponent('email profile openid')}&` +
+    `access_type=offline&` +
+    `prompt=consent`;
+
+  // Create OAuth window
+  const oauthWindow = new BrowserWindow({
+    width: 600,
+    height: 700,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+    },
+    parent: mainWindow,
+    modal: true,
+    show: false,
+    alwaysOnTop: true,
+  });
+
+  oauthWindow.loadURL(authUrl);
+
+  oauthWindow.once('ready-to-show', () => {
+    oauthWindow.show();
+  });
+
+  // Listen for the redirect
+  oauthWindow.webContents.on('will-redirect', (event, url) => {
+    if (url.startsWith(REDIRECT_URI)) {
+      event.preventDefault();
+      const urlObj = new URL(url);
+      const code = urlObj.searchParams.get('code');
+
+      if (code && mainWindow) {
+        mainWindow.webContents.send('google-oauth-code', code);
+      }
+
+      oauthWindow.close();
+    }
+  });
+
+  oauthWindow.webContents.on('did-navigate', (event, url) => {
+    if (url.startsWith(REDIRECT_URI)) {
+      const urlObj = new URL(url);
+      const code = urlObj.searchParams.get('code');
+
+      if (code && mainWindow) {
+        mainWindow.webContents.send('google-oauth-code', code);
+      }
+
+      oauthWindow.close();
+    }
+  });
+
+  oauthWindow.on('closed', () => {
+    // Cleanup
+  });
+});
+
+// ============================================================================
+// SHELL COMMAND EXECUTION - For AI control of system features
+// ============================================================================
+
+// Universal Translation using free-translate
+const { translate: freeTranslate } = require('free-translate');
+ipcMain.handle('translate-text', async (event, { text, from, to }) => {
+  try {
+    const translated = await freeTranslate(text, { from: from || 'auto', to });
+    return { success: true, translated };
+  } catch (error) {
+    console.error('[Main] Translation failed:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('select-local-file', async (event, options = {}) => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    properties: options.properties || ['openFile'],
+    filters: options.filters || [{ name: 'All Files', extensions: ['*'] }]
+  });
+  if (!result.canceled && result.filePaths.length > 0) {
+    return result.filePaths[0];
+  }
+  return null;
+});
+
+ipcMain.handle('execute-shell-command', async (event, command) => {
+  console.log('[Shell] Executing command:', command);
+
+  return new Promise((resolve) => {
+    exec(command, { timeout: 10000 }, (error, stdout, stderr) => {
+      if (error) {
+        console.error('[Shell] Command error:', error);
+        resolve({
+          success: false,
+          error: stderr || error.message,
+          output: stdout
+        });
+      } else {
+        console.log('[Shell] Command output:', stdout);
+        resolve({
+          success: true,
+          output: stdout,
+          error: stderr
+        });
+      }
+    });
+  });
+});
+
+// ============================================================================
+// SCREEN CAPTURE - For OCR and cross-app clicking
+// ============================================================================
+ipcMain.handle('capture-screen-region', async (event, { x, y, width, height }) => {
+  console.log('[Screen] Capturing region:', { x, y, width, height });
+
+  try {
+    const sources = await desktopCapturer.getSources({
+      types: ['screen'],
+      thumbnailSize: { width: screen.getPrimaryDisplay().size.width, height: screen.getPrimaryDisplay().size.height }
+    });
+
+    if (sources.length === 0) {
+      return { success: false, error: 'No screen sources available' };
+    }
+
+    const screenshot = sources[0].thumbnail;
+    const image = screenshot.crop({ x, y, width, height });
+    const dataUrl = image.toDataURL();
+
+    return {
+      success: true,
+      image: dataUrl
+    };
+  } catch (error) {
+    console.error('[Screen] Capture error:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+// ============================================================================
+// APPLICATION SEARCH - Search for installed applications
+// ============================================================================
+ipcMain.handle('search-applications', async (event, query) => {
+  console.log('[AppSearch] Searching for:', query);
+
+  const platform = process.platform;
+  const results = [];
+
+  try {
+    if (platform === 'win32') {
+      // Windows: Search in Start Menu and Program Files
+      const searchPaths = [
+        path.join(process.env.ProgramData, 'Microsoft/Windows/Start Menu/Programs'),
+        path.join(process.env.APPDATA, 'Microsoft/Windows/Start Menu/Programs'),
+        'C:\\Program Files',
+        'C:\\Program Files (x86)'
+      ];
+
+      for (const searchPath of searchPaths) {
+        if (fs.existsSync(searchPath)) {
+          const files = fs.readdirSync(searchPath, { recursive: true });
+          files.forEach(file => {
+            if (file.toLowerCase().includes(query.toLowerCase()) &&
+              (file.endsWith('.lnk') || file.endsWith('.exe'))) {
+              results.push({
+                name: path.basename(file, path.extname(file)),
+                path: path.join(searchPath, file)
+              });
+            }
+          });
+        }
+      }
+    } else if (platform === 'darwin') {
+      // macOS: Search in Applications folder
+      const appsPath = '/Applications';
+      if (fs.existsSync(appsPath)) {
+        const apps = fs.readdirSync(appsPath);
+        apps.forEach(app => {
+          if (app.toLowerCase().includes(query.toLowerCase()) && app.endsWith('.app')) {
+            results.push({
+              name: path.basename(app, '.app'),
+              path: path.join(appsPath, app)
+            });
+          }
+        });
+      }
+    } else {
+      // Linux: Search in common application directories
+      const searchPaths = ['/usr/share/applications', '/usr/local/share/applications'];
+
+      for (const searchPath of searchPaths) {
+        if (fs.existsSync(searchPath)) {
+          const files = fs.readdirSync(searchPath);
+          files.forEach(file => {
+            if (file.toLowerCase().includes(query.toLowerCase()) && file.endsWith('.desktop')) {
+              results.push({
+                name: path.basename(file, '.desktop'),
+                path: path.join(searchPath, file)
+              });
+            }
+          });
+        }
+      }
+    }
+
+    return {
+      success: true,
+      results: results.slice(0, 20) // Limit to 20 results
+    };
+  } catch (error) {
+    console.error('[AppSearch] Error:', error);
+    return {
+      success: false,
+      error: error.message,
+      results: []
+    };
+  }
+});
+
+// ============================================================================
+// OPEN EXTERNAL APP - Launch applications
+// ============================================================================
+ipcMain.handle('open-external-app', async (event, appPath) => {
+  console.log('[App] Opening:', appPath);
+
+  try {
+    if (process.platform === 'darwin') {
+      exec(`open "${appPath}"`);
+    } else if (process.platform === 'win32') {
+      exec(`start "" "${appPath}"`);
+    } else {
+      exec(`xdg-open "${appPath}"`);
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error('[App] Open error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// ============================================================================
+// CROSS-APP CLICKING - Click anywhere on screen using robotjs
+// ============================================================================
+ipcMain.handle('perform-cross-app-click', async (event, { x, y }) => {
+  console.log('[Click] Performing click at:', { x, y });
+
+  if (!robot) {
+    return {
+      success: false,
+      error: 'robotjs not available'
+    };
+  }
+
+  try {
+    // Move mouse to position
+    robot.moveMouse(x, y);
+
+    // Small delay for visual feedback
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    // Perform click
+    robot.mouseClick();
+
+    return { success: true };
+  } catch (error) {
+    console.error('[Click] Error:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+// ============================================================================
+// GLOBAL HOTKEY - Register global shortcuts
+// ============================================================================
+app.whenReady().then(() => {
+  // Register CMD/Windows + Shift + Space for spotlight search
+  const spotlightShortcut = process.platform === 'darwin' ? 'Command+Shift+Space' : 'Windows+Shift+Space';
+
+  try {
+    globalShortcut.register(spotlightShortcut, () => {
+      console.log('[Hotkey] Spotlight search triggered');
+
+      if (mainWindow) {
+        // Show window if hidden
+        if (!mainWindow.isVisible()) {
+          mainWindow.show();
+        }
+
+        // Focus window
+        mainWindow.focus();
+
+        // Send event to renderer to open unified search
+        mainWindow.webContents.send('open-unified-search');
+      } else {
+        // If window doesn't exist, create it
+        createWindow();
+      }
+    });
+
+    console.log(`[Hotkey] Registered ${spotlightShortcut} for spotlight search`);
+  } catch (error) {
+    console.error('[Hotkey] Failed to register:', error);
+  }
+});
+
 app.on('will-quit', () => {
   // Clear persistent intervals
   if (networkCheckInterval) clearInterval(networkCheckInterval);
@@ -2375,9 +2763,9 @@ app.on('will-quit', () => {
 app.on('window-all-closed', async () => {
   // Terminate the Tesseract worker when the app quits
   if (tesseractWorker) {
-      console.log('[Main] Terminating Tesseract.js worker...');
-      await tesseractWorker.terminate();
-      console.log('[Main] Tesseract.js worker terminated.');
+    console.log('[Main] Terminating Tesseract.js worker...');
+    await tesseractWorker.terminate();
+    console.log('[Main] Tesseract.js worker terminated.');
   }
   if (process.platform !== 'darwin') {
     app.quit();

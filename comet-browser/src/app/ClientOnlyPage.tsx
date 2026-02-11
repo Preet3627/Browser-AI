@@ -150,6 +150,7 @@ export default function Home() {
     { icon: <Shield size={20} />, label: 'Firewall', manager: 'firewall' },
     { icon: <Share2 size={20} />, label: 'P2P Sync', manager: 'p2p' },
     { icon: <CopyIcon size={20} />, label: 'Clipboard', action: 'clipboard' },
+    { icon: <Puzzle size={20} />, label: 'Extensions', popup: 'plugins' },
   ];
 
   // Handle sidebar item clicks
@@ -165,6 +166,11 @@ export default function Home() {
     } else if (item.action === 'clipboard') {
       setShowClipboard(!showClipboard);
       setActiveManager(null);
+    } else if (item.popup) {
+      if (window.electronAPI) {
+        if (item.popup === 'plugins') (window.electronAPI as any).openPluginsPopup();
+        else if (item.popup === 'settings') (window.electronAPI as any).openSettingsPopup();
+      }
     }
   };
 
@@ -241,7 +247,7 @@ export default function Home() {
     }
   };
 
-const handleMusicUpload = async () => {
+  const handleMusicUpload = async () => {
     if (window.electronAPI) {
       const filePath = await window.electronAPI.selectLocalFile({
         filters: [
@@ -259,19 +265,19 @@ const handleMusicUpload = async () => {
   // Ambient Music Control
   useEffect(() => {
     const shouldPlay = () => {
-        if (!store.enableAmbientMusic) return false;
-        switch (store.ambientMusicMode) {
-            case 'always':
-                return true;
-            case 'google':
-                return store.currentUrl.includes('google.com/search');
-            case 'idle':
-                // TODO: Implement idle detection
-                return false; // For now, idle is not implemented
-            case 'off':
-            default:
-                return false;
-        }
+      if (!store.enableAmbientMusic) return false;
+      switch (store.ambientMusicMode) {
+        case 'always':
+          return true;
+        case 'google':
+          return store.currentUrl.includes('google.com/search');
+        case 'idle':
+          // TODO: Implement idle detection
+          return false;
+        case 'off':
+        default:
+          return false;
+      }
     };
 
     if (shouldPlay()) {
@@ -286,6 +292,13 @@ const handleMusicUpload = async () => {
       }
     }
   }, [store.currentUrl, store.enableAmbientMusic, store.ambientMusicMode]);
+
+  // Ambient Music Volume Control
+  useEffect(() => {
+    if (ambientAudioRef.current) {
+      ambientAudioRef.current.volume = store.ambientMusicVolume;
+    }
+  }, [store.ambientMusicVolume]);
 
   // Translation Trigger
   useEffect(() => {
@@ -331,11 +344,12 @@ const handleMusicUpload = async () => {
     if (window.electronAPI) {
       const selectedText = await window.electronAPI.getSelectedText();
       const textToTranslate = selectedText || store.currentUrl;
+      const targetLang = store.selectedLanguage || 'English';
 
       setAiOverview({ query: `Translating: ${textToTranslate.substring(0, 30)}...`, result: null, sources: null, isLoading: true });
 
-      const translated = await BrowserAI.translateText(textToTranslate, 'English');
-      setAiOverview({ query: "Neural Translation (to English)", result: translated, sources: null, isLoading: false });
+      const translated = await BrowserAI.translateText(textToTranslate, targetLang);
+      setAiOverview({ query: `Neural Translation (to ${targetLang})`, result: translated, sources: null, isLoading: false });
     }
   };
 
@@ -692,11 +706,11 @@ const handleMusicUpload = async () => {
   // New function to handle suggestion clicks
   const handleSuggestionClick = (suggestion: any) => {
     if (suggestion.type === 'app') {
-        if (window.electronAPI && suggestion.url) {
-            window.electronAPI.openExternalApp(suggestion.url);
-        }
+      if (window.electronAPI && suggestion.url) {
+        window.electronAPI.openExternalApp(suggestion.url);
+      }
     } else {
-        handleGo(suggestion.url);
+      handleGo(suggestion.url);
     }
     setSuggestions([]); // Clear suggestions after selection
     setIsTyping(false); // Stop typing state
@@ -937,21 +951,21 @@ const handleMusicUpload = async () => {
 
   // Auto-trigger Google Login if no user and not already seen welcome page
   useEffect(() => {
-      if (!store.user && !store.hasSeenWelcomePage && window.electronAPI) {
-          const GOOGLE_CLIENT_ID = '601898745585-8g9t0k72gq4q1a4s1o4d1t6t7e5v4c4g.apps.googleusercontent.com'; // Placeholder
-          const GOOGLE_REDIRECT_URI = 'https://browser.ponsrischool.in/oauth2callback';
+    if (!store.user && !store.hasSeenWelcomePage && window.electronAPI) {
+      const GOOGLE_CLIENT_ID = '601898745585-8g9t0k72gq4q1a4s1o4d1t6t7e5v4c4g.apps.googleusercontent.com'; // Placeholder
+      const GOOGLE_REDIRECT_URI = 'https://browser.ponsrischool.in/oauth2callback';
 
-          const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
-              `client_id=${GOOGLE_CLIENT_ID}&` +
-              `redirect_uri=${GOOGLE_REDIRECT_URI}&` +
-              `response_type=code&` +
-              `scope=email profile openid&` +
-              `access_type=offline&` +
-              `prompt=consent`;
+      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
+        `client_id=${GOOGLE_CLIENT_ID}&` +
+        `redirect_uri=${GOOGLE_REDIRECT_URI}&` +
+        `response_type=code&` +
+        `scope=email profile openid&` +
+        `access_type=offline&` +
+        `prompt=consent`;
 
-          window.electronAPI.openAuthWindow(authUrl);
-          store.setHasSeenWelcomePage(true); // Prevent re-triggering on subsequent renders
-      }
+      window.electronAPI.openAuthWindow(authUrl);
+      store.setHasSeenWelcomePage(true); // Prevent re-triggering on subsequent renders
+    }
   }, [store.user, store.hasSeenWelcomePage]);
 
   // Temporarily commented out for automatic Google login
@@ -1133,34 +1147,34 @@ const handleMusicUpload = async () => {
               </div>
 
               <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setShowDownloads(!showDownloads)}
-                    className={`p-1.5 rounded-lg transition-all 
+                <button
+                  onClick={() => setShowDownloads(!showDownloads)}
+                  className={`p-1.5 rounded-lg transition-all 
                                ${isDownloading ? 'text-accent animate-pulse' : ''}
                                ${downloadStatus === 'completed' ? 'text-green-400' : ''}
                                ${downloadStatus === 'failed' ? 'text-red-400' : ''}
                                ${downloadStatus === 'idle' ? 'text-secondary-text hover:text-primary-text' : ''}
                                ${showDownloads ? 'bg-primary-bg/10 text-accent' : ''}
                                hover:bg-primary-bg/10`}
-                    title="Downloads"
-                  >
-                    <DownloadCloud size={14} />
-                  </button>
-                  <button onClick={() => { setSettingsSection('history'); setShowSettings(true); }} className="p-1.5 rounded-lg text-secondary-text hover:text-primary-text transition-all" title="Browsing History">
-                    <RefreshCcw size={14} />
-                  </button>
-                  <button onClick={() => setShowClipboard(!showClipboard)} className={`p-1.5 rounded-lg transition-all ${showClipboard ? 'text-accent bg-primary-bg/10' : 'text-secondary-text hover:text-primary-text'}`} title="Clipboard Manager">
-                    <CopyIcon size={14} />
-                  </button>
-                  <button onClick={handleReadAloud} className={`p-1.5 rounded-lg transition-all ${isReadingAloud ? 'text-accent animate-pulse' : 'text-secondary-text hover:text-primary-text'}`} title="Read Aloud">
-                    {isReadingAloud ? <Square size={14} /> : <Volume2 size={14} />}
-                  </button>
-                  <button onClick={() => setShowCart(!showCart)} className={`p-1.5 rounded-lg transition-all ${showCart ? 'text-accent bg-primary-bg/10' : 'text-secondary-text hover:text-primary-text'}`} title="Scan Shopping Cart">
-                    <ShoppingCart size={14} />
-                  </button>
-                  <button onClick={() => setShowExtensionsPopup(!showExtensionsPopup)} className={`p-1.5 rounded-lg transition-all ${showExtensionsPopup ? 'text-accent bg-primary-bg/10' : 'text-secondary-text hover:text-primary-text'}`} title="Extensions">
-                    <Puzzle size={14} />
-                  </button>
+                  title="Downloads"
+                >
+                  <DownloadCloud size={14} />
+                </button>
+                <button onClick={() => { setSettingsSection('history'); setShowSettings(true); }} className="p-1.5 rounded-lg text-secondary-text hover:text-primary-text transition-all" title="Browsing History">
+                  <RefreshCcw size={14} />
+                </button>
+                <button onClick={() => setShowClipboard(!showClipboard)} className={`p-1.5 rounded-lg transition-all ${showClipboard ? 'text-accent bg-primary-bg/10' : 'text-secondary-text hover:text-primary-text'}`} title="Clipboard Manager">
+                  <CopyIcon size={14} />
+                </button>
+                <button onClick={handleReadAloud} className={`p-1.5 rounded-lg transition-all ${isReadingAloud ? 'text-accent animate-pulse' : 'text-secondary-text hover:text-primary-text'}`} title="Read Aloud">
+                  {isReadingAloud ? <Square size={14} /> : <Volume2 size={14} />}
+                </button>
+                <button onClick={() => setShowCart(!showCart)} className={`p-1.5 rounded-lg transition-all ${showCart ? 'text-accent bg-primary-bg/10' : 'text-secondary-text hover:text-primary-text'}`} title="Scan Shopping Cart">
+                  <ShoppingCart size={14} />
+                </button>
+                <button onClick={() => setShowExtensionsPopup(!showExtensionsPopup)} className={`p-1.5 rounded-lg transition-all ${showExtensionsPopup ? 'text-accent bg-primary-bg/10' : 'text-secondary-text hover:text-primary-text'}`} title="Extensions">
+                  <Puzzle size={14} />
+                </button>
 
                 <div className="w-[1px] h-6 bg-border-color mx-1" />
 

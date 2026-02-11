@@ -1,0 +1,70 @@
+name: Build Comet Browser
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      - name: Install system dependencies (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libx11-dev libxtst-dev libpng-dev libjpeg-dev
+      
+      - name: Install system dependencies (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          brew install pkg-config cairo pango libpng jpeg giflib librsvg
+      
+      - name: Install dependencies
+        run: npm install
+      
+      - name: Install robotjs
+        run: npm install robotjs --build-from-source
+        continue-on-error: true
+      
+      - name: Build Next.js app
+        run: npm run build
+      
+      - name: Build Electron app (Windows)
+        if: matrix.os == 'windows-latest'
+        run: npm run electron:build:win
+      
+      - name: Build Electron app (macOS)
+        if: matrix.os == 'macos-latest'
+        run: npm run electron:build:mac
+      
+      - name: Build Electron app (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: npm run electron:build:linux
+      
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: comet-browser-${{ matrix.os }}
+          path: |
+            release/*.exe
+            release/*.dmg
+            release/*.AppImage
+            release/*.deb
+            release/*.rpm

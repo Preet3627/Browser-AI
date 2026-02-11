@@ -80,6 +80,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   webSearchRag: (query) => ipcRenderer.invoke('web-search-rag', query),
   extractSearchResults: (tabId) => ipcRenderer.invoke('extract-search-results', tabId),
   translateWebsite: (args) => ipcRenderer.invoke('translate-website', args),
+  translateText: (args) => ipcRenderer.invoke('translate-text', args),
   onTriggerTranslationDialog: (callback) => {
     const subscription = () => callback();
     ipcRenderer.on('trigger-translation-dialog', subscription);
@@ -98,6 +99,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('auth-token-received', subscription);
     return () => ipcRenderer.removeListener('auth-token-received', subscription);
   },
+
+  // Popups
+  openSettingsPopup: (section) => ipcRenderer.send('open-settings-popup', section),
+  openProfilePopup: () => ipcRenderer.send('open-profile-popup'),
+  openPluginsPopup: () => ipcRenderer.send('open-plugins-popup'),
+  openPopupWindow: (type, options) => ipcRenderer.send('open-popup-window', { type, options }),
+  closePopupWindow: (type) => ipcRenderer.send('close-popup-window', type),
+  closeAllPopups: () => ipcRenderer.send('close-all-popups'),
   onLoadAuthToken: (callback) => {
     const subscription = (event, token) => callback(token);
     ipcRenderer.on('load-auth-token', subscription);
@@ -275,5 +284,49 @@ contextBridge.exposeInMainWorld('electronAPI', {
     const subscription = (event, text) => callback(text);
     ipcRenderer.on('ai-chat-input-text', subscription);
     return () => ipcRenderer.removeListener('ai-chat-input-text', subscription);
+  },
+
+  // Popup Window System - Fix for panels appearing behind browser view
+  openPopupWindow: (type, options) => ipcRenderer.send('open-popup-window', { type, options }),
+  closePopupWindow: (type) => ipcRenderer.send('close-popup-window', type),
+  closeAllPopups: () => ipcRenderer.send('close-all-popups'),
+
+  // Specific popup handlers
+  openSettingsPopup: (section) => ipcRenderer.send('open-settings-popup', section),
+  openProfilePopup: () => ipcRenderer.send('open-profile-popup'),
+  openPluginsPopup: () => ipcRenderer.send('open-plugins-popup'),
+  openDownloadsPopup: () => ipcRenderer.send('open-downloads-popup'),
+  openClipboardPopup: () => ipcRenderer.send('open-clipboard-popup'),
+  openCartPopup: () => ipcRenderer.send('open-cart-popup'),
+
+  // Listen for settings section changes (for popup windows)
+  onSetSettingsSection: (callback) => {
+    const subscription = (event, section) => callback(section);
+    ipcRenderer.on('set-settings-section', subscription);
+    return () => ipcRenderer.removeListener('set-settings-section', subscription);
+  },
+
+  // Google OAuth Integration
+  googleOAuthLogin: () => ipcRenderer.send('google-oauth-login'),
+  onGoogleOAuthCode: (callback) => {
+    const subscription = (event, code) => callback(code);
+    ipcRenderer.on('google-oauth-code', subscription);
+    return () => ipcRenderer.removeListener('google-oauth-code', subscription);
+  },
+
+  // Shell Command Execution (for brightness, volume, WiFi, Bluetooth, etc.)
+  executeShellCommand: (command) => ipcRenderer.invoke('execute-shell-command', command),
+
+  // Cross-App Control APIs
+  captureScreenRegion: (region) => ipcRenderer.invoke('capture-screen-region', region),
+  searchApplications: (query) => ipcRenderer.invoke('search-applications', query),
+  openExternalApp: (appPath) => ipcRenderer.invoke('open-external-app', appPath),
+  performCrossAppClick: (coords) => ipcRenderer.invoke('perform-cross-app-click', coords),
+
+  // Unified Search Event Listener
+  onOpenUnifiedSearch: (callback) => {
+    const subscription = () => callback();
+    ipcRenderer.on('open-unified-search', subscription);
+    return () => ipcRenderer.removeListener('open-unified-search', subscription);
   },
 });

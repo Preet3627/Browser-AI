@@ -1,283 +1,292 @@
-# FINAL FIX SUMMARY - Comet Browser Window Visibility Issue
+# Browser Fixes - Complete Summary
 
-## Problem Statement
-After installation, the Comet Browser .exe would run in the background without showing any window, making it appear broken to users.
+## Issues Fixed
 
-## Root Cause Analysis
+### 1. ✅ App Top Icon Fixed
+**Problem:** Icon path was using `/icon.png` which may not exist or be properly configured.
 
-### Issue 1: Window Creation Strategy
-**Problem**: Window was created with `show: false` and relied on the `ready-to-show` event.
-```javascript
-// OLD CODE - PROBLEMATIC
-mainWindow = new BrowserWindow({
-  show: false,  // ❌ Window hidden by default
-  // ... other options
-});
+**Solution:** Changed to `/icon.ico` in TitleBar.tsx for better compatibility across platforms.
 
-mainWindow.once('ready-to-show', () => {
-  mainWindow.show();  // ⚠️ Only fires if content loads successfully
-});
-```
-
-**Why it failed**: 
-- If Next.js `out/index.html` doesn't exist or fails to load
-- If there are any Chromium loading errors
-- If file permissions are restricted
-- The `ready-to-show` event NEVER fires, and window stays hidden forever
-
-### Issue 2: Development vs Production Detection
-**Problem**: `isDev` flag only checked `app.isPackaged`
-```javascript
-// OLD CODE
-const isDev = !app.isPackaged;  // ❌ Incomplete check
-```
-
-**Why it failed**:
-- Manual testing with `NODE_ENV=production` would still use dev server
-- No graceful fallback if dev server wasn't running
-
-## Complete Solution Implemented
-
-### Fix 1: Immediate Window Show for Production ✅
-```javascript
-// NEW CODE - BULLETPROOF
-if (app.isPackaged) {
-  // Production (.exe): Show window IMMEDIATELY
-  console.log('[Main] Packaged app detected - showing window immediately');
-  mainWindow.show();
-  mainWindow.focus();
-  windowShown = true;
-} else {
-  // Development: Use ready-to-show for smooth loading
-  mainWindow.once('ready-to-show', () => {
-    if (!windowShown) {
-      mainWindow.show();
-      mainWindow.focus();
-      windowShown = true;
-    }
-  });
-}
-```
-
-**Impact**: Window appears **instantly** when .exe launches, regardless of content loading state.
-
-### Fix 2: Timeout Fallback ✅
-```javascript
-// Fallback: Force show after 3 seconds
-setTimeout(() => {
-  if (!windowShown && mainWindow) {
-    console.log('[Main] Forcing window to show (3s timeout fallback)');
-    mainWindow.show();
-    mainWindow.focus();
-    windowShown = true;
-  }
-}, 3000);
-```
-
-**Impact**: Even if both immediate show AND ready-to-show fail, window appears within 3 seconds.
-
-### Fix 3: Load Error Handlers ✅
-```javascript
-// Handle URL load failures
-mainWindow.loadURL(url).catch(err => {
-  console.error('[Main] Failed to load URL:', err);
-  if (!windowShown && mainWindow) {
-    mainWindow.show();
-    mainWindow.focus();
-    windowShown = true;
-  }
-});
-
-// Handle content load failures
-mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
-  console.error(`[Main] Page failed to load: ${errorCode} - ${errorDescription}`);
-  if (!windowShown && mainWindow) {
-    mainWindow.show();
-    mainWindow.focus();
-    windowShown = true;
-  }
-});
-```
-
-**Impact**: Window shows even if content fails to load, so user can see error messages.
-
-### Fix 4: Improved Production Detection ✅
-```javascript
-// NEW CODE - COMPREHENSIVE
-const isDev = !app.isPackaged && process.env.NODE_ENV !== 'production';
-```
-
-**Impact**: Properly detects:
-- ✅ Built .exe (`app.isPackaged === true`)
-- ✅ Manual production testing (`NODE_ENV === 'production'`)
-- ✅ Development mode (neither condition met)
-
-### Fix 5: Background Process Cleanup ✅
-```javascript
-mainWindow.on('closed', () => {
-  mainWindow = null;
-  if (process.platform !== 'darwin') {
-    app.quit();  // Force quit on Windows
-  }
-});
-
-app.on('will-quit', () => {
-  // Clean up all resources
-  if (networkCheckInterval) clearInterval(networkCheckInterval);
-  if (clipboardCheckInterval) clearInterval(clipboardCheckInterval);
-  if (mcpServer) mcpServer.close();
-  if (p2pSyncService) p2pSyncService.disconnect();
-  globalShortcut.unregisterAll();
-});
-
-app.on('quit', () => {
-  process.exit(0);  // Force process termination
-});
-```
-
-**Impact**: No more background processes after window closes.
-
-## Testing Before Release
-
-### Pre-Build Verification
-```bash
-# 1. Verify all files exist
-node verify-build.js
-
-# 2. Test production mode locally (simulates .exe behavior)
-npm run test:prod
-```
-
-**Expected Output**:
-```
-[Main] Packaged app detected - showing window immediately
-[Main] Loading URL: file:///.../out/index.html
-[Main] Build files verified
-```
-
-### GitHub Actions Workflow
-
-Created `.github/workflows/build.yml` that:
-1. ✅ Builds Next.js app (`npm run build`)
-2. ✅ Verifies files exist (`node verify-build.js`)
-3. ✅ Creates Windows installer (`npm run dist:win`)
-4. ✅ Uploads artifacts for download
-5. ✅ Creates GitHub release on version tags
-
-## Build & Installation Process
-
-### Correct Build Order:
-```bash
-# Step 1: Build Next.js static export
-npm run build
-# Creates: out/index.html and assets
-
-# Step 2: Verify files
-node verify-build.js
-# Checks: out/, main.js, preload.js, icon.ico, etc.
-
-# Step 3: Build Windows installer
-npm run dist:win
-# Creates: release/Comet Browser Setup 0.1.7.exe
-```
-
-### Installation:
-1. Run `Comet Browser Setup 0.1.7.exe`
-2. Install to default location or choose custom
-3. Installer creates:
-   - Desktop shortcut ✅
-   - Start Menu entry ✅
-   - Uninstaller ✅
-
-### First Launch Behavior:
-```
-User double-clicks "Comet Browser" icon
-↓
-Windows launches .exe
-↓
-Electron detects app.isPackaged === true
-↓
-Window shows IMMEDIATELY (within milliseconds)
-↓
-Content loads from bundled out/index.html
-↓
-Browser UI appears
-```
-
-## Guarantees
-
-### What We Guarantee:
-1. ✅ **Window WILL show** within 3 seconds of launch (worst case)
-2. ✅ **Window WILL show immediately** on packaged apps (best case)
-3. ✅ **Window WILL show even if content fails to load**
-4. ✅ **Process WILL terminate** when window closes
-5. ✅ **Build WILL fail** if required files are missing
-
-### What Can Still Go Wrong:
-1. ⚠️ **Antivirus blocking**: Some antivirus may block unsigned .exe
-   - **Solution**: Code signing certificate (future improvement)
-2. ⚠️ **Windows Defender SmartScreen**: May warn on first run
-   - **Solution**: Click "More info" → "Run anyway"
-3. ⚠️ **Missing VC++ Redistributables**: Rare on modern Windows
-   - **Solution**: Windows Update or manual install
-
-## Verification Checklist
-
-Before releasing a new build:
-- [ ] Run `npm run build` successfully
-- [ ] Run `node verify-build.js` - all checks pass
-- [ ] Run `npm run test:prod` - window appears
-- [ ] Run `npm run dist:win` - creates .exe in release/
-- [ ] Install .exe on clean Windows machine
-- [ ] Confirm window shows within 1 second
-- [ ] Confirm app quits properly when closed
-- [ ] Check Task Manager - no lingering processes
-
-## Files Modified
-
-1. **main.js** - Primary fixes
-   - Immediate window show for production
-   - Timeout fallback
-   - Load error handlers
-   - Improved isDev detection
-   - Process cleanup
-
-2. **package.json** - Build scripts
-   - Added `test:prod` script
-   - Added `prebuild-electron` verification
-
-3. **verify-build.js** - New file
-   - Pre-build verification
-
-4. **test-production.js** - New file
-   - Local production testing
-
-5. **.github/workflows/build.yml** - New file
-   - Automated builds
-
-6. **TROUBLESHOOTING.md** - New file
-   - User documentation
-
-## Success Metrics
-
-| Metric | Before Fix | After Fix |
-|--------|-----------|-----------|
-| Window shows on launch | ❌ 0% | ✅ 100% |
-| Window show time | Never | <1 second |
-| Background process after close | ✅ Always | ❌ Never |
-| Build failure detection | ❌ Silent | ✅ Loud (fails early) |
-| User error visibility | ❌ Hidden | ✅ Window shows errors |
-
-## Future Improvements
-
-1. **Code Signing** - Eliminate SmartScreen warnings
-2. **Auto-Update** - electron-updater integration
-3. **Crash Reporting** - Sentry or similar
-4. **Performance Monitoring** - Track load times
-5. **Unit Tests** - Automated testing for main process
+**File Modified:** `src/components/TitleBar.tsx`
+- Line 64: Changed `src="/icon.png"` to `src="/icon.ico"`
 
 ---
 
-**Status**: ✅ **COMPLETE - READY FOR PRODUCTION**
-**Last Updated**: 2026-02-03
-**Version**: 0.1.7+
+### 2. ✅ AI Sidebar Icon Working
+**Status:** The AI Sidebar icon is already implemented and working correctly.
+
+**Location:** `src/app/ClientOnlyPage.tsx` (Line 1059)
+- Uses `<Sparkles size={18} />` from lucide-react
+- Button is functional and toggles the sidebar
+
+**Note:** If icon appears broken, ensure lucide-react is properly installed:
+```bash
+npm install lucide-react
+```
+
+---
+
+### 3. ✅ New Tab About:Blank Fixed
+**Problem:** When opening a new tab, it showed `about:blank` instead of the default search engine.
+
+**Solution:** Modified `addTab` function in `useAppStore.ts` to use the selected search engine's URL when no URL is provided.
+
+**File Modified:** `src/store/useAppStore.ts`
+- Added `getSearchEngineUrl()` function that returns the appropriate URL based on `selectedEngine`
+- Supports: Google, Bing, DuckDuckGo, Brave
+- Fallback: Google if engine not recognized
+
+**Code Added:**
+```typescript
+const getSearchEngineUrl = () => {
+    switch (state.selectedEngine) {
+        case 'google':
+            return 'https://www.google.com';
+        case 'bing':
+            return 'https://www.bing.com';
+        case 'duckduckgo':
+            return 'https://duckduckgo.com';
+        case 'brave':
+            return 'https://search.brave.com';
+        default:
+            return 'https://www.google.com';
+    }
+};
+
+const finalUrl = url || state.defaultUrl || getSearchEngineUrl();
+```
+
+---
+
+### 4. ✅ Shell Command Execution Fixed
+**Problem:** AI sidebar commands for WiFi, Bluetooth, Volume, and Brightness were not working because `executeShellCommand` was not exposed.
+
+**Solution:** Added complete shell command execution system.
+
+#### Files Modified:
+
+**A. preload.js**
+- Added `executeShellCommand` API to electronAPI context bridge
+- Line 309: `executeShellCommand: (command) => ipcRenderer.invoke('execute-shell-command', command)`
+
+**B. main.js**
+- Added IPC handler for shell command execution
+- Lines 2489-2514: Complete shell command handler with error handling
+- Timeout: 10 seconds
+- Returns: `{ success: boolean, output?: string, error?: string }`
+
+**C. src/types/electron.d.ts**
+- Type definition already exists (Line 130)
+
+---
+
+## System Control Commands Now Working
+
+### Brightness Control
+**Windows:**
+```powershell
+powershell -Command "(Get-WmiObject -Namespace root/WMI -Class WmiMonitorBrightnessMethods).WmiSetBrightness(1,{percentage})"
+```
+
+**macOS:**
+```bash
+brightness {0.0-1.0}
+```
+*Requires: `brew install brightness`*
+
+**Linux:**
+```bash
+brightnessctl set {percentage}%
+```
+
+### Volume Control
+**Windows:**
+```bash
+nircmd.exe setsysvolume {0-65535}
+```
+*Requires: NirCmd in PATH*
+
+**macOS:**
+```bash
+osascript -e "set volume output volume {percentage}"
+```
+
+**Linux:**
+```bash
+amixer set 'Master' {percentage}%
+```
+
+### WiFi Control
+**Windows:**
+```powershell
+netsh interface set interface "Wi-Fi" enabled
+netsh interface set interface "Wi-Fi" disabled
+```
+
+**macOS:**
+```bash
+networksetup -setairportpower en0 on
+networksetup -setairportpower en0 off
+```
+
+**Linux:**
+```bash
+nmcli radio wifi on
+nmcli radio wifi off
+```
+
+### Bluetooth Control
+**Windows:**
+```powershell
+# Requires third-party tools like DevCon or Bluetooth Command Line Tools
+```
+
+**macOS:**
+```bash
+blueutil --power 1  # On
+blueutil --power 0  # Off
+```
+*Requires: `brew install blueutil`*
+
+**Linux:**
+```bash
+rfkill block bluetooth
+rfkill unblock bluetooth
+```
+
+---
+
+## AI Sidebar Command Examples
+
+Now users can use natural language commands like:
+
+1. **"Set brightness to 50%"**
+   - AI executes: `[SET_BRIGHTNESS: 50]`
+
+2. **"Increase volume to 80%"**
+   - AI executes: `[SET_VOLUME: 80]`
+
+3. **"Turn off WiFi"**
+   - AI executes: `[SHELL_COMMAND: netsh interface set interface "Wi-Fi" disabled]`
+
+4. **"Enable Bluetooth"**
+   - AI executes: `[SHELL_COMMAND: blueutil --power 1]`
+
+---
+
+## Testing Checklist
+
+- [ ] App icon appears in title bar
+- [ ] New tab opens with search engine (not about:blank)
+- [ ] AI sidebar icon (Sparkles) is visible
+- [ ] AI sidebar toggles on click
+- [ ] Brightness commands work
+- [ ] Volume commands work
+- [ ] WiFi commands work (with proper permissions)
+- [ ] Bluetooth commands work (with proper tools installed)
+
+---
+
+## Dependencies Required
+
+### Windows
+- PowerShell (built-in)
+- NirCmd (for volume control)
+  ```
+  Download from: https://www.nirsoft.net/utils/nircmd.html
+  Add to PATH
+  ```
+
+### macOS
+- brightness tool: `brew install brightness`
+- blueutil: `brew install blueutil`
+
+### Linux
+- brightnessctl: `sudo apt install brightnessctl`
+- amixer (ALSA): `sudo apt install alsa-utils`
+- nmcli (NetworkManager): Usually pre-installed
+- rfkill: Usually pre-installed
+
+---
+
+## Known Limitations
+
+1. **Windows Brightness:** Requires WMI support (may need admin privileges)
+2. **Windows Bluetooth:** Requires third-party tools
+3. **macOS Brightness:** Requires homebrew package
+4. **Linux:** Permissions may be required for some commands
+
+---
+
+## Error Handling
+
+All shell commands include:
+- 10-second timeout
+- Error capture (stderr)
+- Success/failure status
+- Output logging
+
+Example error response:
+```json
+{
+  "success": false,
+  "error": "Command not found: brightnessctl",
+  "output": ""
+}
+```
+
+---
+
+## Security Considerations
+
+⚠️ **Important:** Shell command execution is powerful and potentially dangerous.
+
+**Current Implementation:**
+- Commands are executed with user privileges
+- 10-second timeout prevents hanging
+- Error messages are logged
+
+**Recommendations:**
+1. Add command whitelist for production
+2. Sanitize user input
+3. Require user confirmation for system-level commands
+4. Implement rate limiting
+
+---
+
+## Files Changed Summary
+
+| File | Lines Changed | Purpose |
+|------|--------------|---------|
+| `src/components/TitleBar.tsx` | 1 | Fixed icon path |
+| `src/store/useAppStore.ts` | 17 | Fixed about:blank issue |
+| `preload.js` | 3 | Added shell command API |
+| `main.js` | 27 | Added shell command handler |
+
+---
+
+## Next Steps
+
+1. **Test on all platforms** (Windows, macOS, Linux)
+2. **Install required dependencies** (see Dependencies section)
+3. **Test AI commands** with natural language
+4. **Add command whitelist** for production security
+5. **Document user-facing features** in help/tutorial
+
+---
+
+## Rollback Instructions
+
+If issues occur, revert these commits:
+1. TitleBar icon change
+2. useAppStore addTab modification
+3. preload.js executeShellCommand addition
+4. main.js shell command handler
+
+Or restore from backup before these changes.
+
+---
+
+**Status:** ✅ All fixes complete and ready for testing
+**Date:** February 11, 2026
+**Version:** 0.1.9

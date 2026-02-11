@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 import '../services/ai_service.dart';
-// DISABLED FOR iOS BUILD FIX
-// import '../services/music_service.dart';
+import '../services/music_service.dart';
+import 'package:audio_service/audio_service.dart';
 
 class SettingsPage extends StatefulWidget {
-  // DISABLED FOR iOS BUILD FIX - musicService no longer required
-  // final MusicService musicService;
+  final MusicService musicService;
 
-  const SettingsPage({super.key});
+  const SettingsPage({super.key, required this.musicService});
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -25,7 +24,7 @@ class _SettingsPageState extends State<SettingsPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 1, vsync: this);
+    _tabController = TabController(length: 2, vsync: this);
     _loadSettings();
   }
 
@@ -54,15 +53,13 @@ class _SettingsPageState extends State<SettingsPage>
           unselectedLabelColor: Colors.white60,
           tabs: const [
             Tab(icon: Icon(Icons.psychology), text: "AI Brain"),
-            // Music section disabled for iOS build compatibility
-            // Tab(icon: Icon(Icons.music_note), text: "Music"),
+            Tab(icon: Icon(Icons.music_note), text: "Music"),
           ],
         ),
       ),
       body: TabBarView(
         controller: _tabController,
-        children: [_buildAISection()],
-        // _buildMusicSection() disabled - see line 257 onwards
+        children: [_buildAISection(), _buildMusicSection()],
       ),
     );
   }
@@ -104,7 +101,7 @@ class _SettingsPageState extends State<SettingsPage>
         const SizedBox(height: 10),
         DropdownButtonFormField<AIProvider>(
           dropdownColor: const Color(0xFF1A1A2E),
-          initialValue: AIProvider.gemini, // Should fetch from service
+          value: AIProvider.gemini, // Should fetch from service
           items: AIProvider.values
               .map(
                 (p) => DropdownMenuItem(
@@ -145,7 +142,7 @@ class _SettingsPageState extends State<SettingsPage>
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
             dropdownColor: const Color(0xFF1A1A2E),
-            initialValue: _aiService.getModel(AIProvider.gemini),
+            value: _aiService.getModel(AIProvider.gemini),
             items: const [
               DropdownMenuItem(
                 value: "gemini-3-pro",
@@ -180,7 +177,7 @@ class _SettingsPageState extends State<SettingsPage>
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
           dropdownColor: const Color(0xFF1A1A2E),
-          initialValue: _aiService.getModel(AIProvider.openai),
+          value: _aiService.getModel(AIProvider.openai),
           items: const [
             DropdownMenuItem(
               value: "gpt-4o",
@@ -256,8 +253,6 @@ class _SettingsPageState extends State<SettingsPage>
     );
   }
 
-  // DISABLED FOR iOS BUILD FIX - MusicService is disabled
-  /* Disabled music section
   Widget _buildMusicSection() {
     return StreamBuilder<List<MediaItem>>(
       stream: widget.musicService.queue,
@@ -323,5 +318,4 @@ class _SettingsPageState extends State<SettingsPage>
       },
     );
   }
-  */
 }

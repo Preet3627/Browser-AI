@@ -272,7 +272,7 @@ export class BrowserAI {
                 }
             });
         }
-        
+
         // 4. Default search suggestion if no good URL prediction
         if (suggestions.length === 0 && input.length > 0 && !input.includes(' ')) {
             addSuggestion(`https://www.google.com/search?q=${encodeURIComponent(input)}`, 1);
@@ -360,6 +360,11 @@ export class BrowserAI {
         if (!text) return "";
         if (window.electronAPI) {
             try {
+                // Try free translate first
+                const result = await (window.electronAPI as any).translateText({ text, to: targetLanguage });
+                if (result.success) return result.translated;
+
+                // Fallback to LLM
                 const response = await window.electronAPI.generateChatContent([
                     { role: 'system', content: `You are a high-performance translation engine. Translate the following text into ${targetLanguage}. Return ONLY the translated text, no explanation.` },
                     { role: 'user', content: text }

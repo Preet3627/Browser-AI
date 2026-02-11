@@ -193,8 +193,8 @@ const SettingsPanel = ({ onClose, defaultSection = 'profile' }: { onClose: () =>
                                     <div className="absolute inset-0 bg-deep-space-accent-neon/5 opacity-0 group-hover:opacity-100 transition-opacity" />
                                     <div className="flex items-center gap-8 relative z-10">
                                         <div className="relative">
-                                            {store.user?.photoURL ? (
-                                                <Image src={store.user.photoURL} alt="Profile" width={64} height={64} className="rounded-full border-2 border-deep-space-accent-neon/20 shadow-2xl" />
+                                            {store.user?.photoURL || store.localPhotoURL ? (
+                                                <Image src={store.user?.photoURL || store.localPhotoURL || ''} alt="Profile" width={64} height={64} className="rounded-full border-2 border-deep-space-accent-neon/20 shadow-2xl object-cover h-16 w-16" />
                                             ) : (
                                                 <div className="w-[64px] h-[64px] rounded-full bg-white/5 border-2 border-white/10 flex items-center justify-center text-white/20">
                                                     <UserIcon size={24} />
@@ -215,7 +215,32 @@ const SettingsPanel = ({ onClose, defaultSection = 'profile' }: { onClose: () =>
                                                 {store.user ? (
                                                     <button onClick={handleGoogleSignOut} className="btn-vibrant-secondary px-6 no-drag-region">Terminate session</button>
                                                 ) : (
-                                                    <button onClick={handleGoogleLogin} className="btn-vibrant-primary px-8 no-drag-region">Authorize via Google</button>
+                                                    <>
+                                                        <button onClick={handleGoogleLogin} className="btn-vibrant-primary px-8 no-drag-region">Authorize via Google</button>
+                                                        <button
+                                                            onClick={async () => {
+                                                                if (window.electronAPI) {
+                                                                    const filePath = await (window.electronAPI as any).selectLocalFile({
+                                                                        filters: [{ name: 'Images', extensions: ['jpg', 'png', 'jpeg', 'webp'] }]
+                                                                    });
+                                                                    if (filePath) {
+                                                                        try {
+                                                                            const buffer = await (window.electronAPI as any).readFileBuffer(filePath);
+                                                                            const base64 = btoa(
+                                                                                new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
+                                                                            );
+                                                                            store.setLocalPhotoURL(`data:image/png;base64,${base64}`);
+                                                                        } catch (err) {
+                                                                            console.error("Failed to load local photo:", err);
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }}
+                                                            className="px-6 py-2.5 bg-white/5 border border-white/10 text-white/60 hover:text-white hover:bg-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all no-drag-region"
+                                                        >
+                                                            Upload Photo
+                                                        </button>
+                                                    </>
                                                 )}
                                                 {isGuestMode && !store.user && (
                                                     <div className="px-6 py-2.5 bg-white/5 border border-white/10 text-white/40 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
@@ -464,6 +489,25 @@ const SettingsPanel = ({ onClose, defaultSection = 'profile' }: { onClose: () =>
                                             </button>
                                         ))}
                                     </div>
+
+                                    <div className="pt-8 border-t border-white/5 space-y-6">
+                                        <div className="flex justify-between items-center">
+                                            <div>
+                                                <h4 className="text-sm font-bold text-white uppercase tracking-widest">Master Volume</h4>
+                                                <p className="text-[10px] text-white/30">Adjust the intensity of the background ambience.</p>
+                                            </div>
+                                            <span className="text-xl font-black text-deep-space-accent-neon">{Math.round(store.ambientMusicVolume * 100)}%</span>
+                                        </div>
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="1"
+                                            step="0.01"
+                                            value={store.ambientMusicVolume}
+                                            onChange={(e) => store.setAmbientMusicVolume(parseFloat(e.target.value))}
+                                            className="w-full accent-deep-space-accent-neon opacity-60 hover:opacity-100 transition-opacity cursor-pointer"
+                                        />
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -622,8 +666,8 @@ const SettingsPanel = ({ onClose, defaultSection = 'profile' }: { onClose: () =>
                         )}
                     </div>
                 </div>
-            </motion.div>
-        </div>
+            </motion.div >
+        </div >
     );
 };
 

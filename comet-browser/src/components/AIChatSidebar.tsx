@@ -234,7 +234,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = (props) => {
         if (tabId === store.activeTabId && url.includes('google.com/search?q=')) { // Only process active tab's search results
           console.log('[AI] New tab loaded with search results:', url);
           // Give the page a moment to render before scraping
-          await new Promise(r => setTimeout(r, 1500)); 
+          await new Promise(r => setTimeout(r, 1500));
           const { success, results, error } = await window.electronAPI.extractSearchResults(tabId);
           if (success && results && results.length > 0) {
             const searchResultsContext = results.map((r: any, i: number) => `Result ${i + 1}: ${r.title} - ${r.url} - ${r.snippet}`).join('\n');
@@ -488,380 +488,380 @@ ${pageContext || "Content not loaded. Use [READ_PAGE_CONTENT] command to read fu
 
         if (response.error) {
           setError(response.error);
-                  } else if (response.text) {
-                    if (window.electronAPI) {
-                      window.electronAPI.addAiMemory({
-                        role: 'user',
-                        content: userMessage.content,
-                        url: store.currentUrl,
-                        response: response.text,
-                        provider: store.aiProvider
-                      });
-                    }
-                    let fullResponseText = response.text; // Store the original response text
-        
-                    // Multi-Layered Task Processing (Chained Commands)
-                    const executeCommands = async (content: string) => {
-                      // Regex to find all command patterns
-                      const commandRegex = /\[(NAVIGATE|SEARCH|SET_THEME|OPEN_VIEW|RELOAD|GO_BACK|GO_FORWARD|SCREENSHOT_AND_ANALYZE|WEB_SEARCH|READ_PAGE_CONTENT|LIST_OPEN_TABS|GENERATE_PDF|GENERATE_DIAGRAM|SHELL_COMMAND|OCR_COORDINATES|CLICK_ELEMENT|GMAIL_AUTHORIZE|GMAIL_LIST_MESSAGES|GMAIL_GET_MESSAGE|GMAIL_SEND_MESSAGE|GMAIL_ADD_LABEL|WAIT):([^\]]+?)\]/gi;
-                      let match;
-                      let lastIndex = 0;
-                      let processedTextParts: string[] = [];
-                      const commandsToExecute: { type: string; value: string; originalMatch: string }[] = [];
-        
-                      // Extract all commands and their positions
-                      while ((match = commandRegex.exec(content)) !== null) {
-                        // Add text before the command
-                        if (match.index > lastIndex) {
-                          processedTextParts.push(content.substring(lastIndex, match.index));
-                        }
-                        commandsToExecute.push({
-                          type: match[1].toUpperCase(),
-                          value: match[2].trim(),
-                          originalMatch: match[0]
-                        });
-                        lastIndex = commandRegex.lastIndex;
-                      }
-                      // Add any remaining text after the last command
-                      if (lastIndex < content.length) {
-                        processedTextParts.push(content.substring(lastIndex));
-                      }
-        
-                      let currentTextContent = processedTextParts.join(''); // Initial text without commands
-        
-                      for (const cmd of commandsToExecute) {
-                        let commandOutput = '';
-                        let shouldReturn = false;
-        
-                        switch (cmd.type) {
-                          case 'NAVIGATE':
-                            const url = cmd.value;
-                            console.log('[AI Command] Navigating to:', url);
-                            store.setCurrentUrl(url); // Always update current URL in store
+        } else if (response.text) {
+          if (window.electronAPI) {
+            window.electronAPI.addAiMemory({
+              role: 'user',
+              content: userMessage.content,
+              url: store.currentUrl,
+              response: response.text,
+              provider: store.aiProvider
+            });
+          }
+          let fullResponseText = response.text; // Store the original response text
 
-                            if (url.startsWith('comet://')) {
-                              // Handle internal comet:// URLs via Next.js router
-                              const resourcePath = url.substring('comet://'.length); // e.g., 'vault', 'extensions'
-                              router.push(`/${resourcePath}`);
-                              store.setActiveView('browser'); // Keep browser view active for internal pages
-                              commandOutput = `🚀 **Navigating to internal Comet page:** /${resourcePath}`;
-                            } else {
-                              // Handle external URLs via BrowserView
-                              store.setActiveView('browser');
-                              if (window.electronAPI) {
-                                await window.electronAPI.navigateBrowserView({ tabId: store.activeTabId, url });
-                              }
-                              commandOutput = `🌐 **Navigating to ${url}...**`;
-                            }
-                            await delay(1000); // General delay after navigation
-                            break;
-        
-                          case 'SEARCH':
-                            const query = cmd.value;
-                            console.log('[AI Command] Searching for:', query);
-                            const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
-                            store.setCurrentUrl(searchUrl);
-                            store.setActiveView('browser');
-                            if (window.electronAPI) {
-                              await window.electronAPI.navigateBrowserView({ tabId: store.activeTabId, url: searchUrl });
-                            }
-                            commandOutput = `🔍 **Searching for:** ${query}`;
-                            await delay(1000); // General delay after search
-                            break;
-        
-                          case 'SET_THEME':
-                            const theme = cmd.value;
-                            store.setTheme(theme.toLowerCase() as any);
-                            commandOutput = `🎨 **Theme updated to ${theme}**`;
-                            await delay(500);
-                            break;
-        
-                          case 'OPEN_VIEW':
-                            const view = cmd.value;
-                            store.setActiveView(view.toLowerCase());
-                            commandOutput = `🚀 **Opening ${view} view**`;
-                            await delay(500);
-                            break;
-        
-                          case 'RELOAD':
-                            if (window.electronAPI) window.electronAPI.reload();
-                            commandOutput = '🔄 **Reloading page...**';
-                            await delay(1000);
-                            break;
-        
-                          case 'GO_BACK':
-                            if (window.electronAPI) window.electronAPI.goBack();
-                            commandOutput = '◀️ **Going back...**';
-                            await delay(1000);
-                            break;
-        
-                          case 'GO_FORWARD':
-                            if (window.electronAPI) window.electronAPI.goForward();
-                            commandOutput = '▶️ **Going forward...**';
-                            await delay(1000);
-                            break;
-        
-                          case 'SCREENSHOT_AND_ANALYZE':
-                            if (window.electronAPI) {
-                              commandOutput = '📸 **Taking screenshot and analyzing...**';
-                              // Display immediate feedback to user
-                              setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
-        
-                              try {
-                                const screenshotDataUrl = await window.electronAPI.captureBrowserViewScreenshot();
-                                if (screenshotDataUrl && tesseractWorkerRef.current) {
-                                  const { data: { text: ocrText } } = await tesseractWorkerRef.current.recognize(screenshotDataUrl);
-                                  // Add to vector memory
-                                  BrowserAI.addToVectorMemory(ocrText, { type: 'screenshot_ocr', url: store.currentUrl });
-                                  const screenshotContext = `\n\n[SCREENSHOT_ANALYSIS]: ${ocrText}`;
-                                  console.log('[OCR] Extracted text:', ocrText.substring(0, 200));
-                                  // Re-send the user's original message with screenshot context for AI to analyze
-                                  await handleSendMessage(userMessage.content + screenshotContext);
-                                  shouldReturn = true; // Prevent further processing of the current AI response
-                                } else {
-                                  commandOutput = tesseractWorkerRef.current ? '⚠️ **Failed to capture screenshot.**' : '⚠️ **OCR engine still initializing, please try again.**';
-                                }
-                              } catch (err) {
-                                console.error('[OCR] Screenshot analysis failed:', err);
-                                commandOutput = '⚠️ **Screenshot analysis failed. Please try again.**';
-                              }
-                            } else {
-                              commandOutput = '⚠️ **Screenshot analysis not available in this environment.**';
-                            }
-                            await delay(2000); // Longer delay for analysis
-                            break;
-        
-                          case 'READ_PAGE_CONTENT':
-                            if (window.electronAPI) {
-                              commandOutput = '📄 **Reading page content...**';
-                              setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
-        
-                              const extraction = await window.electronAPI.extractPageContent();
-                              if (extraction.content) {
-                                // Add to vector memory
-                                BrowserAI.addToVectorMemory(extraction.content, { type: 'page_content', url: store.currentUrl });
-                                await handleSendMessage(userMessage.content + `\n\n[PAGE_CONTENT_READ]: ${extraction.content}`);
-                                shouldReturn = true;
-                              } else {
-                                commandOutput = '⚠️ **Failed to read page content.**';
-                              }
-                            } else {
-                              commandOutput = '⚠️ **Page content reading not available.**';
-                            }
-                            await delay(1500);
-                            break;
-        
-                          case 'LIST_OPEN_TABS':
-                            if (window.electronAPI) {
-                              commandOutput = '📝 **Listing open tabs...**';
-                              setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
-        
-                              const openTabs = await window.electronAPI.getOpenTabs();
-                              if (openTabs && openTabs.length > 0) {
-                                const tabsContext = openTabs.map((tab: any) => `Tab ID: ${tab.tabId}, Title: ${tab.title}, URL: ${tab.url}${tab.isActive ? ' (Active)' : ''}`).join('\n');
-                                await handleSendMessage(userMessage.content + `\n\n[OPEN_TABS_LIST]:\n${tabsContext}`);
-                                shouldReturn = true;
-                              } else {
-                                commandOutput = '⚠️ **No open tabs found.**';
-                              }
-                            } else {
-                              commandOutput = '⚠️ **Tab listing not available.**';
-                            }
-                            await delay(1000);
-                            break;
-        
-                          case 'WEB_SEARCH':
-                            const webQuery = cmd.value;
-                            commandOutput = `🌐 **Performing Web Search for:** ${webQuery}...`;
-                            setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
-                            const newSearchUrl = `https://www.google.com/search?q=${encodeURIComponent(webQuery)}`;
-                            store.addTab(newSearchUrl);
-                            shouldReturn = true; // AI will analyze new tab when loaded
-                            await delay(1000);
-                            break;
-        
-                          case 'GENERATE_DIAGRAM':
-                            const mermaidCode = cmd.value;
-                            commandOutput = `\n\`\`\`mermaid\n${mermaidCode}\n\`\`\`\n`;
-                            await delay(500);
-                            break;
-        
-                                                    case 'SHELL_COMMAND':
-                                                      if (window.electronAPI) {
-                                                        const command = cmd.value;
-                                                        commandOutput = `🖥️ **Executing shell command:** ${command}`;
-                                                        setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
-                          
-                                                        try {
-                                                          const result = await window.electronAPI.executeShellCommand(command);
-                                                          if (result.success) {
-                                                            await handleSendMessage(userMessage.content + `\n\n[SHELL_OUTPUT]: ${result.output}`);
-                                                          } else {
-                                                            await handleSendMessage(userMessage.content + `\n\n[SHELL_ERROR]: ${result.error}`);
-                                                          }
-                                                        } catch (err) {
-                                                          await handleSendMessage(userMessage.content + `\n\n[SHELL_ERROR]: Command execution failed`);
-                                                        }
-                                                        shouldReturn = true;
-                                                      } else {
-                                                        commandOutput = '⚠️ **Shell command execution not available.**';
-                                                      }
-                                                      await delay(2000);
-                                                      break;
-                          
-                                                    case 'SET_BRIGHTNESS':
-                                                      if (window.electronAPI) {
-                                                        const percentage = parseInt(cmd.value, 10);
-                                                        if (isNaN(percentage) || percentage < 0 || percentage > 100) {
-                                                          commandOutput = `⚠️ **Invalid brightness percentage: ${cmd.value}. Must be between 0 and 100.**`;
-                                                        } else {
-                                                          let shellCmd = '';
-                                                          const platform = navigator.platform; // e.g., "Win32", "MacIntel", "Linux x86_64"
-                          
-                                                          if (platform.includes('Win')) {
-                                                            // Windows: Requires PowerShell and WMI
-                                                            // Note: WmiMonitorBrightnessMethods might require admin privileges or specific hardware support
-                                                            shellCmd = `powershell -Command "(Get-WmiObject -Namespace root/WMI -Class WmiMonitorBrightnessMethods).WmiSetBrightness(1,${percentage})"`;
-                                                          } else if (platform.includes('Mac')) {
-                                                            // macOS: Requires 'brightness' tool (installed via Homebrew) or osascript (less precise)
-                                                            // For simplicity and broader compatibility, assuming 'brightness' tool is installed.
-                                                            const macBrightness = percentage / 100; // brightness tool uses 0 to 1
-                                                            shellCmd = `brightness ${macBrightness}`;
-                                                          } else if (platform.includes('Linux')) {
-                                                            // Linux: Using brightnessctl (most common for modern systems)
-                                                            shellCmd = `brightnessctl set ${percentage}%`;
-                                                          } else {
-                                                            commandOutput = `⚠️ **Brightness control not supported on ${platform}.**`;
-                                                          }
-                          
-                                                          if (shellCmd) {
-                                                            commandOutput = `💡 **Setting brightness to ${percentage}%...**`;
-                                                            setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
-                          
-                                                            try {
-                                                              const result = await window.electronAPI.executeShellCommand(shellCmd);
-                                                              if (result.success) {
-                                                                commandOutput = `✅ **Brightness set to ${percentage}%.**`;
-                                                              } else {
-                                                                commandOutput = `❌ **Failed to set brightness: ${result.error}.**`;
-                                                              }
-                                                            } catch (err) {
-                                                              commandOutput = `❌ **Failed to execute brightness command.**`;
-                                                            }
-                                                          }
-                                                        }
-                                                      } else {
-                                                        commandOutput = '⚠️ **Brightness control not available.**';
-                                                      }
-                                                      await delay(2000);
-                                                      break;
-                          
-                                                                              case 'SET_VOLUME':
-                                                                                if (window.electronAPI) {
-                                                                                  const percentage = parseInt(cmd.value, 10);
-                                                                                  if (isNaN(percentage) || percentage < 0 || percentage > 100) {
-                                                                                    commandOutput = `⚠️ **Invalid volume percentage: ${cmd.value}. Must be between 0 and 100.**`;
-                                                                                  } else {
-                                                                                    let shellCmd = '';
-                                                                                    const platform = navigator.platform; // e.g., "Win32", "MacIntel", "Linux x86_64"
-                                                    
-                                                                                    if (platform.includes('Win')) {
-                                                                                      // Windows: Requires NirCmd (third-party)
-                                                                                      // This is a placeholder as NirCmd needs to be present in PATH
-                                                                                      const winVolume = Math.round((percentage / 100) * 65535); // NirCmd uses 0-65535
-                                                                                      shellCmd = `nircmd.exe setsysvolume ${winVolume}`;
-                                                                                    } else if (platform.includes('Mac')) {
-                                                                                      // macOS: Using osascript
-                                                                                      shellCmd = `osascript -e "set volume output volume ${percentage}"`;
-                                                                                    } else if (platform.includes('Linux')) {
-                                                                                      // Linux: Using amixer (ALSA) or pactl (PulseAudio)
-                                                                                      // Prefer amixer as it's often more universally installed or easier
-                                                                                      shellCmd = `amixer set 'Master' ${percentage}%`;
-                                                                                    } else {
-                                                                                      commandOutput = `⚠️ **Volume control not supported on ${platform}.**`;
-                                                                                    }
-                                                    
-                                                                                    if (shellCmd) {
-                                                                                      commandOutput = `🔊 **Setting volume to ${percentage}%...**`;
-                                                                                      setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
-                                                    
-                                                                                      try {
-                                                                                        const result = await window.electronAPI.executeShellCommand(shellCmd);
-                                                                                        if (result.success) {
-                                                                                          commandOutput = `✅ **Volume set to ${percentage}%.**`;
-                                                                                        } else {
-                                                                                          commandOutput = `❌ **Failed to set volume: ${result.error}.**`;
-                                                                                        }
-                                                                                      } catch (err) {
-                                                                                        commandOutput = `❌ **Failed to execute volume command.**`;
-                                                                                      }
-                                                                                    }
-                                                                                  }
-                                                                                } else {
-                                                                                  commandOutput = '⚠️ **Volume control not available.**';
-                                                                                }
-                                                                                await delay(2000);
-                                                                                break;
-                                                    
-                                                                                                        case 'OPEN_APP':
-                                                    
-                                                                                                          if (window.electronAPI) {
-                                                    
-                                                                                                            const appNameOrPath = cmd.value;
-                                                    
-                                                                                                            commandOutput = `🚀 **Attempting to open application:** "${appNameOrPath}"...`;
-                                                    
-                                                                                                            setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
-                                                    
-                                                                              
-                                                    
-                                                                                                            try {
-                                                    
-                                                                                                              const result = await window.electronAPI.openExternalApp(appNameOrPath);
-                                                    
-                                                                                                                                                                                                                            if (result.success) {
-                                                    
-                                                                                                                                                                                                                              commandOutput = `✅ **Successfully opened application:** "${appNameOrPath}".`;
-                                                    
-                                                                                                                                                                                                                            } else {
-                                                    
-                                                                                                                                                                                                                              commandOutput = `❌ **Failed to open application:** "${appNameOrPath}". Error: ${result.error || 'Unknown error'}.`;
-                                                    
-                                                                                                                                                                                                                            }
-                                                    
-                                                                                                                                                                                                                          } catch (err: any) {
-                                                    
-                                                                                                                                                                                                                            commandOutput = `❌ **Failed to open application:** "${appNameOrPath}". Error: ${err.message || 'Unknown error'}.`;
-                                                    
-                                                                                                            }
-                                                    
-                                                                                                          } else {
-                                                    
-                                                                                                            commandOutput = '⚠️ **Application opening not available in this environment.**';
-                                                    
-                                                                                                          }
-                                                    
-                                                                                                          await delay(3000); // Give time for the app to open
-                                                    
-                                                                                                          break;
-                                                    
-                                                                              
-                                                    
-                                                                                                        case 'FILL_FORM':
-                                                    
-                                                                                                          if (window.electronAPI) {
-                                                    
-                                                                                                            const [selector, value] = cmd.value.split(' | ').map(s => s.trim());
-                                                    
-                                                                                                            commandOutput = `✍️ **Filling form field "${selector}" with value: "${value}"...**`;
-                                                    
-                                                                                                            setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
-                                                    
-                                                                              
-                                                    
-                                                                                                            try {
-                                                    
-                                                                                                              const script = `
+          // Multi-Layered Task Processing (Chained Commands)
+          const executeCommands = async (content: string) => {
+            // Regex to find all command patterns
+            const commandRegex = /\[(NAVIGATE|SEARCH|SET_THEME|OPEN_VIEW|RELOAD|GO_BACK|GO_FORWARD|SCREENSHOT_AND_ANALYZE|WEB_SEARCH|READ_PAGE_CONTENT|LIST_OPEN_TABS|GENERATE_PDF|GENERATE_DIAGRAM|SHELL_COMMAND|OCR_COORDINATES|CLICK_ELEMENT|GMAIL_AUTHORIZE|GMAIL_LIST_MESSAGES|GMAIL_GET_MESSAGE|GMAIL_SEND_MESSAGE|GMAIL_ADD_LABEL|WAIT):([^\]]+?)\]/gi;
+            let match;
+            let lastIndex = 0;
+            let processedTextParts: string[] = [];
+            const commandsToExecute: { type: string; value: string; originalMatch: string }[] = [];
+
+            // Extract all commands and their positions
+            while ((match = commandRegex.exec(content)) !== null) {
+              // Add text before the command
+              if (match.index > lastIndex) {
+                processedTextParts.push(content.substring(lastIndex, match.index));
+              }
+              commandsToExecute.push({
+                type: match[1].toUpperCase(),
+                value: match[2].trim(),
+                originalMatch: match[0]
+              });
+              lastIndex = commandRegex.lastIndex;
+            }
+            // Add any remaining text after the last command
+            if (lastIndex < content.length) {
+              processedTextParts.push(content.substring(lastIndex));
+            }
+
+            let currentTextContent = processedTextParts.join(''); // Initial text without commands
+
+            for (const cmd of commandsToExecute) {
+              let commandOutput = '';
+              let shouldReturn = false;
+
+              switch (cmd.type) {
+                case 'NAVIGATE':
+                  const url = cmd.value;
+                  console.log('[AI Command] Navigating to:', url);
+                  store.setCurrentUrl(url); // Always update current URL in store
+
+                  if (url.startsWith('comet://')) {
+                    // Handle internal comet:// URLs via Next.js router
+                    const resourcePath = url.substring('comet://'.length); // e.g., 'vault', 'extensions'
+                    router.push(`/${resourcePath}`);
+                    store.setActiveView('browser'); // Keep browser view active for internal pages
+                    commandOutput = `🚀 **Navigating to internal Comet page:** /${resourcePath}`;
+                  } else {
+                    // Handle external URLs via BrowserView
+                    store.setActiveView('browser');
+                    if (window.electronAPI) {
+                      await window.electronAPI.navigateBrowserView({ tabId: store.activeTabId, url });
+                    }
+                    commandOutput = `🌐 **Navigating to ${url}...**`;
+                  }
+                  await delay(1000); // General delay after navigation
+                  break;
+
+                case 'SEARCH':
+                  const query = cmd.value;
+                  console.log('[AI Command] Searching for:', query);
+                  const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+                  store.setCurrentUrl(searchUrl);
+                  store.setActiveView('browser');
+                  if (window.electronAPI) {
+                    await window.electronAPI.navigateBrowserView({ tabId: store.activeTabId, url: searchUrl });
+                  }
+                  commandOutput = `🔍 **Searching for:** ${query}`;
+                  await delay(1000); // General delay after search
+                  break;
+
+                case 'SET_THEME':
+                  const theme = cmd.value;
+                  store.setTheme(theme.toLowerCase() as any);
+                  commandOutput = `🎨 **Theme updated to ${theme}**`;
+                  await delay(500);
+                  break;
+
+                case 'OPEN_VIEW':
+                  const view = cmd.value;
+                  store.setActiveView(view.toLowerCase());
+                  commandOutput = `🚀 **Opening ${view} view**`;
+                  await delay(500);
+                  break;
+
+                case 'RELOAD':
+                  if (window.electronAPI) window.electronAPI.reload();
+                  commandOutput = '🔄 **Reloading page...**';
+                  await delay(1000);
+                  break;
+
+                case 'GO_BACK':
+                  if (window.electronAPI) window.electronAPI.goBack();
+                  commandOutput = '◀️ **Going back...**';
+                  await delay(1000);
+                  break;
+
+                case 'GO_FORWARD':
+                  if (window.electronAPI) window.electronAPI.goForward();
+                  commandOutput = '▶️ **Going forward...**';
+                  await delay(1000);
+                  break;
+
+                case 'SCREENSHOT_AND_ANALYZE':
+                  if (window.electronAPI) {
+                    commandOutput = '📸 **Taking screenshot and analyzing...**';
+                    // Display immediate feedback to user
+                    setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
+
+                    try {
+                      const screenshotDataUrl = await window.electronAPI.captureBrowserViewScreenshot();
+                      if (screenshotDataUrl && tesseractWorkerRef.current) {
+                        const { data: { text: ocrText } } = await tesseractWorkerRef.current.recognize(screenshotDataUrl);
+                        // Add to vector memory
+                        BrowserAI.addToVectorMemory(ocrText, { type: 'screenshot_ocr', url: store.currentUrl });
+                        const screenshotContext = `\n\n[SCREENSHOT_ANALYSIS]: ${ocrText}`;
+                        console.log('[OCR] Extracted text:', ocrText.substring(0, 200));
+                        // Re-send the user's original message with screenshot context for AI to analyze
+                        await handleSendMessage(userMessage.content + screenshotContext);
+                        shouldReturn = true; // Prevent further processing of the current AI response
+                      } else {
+                        commandOutput = tesseractWorkerRef.current ? '⚠️ **Failed to capture screenshot.**' : '⚠️ **OCR engine still initializing, please try again.**';
+                      }
+                    } catch (err) {
+                      console.error('[OCR] Screenshot analysis failed:', err);
+                      commandOutput = '⚠️ **Screenshot analysis failed. Please try again.**';
+                    }
+                  } else {
+                    commandOutput = '⚠️ **Screenshot analysis not available in this environment.**';
+                  }
+                  await delay(2000); // Longer delay for analysis
+                  break;
+
+                case 'READ_PAGE_CONTENT':
+                  if (window.electronAPI) {
+                    commandOutput = '📄 **Reading page content...**';
+                    setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
+
+                    const extraction = await window.electronAPI.extractPageContent();
+                    if (extraction.content) {
+                      // Add to vector memory
+                      BrowserAI.addToVectorMemory(extraction.content, { type: 'page_content', url: store.currentUrl });
+                      await handleSendMessage(userMessage.content + `\n\n[PAGE_CONTENT_READ]: ${extraction.content}`);
+                      shouldReturn = true;
+                    } else {
+                      commandOutput = '⚠️ **Failed to read page content.**';
+                    }
+                  } else {
+                    commandOutput = '⚠️ **Page content reading not available.**';
+                  }
+                  await delay(1500);
+                  break;
+
+                case 'LIST_OPEN_TABS':
+                  if (window.electronAPI) {
+                    commandOutput = '📝 **Listing open tabs...**';
+                    setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
+
+                    const openTabs = await window.electronAPI.getOpenTabs();
+                    if (openTabs && openTabs.length > 0) {
+                      const tabsContext = openTabs.map((tab: any) => `Tab ID: ${tab.tabId}, Title: ${tab.title}, URL: ${tab.url}${tab.isActive ? ' (Active)' : ''}`).join('\n');
+                      await handleSendMessage(userMessage.content + `\n\n[OPEN_TABS_LIST]:\n${tabsContext}`);
+                      shouldReturn = true;
+                    } else {
+                      commandOutput = '⚠️ **No open tabs found.**';
+                    }
+                  } else {
+                    commandOutput = '⚠️ **Tab listing not available.**';
+                  }
+                  await delay(1000);
+                  break;
+
+                case 'WEB_SEARCH':
+                  const webQuery = cmd.value;
+                  commandOutput = `🌐 **Performing Web Search for:** ${webQuery}...`;
+                  setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
+                  const newSearchUrl = `https://www.google.com/search?q=${encodeURIComponent(webQuery)}`;
+                  store.addTab(newSearchUrl);
+                  shouldReturn = true; // AI will analyze new tab when loaded
+                  await delay(1000);
+                  break;
+
+                case 'GENERATE_DIAGRAM':
+                  const mermaidCode = cmd.value;
+                  commandOutput = `\n\`\`\`mermaid\n${mermaidCode}\n\`\`\`\n`;
+                  await delay(500);
+                  break;
+
+                case 'SHELL_COMMAND':
+                  if (window.electronAPI) {
+                    const command = cmd.value;
+                    commandOutput = `🖥️ **Executing shell command:** ${command}`;
+                    setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
+
+                    try {
+                      const result = await window.electronAPI.executeShellCommand(command);
+                      if (result.success) {
+                        await handleSendMessage(userMessage.content + `\n\n[SHELL_OUTPUT]: ${result.output}`);
+                      } else {
+                        await handleSendMessage(userMessage.content + `\n\n[SHELL_ERROR]: ${result.error}`);
+                      }
+                    } catch (err) {
+                      await handleSendMessage(userMessage.content + `\n\n[SHELL_ERROR]: Command execution failed`);
+                    }
+                    shouldReturn = true;
+                  } else {
+                    commandOutput = '⚠️ **Shell command execution not available.**';
+                  }
+                  await delay(2000);
+                  break;
+
+                case 'SET_BRIGHTNESS':
+                  if (window.electronAPI) {
+                    const percentage = parseInt(cmd.value, 10);
+                    if (isNaN(percentage) || percentage < 0 || percentage > 100) {
+                      commandOutput = `⚠️ **Invalid brightness percentage: ${cmd.value}. Must be between 0 and 100.**`;
+                    } else {
+                      let shellCmd = '';
+                      const platform = navigator.platform; // e.g., "Win32", "MacIntel", "Linux x86_64"
+
+                      if (platform.includes('Win')) {
+                        // Windows: Requires PowerShell and WMI
+                        // Note: WmiMonitorBrightnessMethods might require admin privileges or specific hardware support
+                        shellCmd = `powershell -Command "(Get-WmiObject -Namespace root/WMI -Class WmiMonitorBrightnessMethods).WmiSetBrightness(1,${percentage})"`;
+                      } else if (platform.includes('Mac')) {
+                        // macOS: Requires 'brightness' tool (installed via Homebrew) or osascript (less precise)
+                        // For simplicity and broader compatibility, assuming 'brightness' tool is installed.
+                        const macBrightness = percentage / 100; // brightness tool uses 0 to 1
+                        shellCmd = `brightness ${macBrightness}`;
+                      } else if (platform.includes('Linux')) {
+                        // Linux: Using brightnessctl (most common for modern systems)
+                        shellCmd = `brightnessctl set ${percentage}%`;
+                      } else {
+                        commandOutput = `⚠️ **Brightness control not supported on ${platform}.**`;
+                      }
+
+                      if (shellCmd) {
+                        commandOutput = `💡 **Setting brightness to ${percentage}%...**`;
+                        setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
+
+                        try {
+                          const result = await window.electronAPI.executeShellCommand(shellCmd);
+                          if (result.success) {
+                            commandOutput = `✅ **Brightness set to ${percentage}%.**`;
+                          } else {
+                            commandOutput = `❌ **Failed to set brightness: ${result.error}.**`;
+                          }
+                        } catch (err) {
+                          commandOutput = `❌ **Failed to execute brightness command.**`;
+                        }
+                      }
+                    }
+                  } else {
+                    commandOutput = '⚠️ **Brightness control not available.**';
+                  }
+                  await delay(2000);
+                  break;
+
+                case 'SET_VOLUME':
+                  if (window.electronAPI) {
+                    const percentage = parseInt(cmd.value, 10);
+                    if (isNaN(percentage) || percentage < 0 || percentage > 100) {
+                      commandOutput = `⚠️ **Invalid volume percentage: ${cmd.value}. Must be between 0 and 100.**`;
+                    } else {
+                      let shellCmd = '';
+                      const platform = navigator.platform; // e.g., "Win32", "MacIntel", "Linux x86_64"
+
+                      if (platform.includes('Win')) {
+                        // Windows: Requires NirCmd (third-party)
+                        // This is a placeholder as NirCmd needs to be present in PATH
+                        const winVolume = Math.round((percentage / 100) * 65535); // NirCmd uses 0-65535
+                        shellCmd = `nircmd.exe setsysvolume ${winVolume}`;
+                      } else if (platform.includes('Mac')) {
+                        // macOS: Using osascript
+                        shellCmd = `osascript -e "set volume output volume ${percentage}"`;
+                      } else if (platform.includes('Linux')) {
+                        // Linux: Using amixer (ALSA) or pactl (PulseAudio)
+                        // Prefer amixer as it's often more universally installed or easier
+                        shellCmd = `amixer set 'Master' ${percentage}%`;
+                      } else {
+                        commandOutput = `⚠️ **Volume control not supported on ${platform}.**`;
+                      }
+
+                      if (shellCmd) {
+                        commandOutput = `🔊 **Setting volume to ${percentage}%...**`;
+                        setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
+
+                        try {
+                          const result = await window.electronAPI.executeShellCommand(shellCmd);
+                          if (result.success) {
+                            commandOutput = `✅ **Volume set to ${percentage}%.**`;
+                          } else {
+                            commandOutput = `❌ **Failed to set volume: ${result.error}.**`;
+                          }
+                        } catch (err) {
+                          commandOutput = `❌ **Failed to execute volume command.**`;
+                        }
+                      }
+                    }
+                  } else {
+                    commandOutput = '⚠️ **Volume control not available.**';
+                  }
+                  await delay(2000);
+                  break;
+
+                case 'OPEN_APP':
+
+                  if (window.electronAPI) {
+
+                    const appNameOrPath = cmd.value;
+
+                    commandOutput = `🚀 **Attempting to open application:** "${appNameOrPath}"...`;
+
+                    setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
+
+
+
+                    try {
+
+                      const result = await window.electronAPI.openExternalApp(appNameOrPath);
+
+                      if (result.success) {
+
+                        commandOutput = `✅ **Successfully opened application:** "${appNameOrPath}".`;
+
+                      } else {
+
+                        commandOutput = `❌ **Failed to open application:** "${appNameOrPath}". Error: ${result.error || 'Unknown error'}.`;
+
+                      }
+
+                    } catch (err: any) {
+
+                      commandOutput = `❌ **Failed to open application:** "${appNameOrPath}". Error: ${err.message || 'Unknown error'}.`;
+
+                    }
+
+                  } else {
+
+                    commandOutput = '⚠️ **Application opening not available in this environment.**';
+
+                  }
+
+                  await delay(3000); // Give time for the app to open
+
+                  break;
+
+
+
+                case 'FILL_FORM':
+
+                  if (window.electronAPI) {
+
+                    const [selector, value] = cmd.value.split(' | ').map(s => s.trim());
+
+                    commandOutput = `✍️ **Filling form field "${selector}" with value: "${value}"...**`;
+
+                    setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
+
+
+
+                    try {
+
+                      const script = `
                                                     
                                                                                                                 const element = document.querySelector('${selector}');
                                                     
@@ -882,70 +882,70 @@ ${pageContext || "Content not loaded. Use [READ_PAGE_CONTENT] command to read fu
                                                                                                                 }
                                                     
                                                                                                               `;
-                                                    
-                                                                                                              const result = await window.electronAPI.executeJavaScript(script);
-                                                    
-                                                                                                              if (result) {
-                                                    
-                                                                                                                commandOutput = `✅ **Form field "${selector}" filled successfully.**`;
-                                                    
-                                                                                                              } else {
-                                                    
-                                                                                                                commandOutput = `❌ **Failed to find or fill form field "${selector}".**`;
-                                                    
-                                                                                                                                                                                                                            }
-                                                    
-                                                                                                                                                                                                                          } catch (err: any) {
-                                                    
-                                                                                                                                                                                                                            commandOutput = `❌ **Error filling form field "${selector}": ${err.message || 'Unknown error'}.**`;
-                                                    
-                                                                                                            }
-                                                    
-                                                                                                          } else {
-                                                    
-                                                                                                            commandOutput = '⚠️ **Form filling not available in this environment.**';
-                                                    
-                                                                                                          }
-                                                    
-                                                                                                          await delay(1500);
-                                                    
-                                                                                                          break;
-                                                    
-                                                                              
-                                                    
-                                                                                                                                  case 'SCROLL_TO':
-                                                    
-                                                                              
-                                                    
-                                                                                                                                    if (window.electronAPI) {
-                                                    
-                                                                              
-                                                    
-                                                                                                                                      const [target, offsetStr = '0'] = cmd.value.split(' | ').map(s => s.trim());
-                                                    
-                                                                              
-                                                    
-                                                                                                                                      const offset = parseInt(offsetStr, 10);
-                                                    
-                                                                              
-                                                    
-                                                                                                                                      commandOutput = `⬇️ **Scrolling to "${target}" with offset ${offset}...**`;
-                                                    
-                                                                              
-                                                    
-                                                                                                                                      setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
-                                                    
-                                                                              
-                                                    
-                                                                                                        
-                                                    
-                                                                              
-                                                    
-                                                                                                                                      try {
-                                                    
-                                                                              
-                                                    
-                                                                                                                                        const script = `
+
+                      const result = await window.electronAPI.executeJavaScript(script);
+
+                      if (result) {
+
+                        commandOutput = `✅ **Form field "${selector}" filled successfully.**`;
+
+                      } else {
+
+                        commandOutput = `❌ **Failed to find or fill form field "${selector}".**`;
+
+                      }
+
+                    } catch (err: any) {
+
+                      commandOutput = `❌ **Error filling form field "${selector}": ${err.message || 'Unknown error'}.**`;
+
+                    }
+
+                  } else {
+
+                    commandOutput = '⚠️ **Form filling not available in this environment.**';
+
+                  }
+
+                  await delay(1500);
+
+                  break;
+
+
+
+                case 'SCROLL_TO':
+
+
+
+                  if (window.electronAPI) {
+
+
+
+                    const [target, offsetStr = '0'] = cmd.value.split(' | ').map(s => s.trim());
+
+
+
+                    const offset = parseInt(offsetStr, 10);
+
+
+
+                    commandOutput = `⬇️ **Scrolling to "${target}" with offset ${offset}...**`;
+
+
+
+                    setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
+
+
+
+
+
+
+
+                    try {
+
+
+
+                      const script = `
                                                     
                                                                               
                                                     
@@ -1022,170 +1022,170 @@ ${pageContext || "Content not loaded. Use [READ_PAGE_CONTENT] command to read fu
                                                                               
                                                     
                                                                                                                                         `;
-                                                    
-                                                                              
-                                                    
-                                                                                                                                        const result = await window.electronAPI.executeJavaScript(script);
-                                                    
-                                                                              
-                                                    
-                                                                                                                                        if (result) {
-                                                    
-                                                                              
-                                                    
-                                                                                                                                          commandOutput = `✅ **Scrolled to "${target}".**`;
-                                                    
-                                                                              
-                                                    
-                                                                                                                                        } else {
-                                                    
-                                                                              
-                                                    
-                                                                                                                                          commandOutput = `❌ **Failed to scroll to "${target}".**`;
-                                                    
-                                                                              
-                                                    
-                                                                                                                                        }
-                                                    
-                                                                              
-                                                    
-                                                                                                                                                                                                                                                                            } catch (err: any) {
-                                                    
-                                                                              
-                                                    
-                                                                                                                                                                                                                                                                              commandOutput = `❌ **Error scrolling to "${target}": ${err.message || 'Unknown error'}.**`;
-                                                    
-                                                                              
-                                                    
-                                                                                                                                      }
-                                                    
-                                                                              
-                                                    
-                                                                                                                                    } else {
-                                                    
-                                                                              
-                                                    
-                                                                                                                                      commandOutput = '⚠️ **Scrolling functionality not available in this environment.**';
-                                                    
-                                                                              
-                                                    
-                                                                                                                                    }
-                                                    
-                                                                              
-                                                    
-                                                                                                                                    await delay(1500);
-                                                    
-                                                                              
-                                                    
-                                                                                                                                    break;
-                                                    
-                                                                              
-                                                    
-                                                                                                        
-                                                    
-                                                                              
-                                                    
-                                                                                                                                  case 'CREATE_NEW_TAB_GROUP':
-                                                    
-                                                                              
-                                                    
-                                                                                                                                    if (window.electronAPI) {
-                                                    
-                                                                              
-                                                    
-                                                                                                                                      const [groupName, urlsString] = cmd.value.split(' | ').map(s => s.trim());
-                                                    
-                                                                              
-                                                    
-                                                                                                                                      const urls = urlsString.split(',').map(url => url.trim());
-                                                    
-                                                                              
-                                                    
-                                                                                                                                      commandOutput = `➕ **Creating new tab group "${groupName}" with ${urls.length} tabs...**`;
-                                                    
-                                                                              
-                                                    
-                                                                                                                                      setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
-                                                    
-                                                                              
-                                                    
-                                                                                                        
-                                                    
-                                                                              
-                                                    
-                                                                                                                                      for (const url of urls) {
-                                                    
-                                                                              
-                                                    
-                                                                                                                                        store.addTab(url);
-                                                    
-                                                                              
-                                                    
-                                                                                                                                        await delay(500); // Small delay between opening tabs
-                                                    
-                                                                              
-                                                    
-                                                                                                                                      }
-                                                    
-                                                                              
-                                                    
-                                                                                                                                      commandOutput = `✅ **Tab group "${groupName}" created with ${urls.length} tabs.**`;
-                                                    
-                                                                              
-                                                    
-                                                                                                                                    } else {
-                                                    
-                                                                              
-                                                    
-                                                                                                                                      commandOutput = '⚠️ **Tab grouping not available in this environment.**';
-                                                    
-                                                                              
-                                                    
-                                                                                                                                    }
-                                                    
-                                                                              
-                                                    
-                                                                                                                                    await delay(2000);
-                                                    
-                                                                              
-                                                    
-                                                                                                                                    break;
-                                                    
-                                                                              
-                                                    
-                                                                                                        
-                                                    
-                                                                              
-                                                    
-                                                                                                                                  case 'EXTRACT_DATA':
-                                                    
-                                                                              
-                                                    
-                                                                                                                                    if (window.electronAPI) {
-                                                    
-                                                                              
-                                                    
-                                                                                                                                      const selector = cmd.value;
-                                                    
-                                                                              
-                                                    
-                                                                                                                                      commandOutput = `🔍 **Extracting data from element "${selector}"...**`;
-                                                    
-                                                                              
-                                                    
-                                                                                                                                      setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
-                                                    
-                                                                              
-                                                    
-                                                                                                        
-                                                    
-                                                                              
-                                                    
-                                                                                                                                      try {
-                                                    
-                                                                              
-                                                    
-                                                                                                                                        const script = `
+
+
+
+                      const result = await window.electronAPI.executeJavaScript(script);
+
+
+
+                      if (result) {
+
+
+
+                        commandOutput = `✅ **Scrolled to "${target}".**`;
+
+
+
+                      } else {
+
+
+
+                        commandOutput = `❌ **Failed to scroll to "${target}".**`;
+
+
+
+                      }
+
+
+
+                    } catch (err: any) {
+
+
+
+                      commandOutput = `❌ **Error scrolling to "${target}": ${err.message || 'Unknown error'}.**`;
+
+
+
+                    }
+
+
+
+                  } else {
+
+
+
+                    commandOutput = '⚠️ **Scrolling functionality not available in this environment.**';
+
+
+
+                  }
+
+
+
+                  await delay(1500);
+
+
+
+                  break;
+
+
+
+
+
+
+
+                case 'CREATE_NEW_TAB_GROUP':
+
+
+
+                  if (window.electronAPI) {
+
+
+
+                    const [groupName, urlsString] = cmd.value.split(' | ').map(s => s.trim());
+
+
+
+                    const urls = urlsString.split(',').map(url => url.trim());
+
+
+
+                    commandOutput = `➕ **Creating new tab group "${groupName}" with ${urls.length} tabs...**`;
+
+
+
+                    setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
+
+
+
+
+
+
+
+                    for (const url of urls) {
+
+
+
+                      store.addTab(url);
+
+
+
+                      await delay(500); // Small delay between opening tabs
+
+
+
+                    }
+
+
+
+                    commandOutput = `✅ **Tab group "${groupName}" created with ${urls.length} tabs.**`;
+
+
+
+                  } else {
+
+
+
+                    commandOutput = '⚠️ **Tab grouping not available in this environment.**';
+
+
+
+                  }
+
+
+
+                  await delay(2000);
+
+
+
+                  break;
+
+
+
+
+
+
+
+                case 'EXTRACT_DATA':
+
+
+
+                  if (window.electronAPI) {
+
+
+
+                    const selector = cmd.value;
+
+
+
+                    commandOutput = `🔍 **Extracting data from element "${selector}"...**`;
+
+
+
+                    setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
+
+
+
+
+
+
+
+                    try {
+
+
+
+                      const script = `
                                                     
                                                                               
                                                     
@@ -1214,363 +1214,364 @@ ${pageContext || "Content not loaded. Use [READ_PAGE_CONTENT] command to read fu
                                                                               
                                                     
                                                                                                                                         `;
-                                                    
-                                                                              
-                                                    
-                                                                                                                                        const extractedData = await window.electronAPI.executeJavaScript(script);
-                                                    
-                                                                              
-                                                    
-                                                                                                                                        if (extractedData !== null) {
-                                                    
-                                                                              
-                                                    
-                                                                                                                                          // Add to vector memory
-                                                    
-                                                                                                                                          BrowserAI.addToVectorMemory(extractedData, { type: 'extracted_data', url: store.currentUrl, selector });
-                                                    
-                                                                              
-                                                    
-                                                                                                                                          await handleSendMessage(userMessage.content + `\n\n[EXTRACTED_DATA]: ${extractedData}`);
-                                                    
-                                                                              
-                                                    
-                                                                                                                                        } else {
-                                                    
-                                                                              
-                                                    
-                                                                                                                                                                                                                                                                                    commandOutput = `❌ **Element "${selector}" not found for data extraction.**`;
-                                                    
-                                                                              
-                                                    
-                                                                                                                                                                                                                                                                                  }
-                                                    
-                                                                              
-                                                    
-                                                                                                                                                                                                                                                                                } catch (err: any) {
-                                                    
-                                                                              
-                                                    
-                                                                                                                                                                                                                                                                                  commandOutput = `❌ **Error extracting data from "${selector}": ${err.message || 'Unknown error'}.**`;
-                                                    
-                                                                              
-                                                    
-                                                                                                                                      }
-                                                    
-                                                                              
-                                                    
-                                                                                                                                      shouldReturn = true;
-                                                    
-                                                                              
-                                                    
-                                                                                                                                    } else {
-                                                    
-                                                                              
-                                                    
-                                                                                                                                      commandOutput = '⚠️ **Data extraction not available in this environment.**';
-                                                    
-                                                                              
-                                                    
-                                                                                                                                    }
-                                                    
-                                                                              
-                                                    
-                                                                                                                                    await delay(1500);
-                                                    
-                                                                              
-                                                    
-                                                                                                                                    break;                                                    case 'OCR_COORDINATES':
-                                                      if (window.electronAPI) {
-                                                        const [x, y, width, height] = cmd.value.split(',').map(Number);
-                                                        commandOutput = `🔍 **Performing OCR on coordinates:** ${x},${y} ${width}x${height}`;
-                                                        setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
-                          
-                                                        try {
-                                                          const screenshotDataUrl = await window.electronAPI.captureBrowserViewScreenshot();
-                                                                                                                                                    if (screenshotDataUrl && tesseractWorkerRef.current) {
-                                                                                                                                                      const tesseractWorker = tesseractWorkerRef.current; // Capture current value
-                                                                                                                                                      const img = new Image();
-                                                                                                                                                      img.onload = async () => {
-                                                                                                                                                        const canvas = document.createElement('canvas');
-                                                                                                                                                        canvas.width = width;
-                                                                                                                                                        canvas.height = height;
-                                                                                                                                                        const ctx = canvas.getContext('2d');
-                                                                                                                                                        if (ctx) {
-                                                                                                                                                          ctx.drawImage(img, x, y, width, height, 0, 0, width, height);
-                                                                                                                                                          const croppedDataUrl = canvas.toDataURL();
-                                                                                                                                                          const { data: { text: ocrText } } = await tesseractWorker.recognize(croppedDataUrl); // Use captured variable
-                                                                                                                                                          // Add to vector memory
-                                                                                                                                                          BrowserAI.addToVectorMemory(ocrText, { type: 'ocr_coordinates', url: store.currentUrl, x, y, width, height });
-                                                                                                                                                          await handleSendMessage(userMessage.content + `\n\n[OCR_RESULT]: ${ocrText}`);
-                                                                                                                                                        }
-                                                                                                                                                      };
-                                                                                                                                                      img.src = screenshotDataUrl;
-                                                                                                                                                    }                                                        } catch (err) {
-                                                          await handleSendMessage(userMessage.content + `\n\n[OCR_ERROR]: Failed to perform OCR on coordinates`);
-                                                        }
-                                                        shouldReturn = true;
-                                                      } else {
-                                                        commandOutput = '⚠️ **OCR on coordinates not available.**';
-                                                      }
-                                                      await delay(2000);
-                                                      break;
-                          
-                                                    case 'OCR_SCREEN':
-                                                      if (window.electronAPI) {
-                                                        let coords: { x?: number, y?: number, width?: number, height?: number } = {};
-                                                        if (cmd.value && cmd.value.split(',').length === 4) {
-                                                          const [x, y, width, height] = cmd.value.split(',').map(Number);
-                                                          coords = { x, y, width, height };
-                                                          commandOutput = `🔍 **Performing OCR on screen region:** ${x},${y} ${width}x${height}`;
-                                                        } else {
-                                                          commandOutput = `🔍 **Performing OCR on full screen...**`;
-                                                        }
-                                                        setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
-                          
-                                                        try {
-                                                          const { success, dataURL, error: captureError } = await window.electronAPI.captureScreenRegion(coords);
-                                                          if (success && dataURL && tesseractWorkerRef.current) {
-                                                            const { data: { text: ocrText } } = await tesseractWorkerRef.current.recognize(dataURL);
-                                                            // Add to vector memory
-                                                            BrowserAI.addToVectorMemory(ocrText, { type: 'ocr_screen', url: store.currentUrl, coords });
-                                                            await handleSendMessage(userMessage.content + `\n\n[OCR_SCREEN_RESULT]: ${ocrText}`);
-                                                          } else {
-                                                            await handleSendMessage(userMessage.content + `\n\n[OCR_SCREEN_ERROR]: Failed to capture screen: ${captureError}`);
-                                                          }
-                                                        } catch (err) {
-                                                          await handleSendMessage(userMessage.content + `\n\n[OCR_SCREEN_ERROR]: Failed to perform screen OCR.`);
-                                                        }
-                                                        shouldReturn = true;
-                                                      } else {
-                                                        commandOutput = '⚠️ **Screen OCR not available in this environment.**';
-                                                      }
-                                                      await delay(3000); // Longer delay for screen OCR
-                                                      break;        
-                          case 'CLICK_ELEMENT':
-                            if (window.electronAPI) {
-                              const selector = cmd.value;
-                              commandOutput = `🖱️ **Clicking element:** ${selector}`;
-                              setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
-        
-                              try {
-                                const result = await window.electronAPI.clickElement(selector);
-                                if (result.success) {
-                                  await handleSendMessage(userMessage.content + `\n\n[CLICK_SUCCESS]: Element clicked successfully`);
-                                } else {
-                                  await handleSendMessage(userMessage.content + `\n\n[CLICK_ERROR]: ${result.error}`);
-                                }
-                              } catch (err) {
-                                await handleSendMessage(userMessage.content + `\n\n[CLICK_ERROR]: Failed to click element`);
-                              }
-                              shouldReturn = true;
-                            } else {
-                              commandOutput = '⚠️ **Click element not available.**';
-                            }
-                            await delay(1000);
-                            break;
 
-                          case 'FIND_AND_CLICK':
-                            if (window.electronAPI?.findAndClickText) {
-                              const textToFind = cmd.value?.trim() || '';
-                              commandOutput = textToFind ? `🔍 **Finding and clicking:** "${textToFind}"` : '⚠️ **No text specified for Find & Click.**';
-                              setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
-                              if (textToFind) {
-                                try {
-                                  const result = await window.electronAPI.findAndClickText(textToFind);
-                                  if (result.success) {
-                                    await handleSendMessage(userMessage.content + `\n\n[FIND_AND_CLICK_SUCCESS]: Clicked at (${result.x}, ${result.y})`);
-                                  } else {
-                                    await handleSendMessage(userMessage.content + `\n\n[FIND_AND_CLICK_ERROR]: ${result.error}`);
-                                  }
-                                } catch (err) {
-                                  await handleSendMessage(userMessage.content + `\n\n[FIND_AND_CLICK_ERROR]: ${(err as Error)?.message || 'Failed'}`);
-                                }
-                                shouldReturn = true;
-                              }
-                            } else {
-                              commandOutput = '⚠️ **Find & Click not available in this environment.**';
-                            }
-                            await delay(1500);
-                            break;
-        
-                          case 'GENERATE_PDF':
-                            if (window.electronAPI) {
-                              const [title, pdfContent] = cmd.value.split(' | ');
-                              window.electronAPI.exportChatAsPdf([{ role: 'system', content: `Title: ${title}\n\n${pdfContent}` }]);
-                              commandOutput = `📄 **Generated PDF:** ${title}`;
-                            } else {
-                              commandOutput = '⚠️ **PDF generation not available.**';
-                            }
-                            await delay(1000);
-                            break;
-        
-                          case 'GMAIL_AUTHORIZE':
-                            if (window.electronAPI) {
-                              commandOutput = '📧 **Authorizing Gmail API...**';
-                              setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
-                              try {
-                                const result = await window.electronAPI.gmailAuthorize();
-                                if (result.success) {
-                                  await handleSendMessage(userMessage.content + `\n\n[GMAIL_AUTH_SUCCESS]: Gmail API authorized successfully.`);
-                                } else {
-                                  await handleSendMessage(userMessage.content + `\n\n[GMAIL_AUTH_ERROR]: ${result.error}`);
-                                }
-                              } catch (err) {
-                                await handleSendMessage(userMessage.content + `\n\n[GMAIL_AUTH_ERROR]: Failed to authorize Gmail API.`);
-                              }
-                              shouldReturn = true;
-                            } else {
-                              commandOutput = '⚠️ **Gmail API not available.**';
-                            }
-                            await delay(1500);
-                            break;
-        
-                          case 'GMAIL_LIST_MESSAGES':
-                            if (window.electronAPI) {
-                              const [query, maxResultsStr] = cmd.value.split(' | ');
-                              const maxResults = parseInt(maxResultsStr, 10);
-                              commandOutput = `📧 **Listing Gmail messages for query:** "${query}"`;
-                              setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
-        
-                              try {
-                                const { success, messages, error } = await window.electronAPI.gmailListMessages(query, maxResults);
-                                if (success && messages) {
-                                  const messageList = messages.map((msg: any) => `- ID: ${msg.id}`).join('\n');
-                                  await handleSendMessage(userMessage.content + `\n\n[GMAIL_MESSAGES_LIST]:\n${messageList}`);
-                                } else {
-                                  await handleSendMessage(userMessage.content + `\n\n[GMAIL_LIST_ERROR]: ${error}`);
-                                }
-                              } catch (err) {
-                                await handleSendMessage(userMessage.content + `\n\n[GMAIL_LIST_ERROR]: Failed to list Gmail messages.`);
-                              }
-                              shouldReturn = true;
-                            } else {
-                              commandOutput = '⚠️ **Gmail API not available.**';
-                            }
-                            await delay(1500);
-                            break;
-        
-                          case 'GMAIL_GET_MESSAGE':
-                            if (window.electronAPI) {
-                              const messageId = cmd.value;
-                              commandOutput = `📧 **Getting Gmail message:** "${messageId}"`;
-                              setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
-        
-                              try {
-                                const { success, message, error } = await window.electronAPI.gmailGetMessage(messageId);
-                                if (success && message) {
-                                  const payload = message.payload;
-                                  const headers = payload.headers;
-                                  const subject = headers.find((h: any) => h.name === 'Subject')?.value;
-                                  const from = headers.find((h: any) => h.name === 'From')?.value;
-                                  let body = '';
-        
-                                  const decodeBody = (parts: any) => {
-                                    let decodedText = '';
-                                    if (!parts) return decodedText;
-                                    for (const part of parts) {
-                                      if (part.mimeType === 'text/plain' && part.body.data) {
-                                        decodedText += Buffer.from(part.body.data, 'base64').toString('utf-8');
-                                      } else if (part.parts) {
-                                        decodedText += decodeBody(part.parts);
-                                      }
-                                    }
-                                    return decodedText;
-                                  };
-        
-                                  if (payload.body.data) {
-                                    body = Buffer.from(payload.body.data, 'base64').toString('utf-8');
-                                  } else if (payload.parts) {
-                                    body = decodeBody(payload.parts);
-                                  }
-                                  const messageContent = `Subject: ${subject}\nFrom: ${from}\nBody: ${body}`;
-                                  // Add to vector memory
-                                  BrowserAI.addToVectorMemory(messageContent, { type: 'gmail_message', messageId, subject, from });
-                                  await handleSendMessage(userMessage.content + `\n\n[GMAIL_MESSAGE_CONTENT]:\nSubject: ${subject}\nFrom: ${from}\nBody: ${body.substring(0, 500)}...`);
-                                } else {
-                                  await handleSendMessage(userMessage.content + `\n\n[GMAIL_GET_ERROR]: ${error}`);
-                                }
-                              } catch (err) {
-                                await handleSendMessage(userMessage.content + `\n\n[GMAIL_GET_ERROR]: Failed to get Gmail message.`);
-                              }
-                              shouldReturn = true;
-                            } else {
-                              commandOutput = '⚠️ **Gmail API not available.**';
-                            }
-                            await delay(1500);
-                            break;
-        
-                          case 'GMAIL_SEND_MESSAGE':
-                            if (window.electronAPI) {
-                              const [to, subject, body, threadId = null] = cmd.value.split(' | ');
-                              commandOutput = `📧 **Sending Gmail message to:** "${to}"`;
-                              setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
-        
-                              try {
-                                const { success, result, error } = await window.electronAPI.gmailSendMessage(to, subject, body, threadId);
-                                if (success && result) {
-                                  await handleSendMessage(userMessage.content + `\n\n[GMAIL_SEND_SUCCESS]: Message sent successfully. ID: ${result.id}`);
-                                } else {
-                                  await handleSendMessage(userMessage.content + `\n\n[GMAIL_SEND_ERROR]: ${error}`);
-                                }
-                              } catch (err) {
-                                await handleSendMessage(userMessage.content + `\n\n[GMAIL_SEND_ERROR]: Failed to send Gmail message.`);
-                              }
-                              shouldReturn = true;
-                            } else {
-                              commandOutput = '⚠️ **Gmail API not available.**';
-                            }
-                            await delay(2000);
-                            break;
-        
-                          case 'GMAIL_ADD_LABEL':
-                            if (window.electronAPI) {
-                              const [messageId, labelName] = cmd.value.split(' | ');
-                              commandOutput = `📧 **Adding label "${labelName}" to message:** "${messageId}"`;
-                              setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
-        
-                              try {
-                                const { success, result, error } = await window.electronAPI.gmailAddLabelToMessage(messageId, labelName);
-                                if (success && result) {
-                                  await handleSendMessage(userMessage.content + `\n\n[GMAIL_LABEL_SUCCESS]: Label "${labelName}" added to message "${messageId}".`);
-                                } else {
-                                  await handleSendMessage(userMessage.content + `\n\n[GMAIL_LABEL_ERROR]: ${error}`);
-                                }
-                              } catch (err) {
-                                await handleSendMessage(userMessage.content + `\n\n[GMAIL_LABEL_ERROR]: Failed to add label to Gmail message.`);
-                              }
-                              shouldReturn = true;
-                            } else {
-                              commandOutput = '⚠️ **Gmail API not available.**';
-                            }
-                            await delay(1500);
-                            break;
-        
-                          case 'WAIT':
-                            const duration = parseInt(cmd.value, 10);
-                            if (!isNaN(duration) && duration > 0) {
-                              commandOutput = `⏳ **AI pausing for ${duration / 1000} seconds...**`;
-                              setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
-                              await delay(duration);
-                              commandOutput = `✅ **Resuming AI operations.**`; // Clear the waiting message
-                            } else {
-                              commandOutput = `⚠️ **Invalid WAIT duration specified: ${cmd.value}**`;
-                            }
-                            break;
 
-                          case 'GUIDE_CLICK':
-                            const [clickDescription, clickCoords] = cmd.value.split(' | ').map(s => s.trim());
-                            commandOutput = `👉 **AI suggests you click:** "${clickDescription}" at coordinates: ${clickCoords}`;
-                            setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
-                            await delay(3000); // Give user time to see the guidance
-                            break;
 
-                          case 'EXPLAIN_CAPABILITIES':
-                            commandOutput = `🧠 **Comet AI is preparing a detailed explanation of its capabilities...**`;
-                            setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
-                            await delay(2000); // Initial delay before starting the explanation
+                      const extractedData = await window.electronAPI.executeJavaScript(script);
 
-                            const capabilitiesExplanation = `
+
+
+                      if (extractedData !== null) {
+
+
+
+                        // Add to vector memory
+
+                        BrowserAI.addToVectorMemory(extractedData, { type: 'extracted_data', url: store.currentUrl, selector });
+
+
+
+                        await handleSendMessage(userMessage.content + `\n\n[EXTRACTED_DATA]: ${extractedData}`);
+
+
+
+                      } else {
+
+
+
+                        commandOutput = `❌ **Element "${selector}" not found for data extraction.**`;
+
+
+
+                      }
+
+
+
+                    } catch (err: any) {
+
+
+
+                      commandOutput = `❌ **Error extracting data from "${selector}": ${err.message || 'Unknown error'}.**`;
+
+
+
+                    }
+
+
+
+                    shouldReturn = true;
+
+
+
+                  } else {
+
+
+
+                    commandOutput = '⚠️ **Data extraction not available in this environment.**';
+
+
+
+                  }
+
+
+
+                  await delay(1500);
+
+
+
+                  break; case 'OCR_COORDINATES':
+                  if (window.electronAPI) {
+                    const [x, y, width, height] = cmd.value.split(',').map(Number);
+                    commandOutput = `🔍 **Performing OCR on coordinates:** ${x},${y} ${width}x${height}`;
+                    setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
+
+                    try {
+                      const screenshotDataUrl = await window.electronAPI.captureBrowserViewScreenshot();
+                      if (screenshotDataUrl && tesseractWorkerRef.current) {
+                        const tesseractWorker = tesseractWorkerRef.current; // Capture current value
+                        const img = new Image();
+                        img.onload = async () => {
+                          const canvas = document.createElement('canvas');
+                          canvas.width = width;
+                          canvas.height = height;
+                          const ctx = canvas.getContext('2d');
+                          if (ctx) {
+                            ctx.drawImage(img, x, y, width, height, 0, 0, width, height);
+                            const croppedDataUrl = canvas.toDataURL();
+                            const { data: { text: ocrText } } = await tesseractWorker.recognize(croppedDataUrl); // Use captured variable
+                            // Add to vector memory
+                            BrowserAI.addToVectorMemory(ocrText, { type: 'ocr_coordinates', url: store.currentUrl, x, y, width, height });
+                            await handleSendMessage(userMessage.content + `\n\n[OCR_RESULT]: ${ocrText}`);
+                          }
+                        };
+                        img.src = screenshotDataUrl;
+                      }
+                    } catch (err) {
+                      await handleSendMessage(userMessage.content + `\n\n[OCR_ERROR]: Failed to perform OCR on coordinates`);
+                    }
+                    shouldReturn = true;
+                  } else {
+                    commandOutput = '⚠️ **OCR on coordinates not available.**';
+                  }
+                  await delay(2000);
+                  break;
+
+                case 'OCR_SCREEN':
+                  if (window.electronAPI) {
+                    let coords: { x?: number, y?: number, width?: number, height?: number } = {};
+                    if (cmd.value && cmd.value.split(',').length === 4) {
+                      const [x, y, width, height] = cmd.value.split(',').map(Number);
+                      coords = { x, y, width, height };
+                      commandOutput = `🔍 **Performing OCR on screen region:** ${x},${y} ${width}x${height}`;
+                    } else {
+                      commandOutput = `🔍 **Performing OCR on full screen...**`;
+                    }
+                    setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
+
+                    try {
+                      const { success, dataURL, error: captureError } = await (window.electronAPI as any).captureScreenRegion(coords as { x: number; y: number; width: number; height: number });
+                      if (success && dataURL && tesseractWorkerRef.current) {
+                        const { data: { text: ocrText } } = await tesseractWorkerRef.current.recognize(dataURL);
+                        // Add to vector memory
+                        BrowserAI.addToVectorMemory(ocrText, { type: 'ocr_screen', url: store.currentUrl, coords });
+                        await handleSendMessage(userMessage.content + `\n\n[OCR_SCREEN_RESULT]: ${ocrText}`);
+                      } else {
+                        await handleSendMessage(userMessage.content + `\n\n[OCR_SCREEN_ERROR]: Failed to capture screen: ${captureError}`);
+                      }
+                    } catch (err) {
+                      await handleSendMessage(userMessage.content + `\n\n[OCR_SCREEN_ERROR]: Failed to perform screen OCR.`);
+                    }
+                    shouldReturn = true;
+                  } else {
+                    commandOutput = '⚠️ **Screen OCR not available in this environment.**';
+                  }
+                  await delay(3000); // Longer delay for screen OCR
+                  break;
+                case 'CLICK_ELEMENT':
+                  if (window.electronAPI) {
+                    const selector = cmd.value;
+                    commandOutput = `🖱️ **Clicking element:** ${selector}`;
+                    setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
+
+                    try {
+                      const result = await window.electronAPI.clickElement(selector);
+                      if (result.success) {
+                        await handleSendMessage(userMessage.content + `\n\n[CLICK_SUCCESS]: Element clicked successfully`);
+                      } else {
+                        await handleSendMessage(userMessage.content + `\n\n[CLICK_ERROR]: ${result.error}`);
+                      }
+                    } catch (err) {
+                      await handleSendMessage(userMessage.content + `\n\n[CLICK_ERROR]: Failed to click element`);
+                    }
+                    shouldReturn = true;
+                  } else {
+                    commandOutput = '⚠️ **Click element not available.**';
+                  }
+                  await delay(1000);
+                  break;
+
+                case 'FIND_AND_CLICK':
+                  if (window.electronAPI?.findAndClickText) {
+                    const textToFind = cmd.value?.trim() || '';
+                    commandOutput = textToFind ? `🔍 **Finding and clicking:** "${textToFind}"` : '⚠️ **No text specified for Find & Click.**';
+                    setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
+                    if (textToFind) {
+                      try {
+                        const result = await window.electronAPI.findAndClickText(textToFind);
+                        if (result.success) {
+                          await handleSendMessage(userMessage.content + `\n\n[FIND_AND_CLICK_SUCCESS]: Clicked at (${result.x}, ${result.y})`);
+                        } else {
+                          await handleSendMessage(userMessage.content + `\n\n[FIND_AND_CLICK_ERROR]: ${result.error}`);
+                        }
+                      } catch (err) {
+                        await handleSendMessage(userMessage.content + `\n\n[FIND_AND_CLICK_ERROR]: ${(err as Error)?.message || 'Failed'}`);
+                      }
+                      shouldReturn = true;
+                    }
+                  } else {
+                    commandOutput = '⚠️ **Find & Click not available in this environment.**';
+                  }
+                  await delay(1500);
+                  break;
+
+                case 'GENERATE_PDF':
+                  if (window.electronAPI) {
+                    const [title, pdfContent] = cmd.value.split(' | ');
+                    window.electronAPI.exportChatAsPdf([{ role: 'system', content: `Title: ${title}\n\n${pdfContent}` }]);
+                    commandOutput = `📄 **Generated PDF:** ${title}`;
+                  } else {
+                    commandOutput = '⚠️ **PDF generation not available.**';
+                  }
+                  await delay(1000);
+                  break;
+
+                case 'GMAIL_AUTHORIZE':
+                  if (window.electronAPI) {
+                    commandOutput = '📧 **Authorizing Gmail API...**';
+                    setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
+                    try {
+                      const result = await window.electronAPI.gmailAuthorize();
+                      if (result.success) {
+                        await handleSendMessage(userMessage.content + `\n\n[GMAIL_AUTH_SUCCESS]: Gmail API authorized successfully.`);
+                      } else {
+                        await handleSendMessage(userMessage.content + `\n\n[GMAIL_AUTH_ERROR]: ${result.error}`);
+                      }
+                    } catch (err) {
+                      await handleSendMessage(userMessage.content + `\n\n[GMAIL_AUTH_ERROR]: Failed to authorize Gmail API.`);
+                    }
+                    shouldReturn = true;
+                  } else {
+                    commandOutput = '⚠️ **Gmail API not available.**';
+                  }
+                  await delay(1500);
+                  break;
+
+                case 'GMAIL_LIST_MESSAGES':
+                  if (window.electronAPI) {
+                    const [query, maxResultsStr] = cmd.value.split(' | ');
+                    const maxResults = parseInt(maxResultsStr, 10);
+                    commandOutput = `📧 **Listing Gmail messages for query:** "${query}"`;
+                    setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
+
+                    try {
+                      const { success, messages, error } = await window.electronAPI.gmailListMessages(query, maxResults);
+                      if (success && messages) {
+                        const messageList = messages.map((msg: any) => `- ID: ${msg.id}`).join('\n');
+                        await handleSendMessage(userMessage.content + `\n\n[GMAIL_MESSAGES_LIST]:\n${messageList}`);
+                      } else {
+                        await handleSendMessage(userMessage.content + `\n\n[GMAIL_LIST_ERROR]: ${error}`);
+                      }
+                    } catch (err) {
+                      await handleSendMessage(userMessage.content + `\n\n[GMAIL_LIST_ERROR]: Failed to list Gmail messages.`);
+                    }
+                    shouldReturn = true;
+                  } else {
+                    commandOutput = '⚠️ **Gmail API not available.**';
+                  }
+                  await delay(1500);
+                  break;
+
+                case 'GMAIL_GET_MESSAGE':
+                  if (window.electronAPI) {
+                    const messageId = cmd.value;
+                    commandOutput = `📧 **Getting Gmail message:** "${messageId}"`;
+                    setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
+
+                    try {
+                      const { success, message, error } = await window.electronAPI.gmailGetMessage(messageId);
+                      if (success && message) {
+                        const payload = message.payload;
+                        const headers = payload.headers;
+                        const subject = headers.find((h: any) => h.name === 'Subject')?.value;
+                        const from = headers.find((h: any) => h.name === 'From')?.value;
+                        let body = '';
+
+                        const decodeBody = (parts: any) => {
+                          let decodedText = '';
+                          if (!parts) return decodedText;
+                          for (const part of parts) {
+                            if (part.mimeType === 'text/plain' && part.body.data) {
+                              decodedText += Buffer.from(part.body.data, 'base64').toString('utf-8');
+                            } else if (part.parts) {
+                              decodedText += decodeBody(part.parts);
+                            }
+                          }
+                          return decodedText;
+                        };
+
+                        if (payload.body.data) {
+                          body = Buffer.from(payload.body.data, 'base64').toString('utf-8');
+                        } else if (payload.parts) {
+                          body = decodeBody(payload.parts);
+                        }
+                        const messageContent = `Subject: ${subject}\nFrom: ${from}\nBody: ${body}`;
+                        // Add to vector memory
+                        BrowserAI.addToVectorMemory(messageContent, { type: 'gmail_message', messageId, subject, from });
+                        await handleSendMessage(userMessage.content + `\n\n[GMAIL_MESSAGE_CONTENT]:\nSubject: ${subject}\nFrom: ${from}\nBody: ${body.substring(0, 500)}...`);
+                      } else {
+                        await handleSendMessage(userMessage.content + `\n\n[GMAIL_GET_ERROR]: ${error}`);
+                      }
+                    } catch (err) {
+                      await handleSendMessage(userMessage.content + `\n\n[GMAIL_GET_ERROR]: Failed to get Gmail message.`);
+                    }
+                    shouldReturn = true;
+                  } else {
+                    commandOutput = '⚠️ **Gmail API not available.**';
+                  }
+                  await delay(1500);
+                  break;
+
+                case 'GMAIL_SEND_MESSAGE':
+                  if (window.electronAPI) {
+                    const [to, subject, body, threadId = null] = cmd.value.split(' | ');
+                    commandOutput = `📧 **Sending Gmail message to:** "${to}"`;
+                    setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
+
+                    try {
+                      const { success, result, error } = await window.electronAPI.gmailSendMessage(to, subject, body, threadId);
+                      if (success && result) {
+                        await handleSendMessage(userMessage.content + `\n\n[GMAIL_SEND_SUCCESS]: Message sent successfully. ID: ${result.id}`);
+                      } else {
+                        await handleSendMessage(userMessage.content + `\n\n[GMAIL_SEND_ERROR]: ${error}`);
+                      }
+                    } catch (err) {
+                      await handleSendMessage(userMessage.content + `\n\n[GMAIL_SEND_ERROR]: Failed to send Gmail message.`);
+                    }
+                    shouldReturn = true;
+                  } else {
+                    commandOutput = '⚠️ **Gmail API not available.**';
+                  }
+                  await delay(2000);
+                  break;
+
+                case 'GMAIL_ADD_LABEL':
+                  if (window.electronAPI) {
+                    const [messageId, labelName] = cmd.value.split(' | ');
+                    commandOutput = `📧 **Adding label "${labelName}" to message:** "${messageId}"`;
+                    setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
+
+                    try {
+                      const { success, result, error } = await window.electronAPI.gmailAddLabelToMessage(messageId, labelName);
+                      if (success && result) {
+                        await handleSendMessage(userMessage.content + `\n\n[GMAIL_LABEL_SUCCESS]: Label "${labelName}" added to message "${messageId}".`);
+                      } else {
+                        await handleSendMessage(userMessage.content + `\n\n[GMAIL_LABEL_ERROR]: ${error}`);
+                      }
+                    } catch (err) {
+                      await handleSendMessage(userMessage.content + `\n\n[GMAIL_LABEL_ERROR]: Failed to add label to Gmail message.`);
+                    }
+                    shouldReturn = true;
+                  } else {
+                    commandOutput = '⚠️ **Gmail API not available.**';
+                  }
+                  await delay(1500);
+                  break;
+
+                case 'WAIT':
+                  const duration = parseInt(cmd.value, 10);
+                  if (!isNaN(duration) && duration > 0) {
+                    commandOutput = `⏳ **AI pausing for ${duration / 1000} seconds...**`;
+                    setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
+                    await delay(duration);
+                    commandOutput = `✅ **Resuming AI operations.**`; // Clear the waiting message
+                  } else {
+                    commandOutput = `⚠️ **Invalid WAIT duration specified: ${cmd.value}**`;
+                  }
+                  break;
+
+                case 'GUIDE_CLICK':
+                  const [clickDescription, clickCoords] = cmd.value.split(' | ').map(s => s.trim());
+                  commandOutput = `👉 **AI suggests you click:** "${clickDescription}" at coordinates: ${clickCoords}`;
+                  setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
+                  await delay(3000); // Give user time to see the guidance
+                  break;
+
+                case 'EXPLAIN_CAPABILITIES':
+                  commandOutput = `🧠 **Comet AI is preparing a detailed explanation of its capabilities...**`;
+                  setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
+                  await delay(2000); // Initial delay before starting the explanation
+
+                  const capabilitiesExplanation = `
                                 🌟 **Comet AI Capabilities:** [WAIT: 1000]
 
                                 I am the core intelligence of the Comet Browser, designed to assist you with a wide range of tasks by controlling the browser and interacting with your operating system. [WAIT: 1500]
@@ -1616,66 +1617,66 @@ ${pageContext || "Content not loaded. Use [READ_PAGE_CONTENT] command to read fu
 
                                 How can I assist you further?
                                 `;
-                            await handleSendMessage(userMessage.content + capabilitiesExplanation);
-                            shouldReturn = true;
-                            break;
-        
-                          default:
-                            commandOutput = `⚠️ **Unknown command: ${cmd.type}**`;
-                            break;
-                        }
-        
-                        // Append output to messages and update the display
-                        // This ensures each step's output is visible
-                        setMessages(prev => {
-                          const lastMsg = prev[prev.length - 1];
-                          if (lastMsg && lastMsg.role === 'model' && lastMsg.content.includes(cmd.originalMatch)) {
-                            // Replace the command in the previous message with its output
-                            lastMsg.content = lastMsg.content.replace(cmd.originalMatch, commandOutput);
-                            return [...prev.slice(0, -1), lastMsg];
-                          }
-                          // If not replacing, just add as a new message
-                          return [...prev, { role: 'model', content: commandOutput }];
-                        });
-        
-                        if (shouldReturn) {
-                          return ''; // Stop further command processing in this chain
-                        }
-                      }
-                      return currentTextContent; // Return the text portion that was not part of any command
-                    };
-        
-                    const finalProcessedText = await executeCommands(fullResponseText);
-        
-                    // Display any remaining non-command text
-                    if (finalProcessedText.trim().length > 0) {
-                      setMessages(prev => [...prev, { role: 'model', content: finalProcessedText }]);
-                    }
-        
-                    // YouTube "Content Not Available" Detection and Auto-Fallback
-                    if (store.currentUrl.includes('youtube.com') && response.text.toLowerCase().includes('not available')) {
-                      console.log('[YouTube] Content unavailable detected, triggering web search fallback');
-                      const videoTopic = store.currentUrl.match(/[?&]v=([^&]+)/)?.[1] || 'video';
-                      const searchQuery = `${videoTopic} video alternative`;
-                      setMessages(prev => [...prev, { role: 'model', content: `\n\n⚠️ YouTube content unavailable. Searching for alternatives... [SEARCH: ${searchQuery}]` }]);
-        
-                      // Execute search automatically after a short delay
-                      await delay(2000); // Wait for the message to be displayed
-                      const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`;
-                      store.setCurrentUrl(searchUrl);
-                      if (window.electronAPI) {
-                        await window.electronAPI.navigateBrowserView({ tabId: store.activeTabId, url: searchUrl });
-                      }
-                    }
-        
-                    // Trigger Mermaid re-render if diagrams found
-                    if (response.text.includes('mermaid') || response.text.includes('[GENERATE_DIAGRAM:')) {
-                      setTimeout(() => {
-                        (window as any).mermaid?.contentLoaded();
-                      }, 500);
-                    }
-                  }
-              } else {
+                  await handleSendMessage(userMessage.content + capabilitiesExplanation);
+                  shouldReturn = true;
+                  break;
+
+                default:
+                  commandOutput = `⚠️ **Unknown command: ${cmd.type}**`;
+                  break;
+              }
+
+              // Append output to messages and update the display
+              // This ensures each step's output is visible
+              setMessages(prev => {
+                const lastMsg = prev[prev.length - 1];
+                if (lastMsg && lastMsg.role === 'model' && lastMsg.content.includes(cmd.originalMatch)) {
+                  // Replace the command in the previous message with its output
+                  lastMsg.content = lastMsg.content.replace(cmd.originalMatch, commandOutput);
+                  return [...prev.slice(0, -1), lastMsg];
+                }
+                // If not replacing, just add as a new message
+                return [...prev, { role: 'model', content: commandOutput }];
+              });
+
+              if (shouldReturn) {
+                return ''; // Stop further command processing in this chain
+              }
+            }
+            return currentTextContent; // Return the text portion that was not part of any command
+          };
+
+          const finalProcessedText = await executeCommands(fullResponseText);
+
+          // Display any remaining non-command text
+          if (finalProcessedText.trim().length > 0) {
+            setMessages(prev => [...prev, { role: 'model', content: finalProcessedText }]);
+          }
+
+          // YouTube "Content Not Available" Detection and Auto-Fallback
+          if (store.currentUrl.includes('youtube.com') && response.text.toLowerCase().includes('not available')) {
+            console.log('[YouTube] Content unavailable detected, triggering web search fallback');
+            const videoTopic = store.currentUrl.match(/[?&]v=([^&]+)/)?.[1] || 'video';
+            const searchQuery = `${videoTopic} video alternative`;
+            setMessages(prev => [...prev, { role: 'model', content: `\n\n⚠️ YouTube content unavailable. Searching for alternatives... [SEARCH: ${searchQuery}]` }]);
+
+            // Execute search automatically after a short delay
+            await delay(2000); // Wait for the message to be displayed
+            const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`;
+            store.setCurrentUrl(searchUrl);
+            if (window.electronAPI) {
+              await window.electronAPI.navigateBrowserView({ tabId: store.activeTabId, url: searchUrl });
+            }
+          }
+
+          // Trigger Mermaid re-render if diagrams found
+          if (response.text.includes('mermaid') || response.text.includes('[GENERATE_DIAGRAM:')) {
+            setTimeout(() => {
+              (window as any).mermaid?.contentLoaded();
+            }, 500);
+          }
+        }
+      } else {
         setError("AI Engine not connected. Use the Comet Desktop App for full AI features.");
       }
     } catch (err: any) {
@@ -1806,6 +1807,34 @@ ${pageContext || "Content not loaded. Use [READ_PAGE_CONTENT] command to read fu
       onDragLeave={() => setIsDragOver(false)}
       onDrop={handleDrop}
     >
+      {/* Resize Handle */}
+      {!isFullScreen && !props.isCollapsed && (
+        <div
+          className={`absolute top-0 ${props.side === 'right' ? 'left-0' : 'right-0'} w-1 h-full cursor-col-resize hover:bg-deep-space-accent-neon/50 transition-colors z-[110]`}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            const startX = e.clientX;
+            const startWidth = store.sidebarWidth;
+            const handleMouseMove = (moveEvent: MouseEvent) => {
+              const delta = props.side === 'right' ? startX - moveEvent.clientX : moveEvent.clientX - startX;
+              let newWidth = startWidth + delta;
+              if (newWidth < 300) newWidth = 300;
+              if (newWidth > 800) newWidth = 800;
+              store.setSidebarWidth(newWidth);
+              if (window.electronAPI) {
+                // Trigger a resize event to update BrowserView bounds if needed
+                window.dispatchEvent(new Event('resize'));
+              }
+            };
+            const handleMouseUp = () => {
+              document.removeEventListener('mousemove', handleMouseMove);
+              document.removeEventListener('mouseup', handleMouseUp);
+            };
+            document.addEventListener('mousemove', handleMouseMove);
+            document.addEventListener('mouseup', handleMouseUp);
+          }}
+        />
+      )}
       <style>{`
           .modern-scrollbar::-webkit-scrollbar {
             width: 6px;
@@ -1824,15 +1853,15 @@ ${pageContext || "Content not loaded. Use [READ_PAGE_CONTENT] command to read fu
         `}</style>
       <header className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-<div className="w-8 h-8 rounded-xl flex items-center justify-center">
+          <div className="w-8 h-8 rounded-xl flex items-center justify-center">
             <img src="/icon.png" alt="Comet AI Icon" className="w-full h-full object-contain" />
           </div>
           <h2 className="text-sm font-black uppercase tracking-[0.2em] text-white text-neon">Comet AI</h2>
           {isOnline ? <Wifi size={12} className="text-green-400" /> : <WifiOff size={12} className="text-orange-400" />}
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => setShowLLMProviderSettings(!showLLMProviderSettings)} className="w-6 h-6 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-secondary-text hover:text-primary-text transition-colors no-drag-region overflow-hidden" title="LLM Provider Settings">
-            <img src="/icon.png" alt="Settings Icon" className="w-full h-full object-contain" />
+          <button onClick={() => setShowLLMProviderSettings(!showLLMProviderSettings)} className="w-8 h-8 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/40 transition-all no-drag-region" title="LLM Provider Settings">
+            <MoreVertical size={18} />
           </button>
           <button onClick={() => setIsFullScreen(!isFullScreen)} className="p-2 text-secondary-text hover:text-primary-text transition-colors">
             {isFullScreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
@@ -2072,7 +2101,7 @@ ${pageContext || "Content not loaded. Use [READ_PAGE_CONTENT] command to read fu
             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent translate-x-[-200%] group-hover:translate-x-[200%] transition-transform duration-700" />
             <div className="relative flex items-center gap-2 text-black font-bold text-[10px] uppercase tracking-wider">
               <Send size={12} className="group-hover:rotate-12 transition-transform" />
-          <span>Launch</span>
+              <span>Launch</span>
             </div>
           </button>
         </div>

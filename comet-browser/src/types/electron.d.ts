@@ -117,7 +117,7 @@ declare global {
             importOllamaModel: (data: { modelName: string; filePath: string }) => Promise<{ success: boolean; error?: string }>;
             selectLocalFile: (options?: { filters?: { name: string; extensions: string[] }[]; properties?: string[] }) => Promise<string | null>;
             executeJavaScript: (code: string) => Promise<any>;
-            
+
             // Tab Management
             onTabLoaded: (callback: (data: { tabId: string; url: string }) => void) => () => void;
             onTabSuspended: (callback: (tabId: string) => void) => () => void;
@@ -125,32 +125,36 @@ declare global {
             onResumeTabAndActivate: (callback: (tabId: string) => void) => () => void;
             extractSearchResults: (tabId: string) => Promise<{ success: boolean; results?: any[]; error?: string }>;
             addNewTab: (url: string) => void;
-            
+
             // Shell Commands
             executeShellCommand: (command: string) => Promise<{ success: boolean; output?: string; error?: string }>;
-            openExternalApp: (appNameOrPath: string) => Promise<{ success: boolean; error?: string }>;
-            
-            // Screen & Element Control
-            captureScreenRegion: (coords?: { x?: number; y?: number; width?: number; height?: number }) => Promise<{ success: boolean; dataURL?: string; error?: string }>;
+
+            // Cross-App Control APIs
+            captureScreenRegion: (coords: { x: number; y: number; width: number; height: number }) => Promise<{ success: boolean; image?: string; error?: string }>;
+            searchApplications: (query: string) => Promise<{ success: boolean; results: any[]; error?: string }>;
+            openExternalApp: (appPath: string) => Promise<{ success: boolean; error?: string }>;
+            performCrossAppClick: (coords: { x: number; y: number }) => Promise<{ success: boolean; error?: string }>;
+            onOpenUnifiedSearch: (callback: () => void) => () => void;
+
+            // Element Control (deprecated - use performCrossAppClick instead)
             clickElement: (selector: string) => Promise<{ success: boolean; error?: string }>;
             findAndClickText: (targetText: string) => Promise<{ success: boolean; x?: number; y?: number; error?: string; foundText?: string }>;
-            
+
             // Gmail Integration
             gmailAuthorize: () => Promise<{ success: boolean; error?: string }>;
             gmailListMessages: (query: string, maxResults: number) => Promise<{ success: boolean; messages?: any[]; error?: string }>;
             gmailGetMessage: (messageId: string) => Promise<{ success: boolean; message?: any; error?: string }>;
             gmailSendMessage: (to: string, subject: string, body: string, threadId?: string | null) => Promise<{ success: boolean; result?: any; error?: string }>;
             gmailAddLabelToMessage: (messageId: string, labelName: string) => Promise<{ success: boolean; result?: any; error?: string }>;
-            
+
             // AI Response
             saveAiResponse: (content: string) => void;
-            
+
             // LLM Provider Testing
             testGeminiApi: (apiKey: string) => Promise<{ success: boolean; error?: string }>;
-            
+
             // Alarm & Applications
             setAlarm: (alarmTime: string, message: string) => Promise<{ success: boolean; error?: string }>;
-            searchApplications: (query: string) => Promise<{ success: boolean; results: any[] }>;
             setUserId: (userId: string | null) => void;
             getExtensions: () => Promise<any[]>;
             toggleExtension: (id: string) => Promise<boolean>;

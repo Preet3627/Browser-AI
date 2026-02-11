@@ -61,7 +61,9 @@ interface BrowserState {
     // User and auth
     user: { uid: string; email: string; displayName: string; photoURL: string; activeTime?: number } | null;
     isAdmin: boolean;
+    localPhotoURL: string | null;
     setUser: (user: { uid: string; email: string; displayName: string; photoURL: string } | null) => void;
+    setLocalPhotoURL: (url: string | null) => void;
     setAdmin: (isAdmin: boolean) => void;
     googleToken: string | null;
     githubToken: string | null;
@@ -162,9 +164,11 @@ interface BrowserState {
     ambientMusicUrl: string;
     enableAmbientMusic: boolean;
     ambientMusicMode: 'always' | 'idle' | 'google' | 'off';
+    ambientMusicVolume: number;
     setAmbientMusicUrl: (url: string) => void;
     setEnableAmbientMusic: (enable: boolean) => void;
     setAmbientMusicMode: (mode: 'always' | 'idle' | 'google' | 'off') => void;
+    setAmbientMusicVolume: (volume: number) => void;
 
     // Search and bookmarks
     selectedEngine: string;
@@ -238,7 +242,9 @@ export const useAppStore = create<BrowserState>()(
             // User and auth
             user: null,
             isAdmin: false,
+            localPhotoURL: null,
             googleToken: null,
+            setLocalPhotoURL: (url) => set({ localPhotoURL: url }),
             githubToken: null,
 
             // View and UI
@@ -268,9 +274,11 @@ export const useAppStore = create<BrowserState>()(
             ambientMusicUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
             enableAmbientMusic: true,
             ambientMusicMode: 'off',
+            ambientMusicVolume: 0.5,
             setAmbientMusicUrl: (url: string) => set({ ambientMusicUrl: url }),
             setEnableAmbientMusic: (enable: boolean) => set({ enableAmbientMusic: enable }),
             setAmbientMusicMode: (mode) => set({ ambientMusicMode: mode }),
+            setAmbientMusicVolume: (volume) => set({ ambientMusicVolume: volume }),
 
             // Online status
             isOnline: true,
@@ -575,7 +583,24 @@ export const useAppStore = create<BrowserState>()(
             })),
 
             addTab: (url?: string) => {
-                const finalUrl = url || get().defaultUrl;
+                const state = get();
+                // Use search engine URL if no URL provided
+                const getSearchEngineUrl = () => {
+                    switch (state.selectedEngine) {
+                        case 'google':
+                            return 'https://www.google.com';
+                        case 'bing':
+                            return 'https://www.bing.com';
+                        case 'duckduckgo':
+                            return 'https://duckduckgo.com';
+                        case 'brave':
+                            return 'https://search.brave.com';
+                        default:
+                            return 'https://www.google.com';
+                    }
+                };
+
+                const finalUrl = url || state.defaultUrl || getSearchEngineUrl();
                 const id = `tab-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
 
                 if (window.electronAPI) {

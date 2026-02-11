@@ -1,4 +1,4 @@
-# ☄️ Comet AI Browser (v0.1.7 Stable)
+# ☄️ Comet AI Browser (v0.2.0 Stable)
 
 <div align="center">
 
@@ -8,67 +8,65 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-cyan.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Android%20%7C%20iOS-blue)]()
-[![Version](https://img.shields.io/badge/Version-0.1.7-green)]()
+[![Version](https://img.shields.io/badge/Version-0.2.0-green)]()
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)]()
 
-[Features](#-comprehensive-features) • [Download](#-download) • [Setup Guide](#-setup-guide) • [Documentation](#-documentation) • [License](#-license)
+[Features](#-comprehensive-features) • [Advanced Capabilities](#-advanced-ai-capabilities) • [Download](#-download) • [Setup Guide](#-setup-guide) • [License](#-license)
 
 </div>
 
 ---
 
-## 🚀 Project Status: v0.1.7 "Evolving Intelligence"
+## 🚀 Project Status: v0.2.0 "The Enhancement Update"
 
-Comet is a high-performance, privacy-hardened browser built for architects of the future. Developed by **PreetPatel (Latestinssan)**, it combines native AI orchestration with military-grade privacy.
-
-*   **v0.1.7 Highlights**: Minimal Perplexity-inspired UI, Find & Click (OCR automation), App Search in URL bar, Resizable AI sidebar, Google Login + Continue as Guest, Export dropdown (PDF/Text), and enhanced AI agency.
-*   **Target**: High-performance browsing even on "potato PCs" (low-end hardware optimization).
+Comet v0.2.0 brings significant user experience improvements, focusing on customization, multi-language support, and refined interface control. 
 
 ---
 
 ## 🌟 Comprehensive Features
 
 ### 🧠 Intelligence & RAG System
-*   **Neural Analysis Sidebar**: A context-aware analyst that "reads" the page with you. Ask it to summarize, extract data, or explain complex concepts.
-*   **Find & Click (OCR)**: Screen capture + OCR + mouse automation—tell the AI to find and click visible text (e.g., "Submit", "Sign in"). Uses Tesseract.js and robotjs.
-*   **Persistent Neural Memory**: Build local embeddings of your sessions using **TensorFlow.js**. Your intelligence persists across sessions on your local disk.
-*   **Predictive Intelligence**: Neural URL predictor with auto-completion for common sites and user history.
-*   **AI Mistake Guard**: Persistent, one-time intelligence disclaimer with customizable privacy toggles.
-*   **Native AI Orchestration**: Seamlessly toggle between Google Gemini, GPT-4o, Claude 3.5, Groq, and **Local Ollama (Deepseek R1)**.
-*   **Advanced AI Search**: Predicts and synthesizes search results using native neural logic.
+*   **Universal Neural Translation**: Integrated `free-translate` for unlimited, real-time translations in **all languages**. Respects your selected language settings.
+*   **Neural Analysis Sidebar**: A context-aware analyst that "reads" the page with you. Summarize, extract data, or explain complex concepts.
+*   **Find & Click (OCR)**: Screen capture + OCR + mouse automation—tell the AI to find and click visible text (e.g., "Submit").
+*   **Persistent Neural Memory**: Local embeddings using TensorFlow.js. Your intelligence persists on your local disk.
+*   **AI Orchestration**: Toggle between Google Gemini, GPT-4o, Claude 3.5, Groq, and **Local Ollama**.
 
-### 🎨 Design & Workspace
-*   **Minimal Perplexity-Inspired UI**: Clean, distraction-free interface with focus on content and clarity.
-*   **Resizable & Switchable AI Sidebar**: Drag to resize the AI panel; move it to left or right.
-*   **App Search in URL Bar**: Search and launch installed OS applications directly from the address bar.
-*   **Balanced Premium Layout**: Realigned toolbar with centered URL focus and split-group utility alignment.
-*   **Dynamic Tab Branding**: Real-time website favicons in the tab bar for intuitive navigation.
-*   **Glassmorphic UI**: Vibrant, hardware-accelerated interface built with **Framer Motion** and **Tailwind 4**.
-*   **Specialized Modes**: 
-    *   **Media Studio**: Native environment for intense media tasks and creative workflows.
-    *   **PDF Workspace**: Comprehensive PDF tools including OCR text extraction (Tesseract.js), annotations, and high-fidelity rendering.
-    *   **Coding Mode**: Dedicated view for developers with real-time terminal feedback and AI-assisted debugging.
-*   **Custom Sidebar Rail**: Instant access to Docs, Shopping, Workspace, and Dev tools via a sleek, minimalist rail.
+### 🎨 Design & Customization
+*   **Resizable AI Sidebar**: Adjust your workspace on the fly by dragging the AI sidebar with your mouse.
+*   **Interactive Keyboard Shortcuts**: Create shortcuts effortlessly by pressing the desired keys directly in the settings panel.
+*   **Atmospheric Control**: Ambient music volume control allows you to set the perfect background vibe.
+*   **Local Profile Photos**: Don't want to use Google? Upload your own profile photo for personalized local sessions.
+*   **Popup Panel System**: Settings, Profile, and Extensions now open in modern, always-on-top popup windows for better multitasking.
+*   **Minimal Perplexity UI**: Clean, distraction-free interface with focus on content.
+*   **Vibrant Glassmorphism**: Interface built with **Framer Motion** and **Tailwind 4** for premium aesthetics.
+
+### 🎯 Advanced AI Capabilities
+*   **Unified Search (Spotlight)**: Press `Windows/CMD + Shift + Space` to search apps, WiFi settings, Bluetooth, and the web—even with the browser closed!
+*   **AI System Control**: AI can now control **Brightness, Volume, WiFi, and Bluetooth** via natural language.
+*   **Cross-App OCR Clicking**: AI can now detect and click on text in **any application** on your computer.
+*   **AI Popup Interface**: A sleek, minimal AI popup that appears for cross-app actions and visual feedback.
 
 ### 🌐 Cross-Device & Sync
-*   **Quantum E2EE Sync**: Sync tabs and clipboards via **WebRTC P2P**—no cloud required.
-*   **Secure Auth Relay**: Google OAuth via `browser.ponsrischool.in` with deep-link synchronization using custom protocol handlers (`comet-browser://`).
-*   **Google Login & Continue as Guest**: Sign in with Google or browse immediately as a guest—full browser access either way.
-*   **Export Dropdown**: Export AI chats as PDF or plain text from the actions menu.
-*   **Phone Call Control**: Answer/reject calls and monitor battery levels of your phone directly from the desktop (Experimental).
-*   **Automatic OTP Verification**: SMS and Email OTP capture with cross-device auto-fill (Experimental).
+*   **Quantum E2EE Sync**: Sync tabs and clipboards via WebRTC P2P—no cloud required.
+*   **Google OAuth Integration**: Seamlessly sign in with Google for a personalized experience.
+*   **Secure Auth Relay**: Deep-link synchronization using custom protocol handlers (`comet-browser://`).
+*   **Export Actions**: One-click export of AI chats to PDF or Text.
 
 ### 🔐 Security & Privacy
-*   **Native Firewall & Ad-Blocker**: High-performance, low-latency ad and tracker blocking included in the kernel.
-*   **Local Password Vault**: AES-256 encrypted local storage for credentials with zero-knowledge architecture.
-*   **Privacy-First Design**: Zero telemetry. Integrated hardware-level isolation for every tab and extension.
+*   **Native Firewall & Ad-Blocker**: Military-grade performance ad and tracker blocking.
+*   **Local Password Vault**: AES-256 encrypted local storage for credentials.
+*   **Zero Telemetry**: Your data never leaves your machine.
 
-### 🌍 Neural Translation Service
-*   **Contextual Translation**: Translate selected text or entire pages into 30+ languages (English, Hindi, Tamil, Telugu, Spanish, etc.) using Comet's native AI.
-*   **How to use**: 
-    1. **Right-click** anywhere on a page or select text to see the **"Translate to English"** (or current target) option.
-    2. Use the **Read Aloud** tool in the toolbar to hear the translated or original content.
-    3. Access the **Translation Dialog** via the context menu for full-site translation options.
+---
+
+## ⌨️ Global Shortcuts
+
+| Shortcut | Action |
+|----------|---------|
+| `Win/CMD + Shift + Space` | **Spotlight Search** (Search apps, settings, web) |
+| `Win/CMD + K` | **Cross-App OCR** (Find and click text anywhere) |
+| `Ctrl + / Ctrl -` | **Zoom In / Zoom Out** |
 
 ---
 
@@ -76,10 +74,9 @@ Comet is a high-performance, privacy-hardened browser built for architects of th
 
 | Platform | Version | Status | Size |
 |----------|---------|--------|------|
-| 🪟 **Windows** | [v0.1.7 (.exe)](https://github.com/Preet3627/Browser-AI/releases/download/Comet-Browser/Comet.Browser.Setup.0.1.7.exe) | ✅ Stable | ~150 MB |
+| 🪟 **Windows** | [v0.1.9 (.exe)](https://github.com/Preet3627/Browser-AI/releases/download/Comet-Browser/Comet.Browser.Setup.0.1.9.exe) | ✅ Stable | ~150 MB |
 | 🍎 **macOS** | Coming soon | 🧪 Beta | – |
 | 🐧 **Linux** | Coming soon | 🧪 Beta | – |
-| 🤖 **Android** | Coming soon | 🧪 In-Dev | – |
 
 ---
 
@@ -87,63 +84,29 @@ Comet is a high-performance, privacy-hardened browser built for architects of th
 
 ### 1. Prerequisites
 *   **Node.js** (v18+)
-*   **NPM** (v10+)
-*   **Ollama** (Optional, for Local AI support: [Download here](https://ollama.com/download/windows))
+*   **Ollama** (Optional, for Local AI: [Download](https://ollama.com))
+*   **NirCmd** (Optional, for Windows Volume Control: [Download](https://www.nirsoft.net/utils/nircmd.html))
 
 ### 2. Installation
 ```bash
-# Clone the repository
 git clone https://github.com/Preet3627/Browser-AI.git
 cd Browser-AI/comet-browser
-
-# Install dependencies
 npm install
-
-# Build the app logic
 npm run build
 ```
 
 ### 3. Running in Development
 ```bash
-# Start Next.js and Electron concurrently
 npm run dev
-```
-
-### 4. Production Build (Windows)
-```bash
-# Package into an installable .exe
-npm run dist:win
-```
-
-### 5. CI/CD (GitHub Actions)
-Builds run automatically on tag push (`v*`) or manual workflow dispatch. Supported outputs:
-* **Desktop**: Windows (.exe), macOS (.dmg), Linux (AppImage)
-* **Mobile**: Android (APK), iOS (App Bundle)
-
-Native modules (e.g. `robotjs` for Find & Click) are rebuilt for Electron via `electron-rebuild`. If `robotjs` fails to build, the app still runs; Find & Click is disabled.
-
-### 💡 Environment Configuration
-Create a `.env.local` file:
-```env
-NEXT_PUBLIC_APP_NAME=Comet
-NEXT_PUBLIC_APP_VERSION=0.1.7
-GEMINI_API_KEY=your_key_here
-OPENAI_API_KEY=your_key_here
 ```
 
 ---
 
 ## 📖 The Story Behind Comet
-Building a browser is considered "impossible" for a solo developer. Comet was conceptualized and prototyped in **under 6 hours** by an 11th-grade student balancing JEE preparation. It is a testament to the fact that hardware (i3 4th Gen, 4GB RAM) is a constraint, not a limit.
+Building a browser is considered "impossible" for a solo developer. Comet was conceptualized and prototyped in **under 6 hours** by an 11th-grade student. It is built with love for those who code on "potato PCs".
 
 ---
 
-## 🤝 Contributing & Support
-*   **Issues**: [Report a bug](https://github.com/Preet3627/Browser-AI/issues)
-*   **Videos**: [YouTube Channel](https://youtube.com/@latestinssan)
-*   **License**: Licensed under the **MIT License**.
-
----
 <div align="center">
 **Built with ❤️ for privacy and performance. Dedicated to those who code on potato PCs.**
 </div>
