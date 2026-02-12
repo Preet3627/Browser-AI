@@ -1719,40 +1719,9 @@ ipcMain.handle('ollama-list-models', async () => {
   });
 });
 
-// Removed duplicate ipcMain.handle('search-applications', ...) registration start (original line ~422)
-const platform = process.platform;
-let command = '';
-let parser = (stdout) => { }; // Function to parse command output
 
-if (platform === 'win32') {
-  // Windows: Search in Start Menu programs and common install locations
-  // This is a simplified approach. A more robust solution might involve PowerShell to query installed apps.
-  // For now, let's just search for executables in PATH and common locations.
-  command = `where ${query}.exe 2>nul || dir /s /b "C:\\Program Files\\**\\${query}.exe" 2>nul || dir /s /b "C:\\Program Files (x86)\\**\\${query}.exe" 2>nul`;
-  parser = (stdout) => stdout.split('\n').filter(line => line.trim().length > 0).map(p => ({ name: path.basename(p, path.extname(p)), path: p.trim() }));
-} else if (platform === 'darwin') {
-  // macOS: Use mdfind (Spotlight)
-  command = `mdfind 'kMDItemKind == "Application" && kMDItemDisplayName == "*${query}*"'`;
-  parser = (stdout) => stdout.split('\n').filter(line => line.trim().length > 0).map(p => ({ name: path.basename(p, '.app'), path: p.trim() }));
-} else if (platform === 'linux') {
-  // Linux: Search for .desktop files and executables in common PATHs
-  command = `find /usr/share/applications /usr/local/share/applications ~/.local/share/applications -name "*${query}*.desktop" -print 2>/dev/null | xargs -r grep -l '^Exec=.*${query}' | while read -r f; do basename "$f"; done`;
-  parser = (stdout) => stdout.split('\n').filter(line => line.trim().length > 0).map(name => ({ name: name.replace('.desktop', ''), path: '' })); // Path is harder to get directly for desktop files
-} else {
-  return { success: false, error: `Unsupported platform: ${platform}` };
-}
+// Removed duplicate application search logic (Real implementation is at line 2576)
 
-return new Promise((resolve) => {
-  exec(command, { timeout: 5000 }, (error, stdout, stderr) => {
-    if (error) {
-      console.error(`App search error on ${platform}:`, error);
-      resolve({ success: false, error: stderr || error.message });
-    } else {
-      const results = parser(stdout);
-      resolve({ success: true, results });
-    }
-  });
-});
 
 // Deep Linking and persist handling on startup (merged into single instance lock above)
 function handleDeepLink(url) {

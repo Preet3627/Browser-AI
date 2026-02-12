@@ -41,6 +41,38 @@ jobs:
           name: app-release-apk
           path: CometBrowserMobile/comet_ai/build/app/outputs/flutter-apk/app-release.apk
 
+  build-ios:
+    name: Build iOS IPA
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Install dependencies
+        working-directory: CometBrowserMobile/comet_ai
+        run: flutter pub get
+
+      - name: Build iOS
+        working-directory: CometBrowserMobile/comet_ai
+        run: flutter build ios --release --no-codesign
+
+      - name: Create Payload and Zip
+        working-directory: CometBrowserMobile/comet_ai
+        run: |
+          mkdir Payload
+          cp -r build/ios/iphoneos/Runner.app Payload/
+          zip -r CometBrowser.ipa Payload
+          
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-ios
+          path: CometBrowserMobile/comet_ai/CometBrowser.ipa
+
   build-desktop:
     name: Build Desktop (${{ matrix.target }})
     runs-on: ${{ matrix.os }}
@@ -96,13 +128,19 @@ jobs:
 
   create-release:
     name: Create Draft Release
-    needs: [build-android, build-desktop]
+    needs: [build-android, build-ios, build-desktop]
     runs-on: ubuntu-latest
     steps:
       - name: Download Android APK
         uses: actions/download-artifact@v4
         with:
           name: app-release-apk
+          path: release-artifacts
+
+      - name: Download iOS IPA
+        uses: actions/download-artifact@v4
+        with:
+          name: app-release-ios
           path: release-artifacts
 
       - name: Download Desktop Artifacts
