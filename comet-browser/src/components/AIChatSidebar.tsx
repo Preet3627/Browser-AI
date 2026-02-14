@@ -465,7 +465,8 @@ ${pageContext || "Content not loaded. Use [READ_PAGE_CONTENT] command to read fu
           : "";
 
         const platform = window.electronAPI ? window.electronAPI.getPlatform() : 'unknown';
-        const platformInstructions = `\n[SYSTEM INFO]\nUser Platform: ${platform} (Use appropriate shell commands for this OS).`;
+        const safetyStatus = store.aiSafetyMode ? "ENABLED (High-Risk commands like SHELL_COMMAND require user approval)" : "DISABLED (Autonomous Mode)";
+        const platformInstructions = `\n[SYSTEM INFO]\nUser Platform: ${platform} (Use appropriate shell commands for this OS).\nAI Safety Mode: ${safetyStatus}`;
 
         const messageHistory: ChatMessage[] = [
           { role: 'system', content: SYSTEM_INSTRUCTIONS + languageInstructions + platformInstructions },
@@ -685,6 +686,44 @@ ${pageContext || "Content not loaded. Use [READ_PAGE_CONTENT] command to read fu
                   await delay(1000);
                   break;
 
+                case 'OCR_SCREEN':
+                case 'OCR_COORDINATES':
+                case 'FIND_AND_CLICK':
+                  if (window.electronAPI && window.electronAPI.findAndClickText) {
+                    commandOutput = `👁️ **Scanning screen for text:** "${cmd.value}"...`;
+                    setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
+
+                    try {
+                      const result = await window.electronAPI.findAndClickText(cmd.value);
+                      if (result.success) {
+                        commandOutput = `✅ **Found and clicked:** "${cmd.value}"`;
+                      } else {
+                        commandOutput = `❌ **Failed to find/click:** "${cmd.value}" (${result.error || 'not found'})`;
+                      }
+                    } catch (e: any) {
+                      commandOutput = `❌ **Error during vision action:** ${e.message}`;
+                    }
+                  } else {
+                    commandOutput = `⚠️ **Vision actions not supported.**`;
+                  }
+                  await delay(1500);
+                  break;
+
+                case 'CLICK_ELEMENT':
+                  if (window.electronAPI && window.electronAPI.clickElement) {
+                    commandOutput = `🖱️ **Clicking element:** "${cmd.value}"...`;
+                    try {
+                      const result = await window.electronAPI.clickElement(cmd.value);
+                      commandOutput = result.success ? `✅ **Clicked:** ${cmd.value}` : `❌ **Failed to click:** ${result.error}`;
+                    } catch (e: any) {
+                      commandOutput = `❌ **Error clicking:** ${e.message}`;
+                    }
+                  } else {
+                    commandOutput = `⚠️ **Element clicking not supported.**`;
+                  }
+                  await delay(1000);
+                  break;
+
                 case 'GENERATE_DIAGRAM':
                   const mermaidCode = cmd.value;
                   commandOutput = `\n\`\`\`mermaid\n${mermaidCode}\n\`\`\`\n`;
@@ -692,6 +731,15 @@ ${pageContext || "Content not loaded. Use [READ_PAGE_CONTENT] command to read fu
                   break;
 
                 case 'SHELL_COMMAND':
+                  if (store.aiSafetyMode) {
+                    const confirm = window.confirm(`⚠️ AI SAFETY WARNING\n\nThe AI wants to execute a system command:\n"${cmd.value}"\n\nThis command runs directly on your Operating System. Only allow if you trust this action.\n\nAllow this action?`);
+                    if (!confirm) {
+                      commandOutput = `❌ **Command blocked by user safety settings.**`;
+                      shouldReturn = false; // Do not recurse if blocked
+                      break;
+                    }
+                  }
+
                   if (window.electronAPI) {
                     const command = cmd.value;
                     commandOutput = `🖥️ **Executing shell command:** ${command}`;
@@ -761,52 +809,71 @@ ${pageContext || "Content not loaded. Use [READ_PAGE_CONTENT] command to read fu
                   await delay(2000);
                   break;
 
-                case 'SET_VOLUME':
+
+                case 'SET_BRIGHTNESS':
+                case 'SET_VOLUME': {
+                  if (store.aiSafetyMode) {
+                    // Could add confirmation here if strict mode desired
+                  }
+
                   if (window.electronAPI) {
                     const percentage = parseInt(cmd.value, 10);
+                    const isBrightness = cmd.type === 'SET_BRIGHTNESS';
+                    const label = isBrightness ? 'Brightness' : 'Volume';
+
                     if (isNaN(percentage) || percentage < 0 || percentage > 100) {
-                      commandOutput = `⚠️ **Invalid volume percentage: ${cmd.value}. Must be between 0 and 100.**`;
+                      commandOutput = `⚠️ **Invalid ${label.toLowerCase()} percentage: ${cmd.value}. Must be between 0 and 100.**`;
                     } else {
                       let shellCmd = '';
-                      const platform = navigator.platform; // e.g., "Win32", "MacIntel", "Linux x86_64"
+                      const platform = navigator.platform;
 
                       if (platform.includes('Win')) {
-                        // Windows: Requires NirCmd (third-party)
-                        // This is a placeholder as NirCmd needs to be present in PATH
-                        const winVolume = Math.round((percentage / 100) * 65535); // NirCmd uses 0-65535
-                        shellCmd = `nircmd.exe setsysvolume ${winVolume}`;
+                        if (isBrightness) {
+                          shellCmd = `powershell -Command "(Get-WmiObject -Namespace root/WMI -Class WmiMonitorBrightnessMethods).WmiSetBrightness(1,${percentage})"`;
+                        } else {
+                          // Windows: Requires NirCmd (third-party) placeholder
+                          const winVolume = Math.round((percentage / 100) * 65535);
+                          shellCmd = `nircmd.exe setsysvolume ${winVolume}`;
+                        }
                       } else if (platform.includes('Mac')) {
-                        // macOS: Using osascript
-                        shellCmd = `osascript -e "set volume output volume ${percentage}"`;
+                        if (isBrightness) {
+                          const macBrightness = percentage / 100;
+                          shellCmd = `brightness ${macBrightness}`;
+                        } else {
+                          shellCmd = `osascript -e "set volume output volume ${percentage}"`;
+                        }
                       } else if (platform.includes('Linux')) {
-                        // Linux: Using amixer (ALSA) or pactl (PulseAudio)
-                        // Prefer amixer as it's often more universally installed or easier
-                        shellCmd = `amixer set 'Master' ${percentage}%`;
+                        if (isBrightness) {
+                          shellCmd = `brightnessctl set ${percentage}%`;
+                        } else {
+                          shellCmd = `amixer set 'Master' ${percentage}%`;
+                        }
                       } else {
-                        commandOutput = `⚠️ **Volume control not supported on ${platform}.**`;
+                        commandOutput = `⚠️ **${label} control not fully supported on ${platform}.**`;
                       }
 
                       if (shellCmd) {
-                        commandOutput = `🔊 **Setting volume to ${percentage}%...**`;
+                        commandOutput = `${isBrightness ? '💡' : '🔊'} **Setting ${label.toLowerCase()} to ${percentage}%...**`;
                         setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
 
                         try {
                           const result = await window.electronAPI.executeShellCommand(shellCmd);
-                          if (result.success) {
-                            commandOutput = `✅ **Volume set to ${percentage}%.**`;
+                          if (result && result.success) {
+                            commandOutput = `✅ **${label} set to ${percentage}%.**`;
                           } else {
-                            commandOutput = `❌ **Failed to set volume: ${result.error}.**`;
+                            commandOutput = `❌ **Failed to set ${label.toLowerCase()}: ${result?.error || 'Unknown error'}.**`;
                           }
-                        } catch (err) {
-                          commandOutput = `❌ **Failed to execute volume command.**`;
+                        } catch (err: any) {
+                          commandOutput = `❌ **Failed to execute ${label.toLowerCase()} command: ${err.message || 'Unknown error'}.**`;
                         }
                       }
                     }
                   } else {
-                    commandOutput = '⚠️ **Volume control not available.**';
+                    commandOutput = `⚠️ **${cmd.type === 'SET_BRIGHTNESS' ? 'Brightness' : 'Volume'} control not available.**`;
                   }
                   await delay(2000);
                   break;
+                }
 
                 case 'OPEN_APP':
 

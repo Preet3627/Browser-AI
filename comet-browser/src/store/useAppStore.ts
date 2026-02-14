@@ -117,6 +117,10 @@ interface BrowserState {
     additionalAIInstructions: string;
     setAdditionalAIInstructions: (instructions: string) => void;
 
+    // AI Safety
+    aiSafetyMode: boolean; // If true, AI asks for confirmation before critical actions
+    setAiSafetyMode: (enabled: boolean) => void;
+
     // Theme settings
     theme: "system" | "dark" | "light";
     setTheme: (theme: "system" | "dark" | "light") => void;
@@ -467,6 +471,10 @@ export const useAppStore = create<BrowserState>()(
             setHasSeenAiMistakeWarning: (val) => set({ hasSeenAiMistakeWarning: val }),
             setMcpServerPort: (port) => set({ mcpServerPort: port }),
             setAdditionalAIInstructions: (instructions) => set({ additionalAIInstructions: instructions }),
+
+            // AI Safety
+            aiSafetyMode: true, // Default to Safe Mode
+            setAiSafetyMode: (enabled) => set({ aiSafetyMode: enabled }),
 
             // Theme settings
             setTheme: (theme) => set({ theme }),

@@ -164,6 +164,21 @@ flutter run
 - [ ] Fully offline LLM (1.5B–3B params)
 - [ ] Extension marketplace
 - [ ] Advanced tab & memory management
+- [ ] **Advanced Tool Permission Gating** (OS Actions Safety) - *Recommended by community*
+
+---
+
+## 👥 Contributors
+
+A big thank you to the community for their suggestions and feedback!
+
+- **Otherwise_Wave9374** - Suggested tool permission gating and reliable agent loop patterns.
+
+---
+
+## 📚 Resources & Inspiration
+
+- [Agentix Labs Blog](https://www.agentixlabs.com/blog/) - Patterns for reliable agent loops and AI safety.
 
 ---
 
