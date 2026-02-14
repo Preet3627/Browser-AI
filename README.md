@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Comet AI Browser](https://raw.githubusercontent.com/Preet3627/Browser-AI/refs/heads/main/comet-browser/icon.png)
+![Comet AI Browser](C:\Users\admin\Desktop\Projects\AI-BROWSER\Browser-AI\icon.ico)
 
 **The World's Most Advanced Privacy-First AI Browser**
 

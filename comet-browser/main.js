@@ -1,9 +1,10 @@
-const { app, BrowserWindow, ipcMain, session, shell, clipboard, BrowserView, dialog, globalShortcut, Menu, protocol, desktopCapturer, screen, nativeImage } = require('electron');
+const { app, BrowserWindow, ipcMain, BrowserView, session, shell, clipboard, dialog, globalShortcut, Menu, protocol, desktopCapturer, screen, nativeImage } = require('electron');
 const contextMenuRaw = require('electron-context-menu');
 const contextMenu = contextMenuRaw.default || contextMenuRaw;
 const fs = require('fs');
 const path = require('path');
-const { exec } = require('child_process');
+const os = require('os');
+const { spawn, exec } = require('child_process');
 const Store = require('electron-store');
 const store = new Store();
 const { createWorker } = require('tesseract.js');
@@ -874,10 +875,28 @@ ipcMain.on('add-tab-from-main', (event, url) => {
 });
 
 // Window Controls
-ipcMain.on('minimize-window', () => { if (mainWindow) mainWindow.minimize(); });
-ipcMain.on('maximize-window', () => { if (mainWindow) { if (mainWindow.isMaximized()) { mainWindow.unmaximize(); } else { mainWindow.maximize(); } } });
-ipcMain.on('close-window', () => { if (mainWindow) mainWindow.close(); });
-ipcMain.on('toggle-fullscreen', () => { if (mainWindow) mainWindow.setFullScreen(!mainWindow.isFullScreen()); });
+ipcMain.on('minimize-window', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (win) win.minimize();
+});
+ipcMain.on('maximize-window', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (win) {
+    if (win.isMaximized()) {
+      win.unmaximize();
+    } else {
+      win.maximize();
+    }
+  }
+});
+ipcMain.on('close-window', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (win) win.close();
+});
+ipcMain.on('toggle-fullscreen', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (win) win.setFullScreen(!win.isFullScreen());
+});
 
 // Persistent Storage Handlers
 const persistentDataPath = path.join(app.getPath('userData'), 'persistent_data');
@@ -1311,32 +1330,39 @@ ipcMain.handle('capture-page-html', async () => {
   return await view.webContents.executeJavaScript('document.documentElement.outerHTML');
 });
 
+// ============================================================================
+// SCREEN CAPTURE - For OCR and cross-app clicking
+// ============================================================================
+ipcMain.removeHandler('capture-browser-view-screenshot');
 ipcMain.handle('capture-browser-view-screenshot', async () => {
   const view = tabViews.get(activeTabId);
-  if (!view) return null;
-  try {
-    const image = await view.webContents.capturePage();
-    return image.toDataURL(); // Returns a Data URL (base64 encoded PNG)
-  } catch (e) {
-    console.error("Failed to capture page screenshot:", e);
-    return null;
+  if (view) {
+    try {
+      const image = await view.webContents.capturePage();
+      return image.toDataURL(); // Returns a Data URL (base64 encoded PNG)
+    } catch (e) {
+      console.error("Failed to capture page screenshot:", e);
+      return null;
+    }
   }
+  return null;
 });
 
+ipcMain.removeHandler('capture-screen-region');
 ipcMain.handle('capture-screen-region', async (event, { x, y, width, height }) => {
-  try {
-    const sources = await desktopCapturer.getSources({ types: ['screen'] });
-    // Find the primary display source. On multi-monitor setups, display_id is relevant.
-    // For simplicity, we'll try to find the one corresponding to the primary display.
-    // This might need refinement for complex multi-monitor scenarios.
-    const primaryDisplayId = screen.getPrimaryDisplay().id;
-    const primaryScreenSource = sources.find(source => source.display_id === String(primaryDisplayId));
+  console.log('[Screen] Capturing region:', { x, y, width, height });
 
-    if (!primaryScreenSource) {
-      return { success: false, error: 'Primary screen source not found.' };
+  try {
+    const sources = await desktopCapturer.getSources({
+      types: ['screen'],
+      thumbnailSize: { width: screen.getPrimaryDisplay().size.width, height: screen.getPrimaryDisplay().size.height }
+    });
+
+    if (sources.length === 0) {
+      return { success: false, error: 'No screen sources available' };
     }
 
-    let image = primaryScreenSource.thumbnail; // This is a NativeImage
+    let image = sources[0].thumbnail; // This is a NativeImage
 
     // If coordinates are provided, crop the image
     if (x !== undefined && y !== undefined && width !== undefined && height !== undefined) {
@@ -1591,6 +1617,12 @@ ipcMain.on('send-to-ai-chat-input', (event, text) => {
   }
 });
 
+ipcMain.on('send-ai-overview-to-sidebar', (event, data) => {
+  if (mainWindow) {
+    mainWindow.webContents.send('ai-overview-data', data);
+  }
+});
+
 ipcMain.handle('llm-generate-chat-content', async (event, messages, options = {}) => {
   return await llmGenerateHandler(messages, options);
 });
@@ -1610,7 +1642,7 @@ ipcMain.handle('ollama-import-model', async (event, { modelName, filePath }) => 
     fs.writeFileSync(modelfilePath, modelfileContent);
 
     return new Promise((resolve) => {
-      const ollama = require('child_process').spawn('ollama', ['create', modelName, '-f', modelfilePath]);
+      const ollama = spawn('ollama', ['create', modelName, '-f', modelfilePath]);
       let errorLog = '';
 
       ollama.stderr.on('data', (data) => {
@@ -1651,9 +1683,53 @@ ipcMain.handle('select-local-file', async (event, options = {}) => {
 // Shell Command Execution
 // Secure Shell Command Execution
 async function checkShellPermission(command) {
-  // User requested removal of security checks ("REMOVE WINDOWS DETECTED EXE DANGER")
-  // Returning true immediately to bypass the prompt.
-  return true;
+  if (!mainWindow) return false;
+
+  let warning = "Executing unknown shell commands can be dangerous and may lead to data loss or system instability.";
+  const cmdLower = (command || '').toLowerCase();
+  const risks = [];
+
+  // Risk detection logic
+  if (cmdLower.includes('rm ') || cmdLower.includes('del ') || cmdLower.includes('rd ') || cmdLower.includes('rmdir ')) {
+    risks.push("• DELETE operations: This command may permanently remove files or directories.");
+  }
+  if (cmdLower.includes('format ') || cmdLower.includes('fdisk ') || cmdLower.includes('mkfs')) {
+    risks.push("• DISK modification: This command may format drives or modify partitions.");
+  }
+  if (cmdLower.includes('net ') || cmdLower.includes('curl ') || cmdLower.includes('wget ') || cmdLower.includes('ssh ') || cmdLower.includes('ftp')) {
+    risks.push("• NETWORK access: This command may access the internet or remote servers.");
+  }
+  if (cmdLower.includes('reg ') || cmdLower.includes('setx ') || cmdLower.includes('sc ') || cmdLower.includes('netsh')) {
+    risks.push("• SYSTEM modification: This command may modify critical system settings or the Registry.");
+  }
+  if (cmdLower.includes('powershell') || cmdLower.includes('cmd /c') || cmdLower.includes('sh ') || cmdLower.includes('bash ')) {
+    risks.push("• SUB-SHELL execution: This command spawns a nested shell context.");
+  }
+  if (cmdLower.includes('shutdown') || cmdLower.includes('reboot') || cmdLower.includes('taskkill') || cmdLower.includes('kill ')) {
+    risks.push("• PROCESS/POWER control: This command may terminate apps or restart the system.");
+  }
+
+  const detailText = `Requested Command:\n> ${command}\n\n${warning}\n\n${risks.length > 0 ? "⚠️ POTENTIAL RISKS DETECTED:\n" + risks.join('\n') + "\n\n" : ""}Only authorize this command if you trust the AI's intent and understand the command's function.`;
+
+  const result = await dialog.showMessageBox(mainWindow, {
+    type: 'warning',
+    title: 'Security Authorization - Shell Execution',
+    message: 'Action Required: AI is requesting Shell Access',
+    detail: detailText,
+    buttons: ['Authorize Execution', 'Block Command'],
+    defaultId: 1, // Default to Block for safety
+    cancelId: 1,
+    checkboxLabel: 'Always allow this exact command in this session',
+    noLink: true
+  });
+
+  if (result.response === 0) {
+    if (result.checkboxChecked) {
+      allowedCommands.add(command);
+    }
+    return true;
+  }
+  return false;
 }
 
 const allowedCommands = new Set();
@@ -1745,30 +1821,6 @@ ipcMain.handle('open-external-app', async (event, app_name_or_path) => {
   }
 });
 
-// Click Element in Browser View
-ipcMain.handle('click-element', async (event, selector) => {
-  try {
-    const activeView = tabViews.get(activeTabId);
-    if (!activeView) {
-      return { success: false, error: 'No active browser view' };
-    }
-
-    await activeView.webContents.executeJavaScript(`
-      const element = document.querySelector('${selector}');
-      if (element) {
-        element.click();
-        true;
-      } else {
-        false;
-      }
-    `);
-
-    return { success: true };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
-});
-
 ipcMain.handle('ollama-list-models', async () => {
   return new Promise((resolve) => {
     exec('ollama list', (error, stdout, stderr) => {
@@ -1842,6 +1894,13 @@ app.whenReady().then(() => {
     }
     // Fallback for unknown comet URLs
     return new Response('<h1>404 Not Found</h1><p>Unknown Comet resource.</p>', { headers: { 'content-type': 'text/html' } });
+  });
+
+  protocol.handle('media', (request) => {
+    const filePath = decodeURIComponent(request.url.replace('media://', ''));
+    // Ensure the path is properly formatted for the OS
+    const normalizedPath = path.normalize(filePath);
+    return net.fetch(`file://${normalizedPath}`);
   });
 
   createWindow();
@@ -1932,6 +1991,12 @@ app.whenReady().then(() => {
         if (mainWindow) {
           mainWindow.webContents.send('download-complete', item.getFilename());
         }
+
+        // Auto-install logic for Chrome Extensions (.crx)
+        if (fileName.endsWith('.crx')) {
+          console.log(`[Main] Detected extension download: ${fileName}. Installing...`);
+          installExtensionLocally(saveDataPath);
+        }
       } else {
         console.log(`Download failed: ${state}`);
         if (mainWindow) {
@@ -2018,6 +2083,57 @@ ipcMain.handle('uninstall-extension', async (event, id) => {
 ipcMain.handle('get-extension-path', async () => {
   return extensionsPath;
 });
+
+// Helper to install extension from a file path (e.g. download .crx)
+async function installExtensionLocally(crxPath) {
+  try {
+    const fileName = path.basename(crxPath);
+    const extensionId = fileName.replace('.crx', '').split('_')[0] || `ext_${Date.now()}`;
+    const targetDir = path.join(extensionsPath, extensionId);
+
+    if (!fs.existsSync(targetDir)) {
+      fs.mkdirSync(targetDir, { recursive: true });
+    }
+
+    console.log(`[Main] Extracting extension to ${targetDir}...`);
+
+    // For Windows, use tar to extract. CRX files are basically ZIPs with header.
+    // We try to extract directly. If it fails due to header, we might need to strip it.
+    // However, tar often handles ZIP-like structures okay.
+    // Better yet, we use a simple command to strip the first 512 bytes if header exists, 
+    // but many CRXv3 can be opened by unzip tools directly.
+
+    exec(`tar -xf "${crxPath}" -C "${targetDir}"`, async (err) => {
+      if (err) {
+        console.error(`[Main] Extraction failed: ${err.message}. Trying alternative...`);
+        // Fallback or manual strip could go here
+      }
+
+      // Verify manifest
+      const manifestPath = path.join(targetDir, 'manifest.json');
+      if (fs.existsSync(manifestPath)) {
+        const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+        console.log(`[Main] Extension ${manifest.name} extracted successfully.`);
+
+        // Check if it's a theme
+        if (manifest.theme) {
+          console.log(`[Main] Detected theme: ${manifest.name}. Applying colors...`);
+          if (mainWindow) mainWindow.webContents.send('apply-theme', manifest.theme);
+        }
+
+        // Load the extension into the session
+        try {
+          await session.defaultSession.loadExtension(targetDir);
+          if (mainWindow) mainWindow.webContents.send('extension-installed', { name: manifest.name, id: extensionId });
+        } catch (loadErr) {
+          console.error(`[Main] Failed to load extension: ${loadErr.message}`);
+        }
+      }
+    });
+  } catch (e) {
+    console.error(`[Main] installExtensionLocally error:`, e);
+  }
+}
 
 ipcMain.handle('get-icon-path', async () => {
   return path.join(__dirname, 'icon.ico');
@@ -2248,7 +2364,7 @@ ipcMain.handle('decrypt-data', async (event, { encryptedData, key, iv, authTag, 
 });
 
 ipcMain.handle('create-desktop-shortcut', async (event, { url, title }) => {
-  const desktopPath = path.join(require('os').homedir(), 'Desktop');
+  const desktopPath = path.join(os.homedir(), 'Desktop');
   const shortcutPath = path.join(desktopPath, `${title.replace(/[^a-z0-9]/gi, '_').substring(0, 30)}.url`);
 
   const content = `[InternetShortcut]\nURL=${url}\n`;
@@ -2364,19 +2480,20 @@ function createPopupWindow(type, options = {}) {
   let route = '';
   switch (type) {
     case 'settings':
-      route = '/settings';
+      route = isDev ? '/?panel=settings' : '/settings';
+      break;
+    case 'extensions':
+    case 'plugins': // Handle 'plugins' as an alias for 'extensions'
+      route = isDev ? '/?panel=extensions' : '/extensions';
       break;
     case 'profile':
-      route = '/profile';
-      break;
-    case 'plugins':
-      route = '/plugins';
+      route = isDev ? '/?panel=profile' : '/profile';
       break;
     case 'downloads':
-      route = '/downloads';
+      route = isDev ? '/?panel=downloads' : '/downloads';
       break;
     case 'clipboard':
-      route = '/clipboard';
+      route = isDev ? '/?panel=clipboard' : '/clipboard';
       break;
     case 'cart':
       route = '/cart';
@@ -2668,49 +2785,7 @@ ipcMain.handle('fill-form', async (event, formData) => {
 // ============================================================================
 // SCREEN CAPTURE - For OCR and cross-app clicking
 // ============================================================================
-ipcMain.handle('capture-browser-view-screenshot', async () => {
-  const view = tabViews.get(activeTabId);
-  if (view) {
-    try {
-      const image = await view.webContents.capturePage();
-      return image.toDataURL();
-    } catch (e) {
-      console.error('Failed to capture browser view:', e);
-      return null;
-    }
-  }
-  return null;
-});
 
-ipcMain.handle('capture-screen-region', async (event, { x, y, width, height }) => {
-  console.log('[Screen] Capturing region:', { x, y, width, height });
-
-  try {
-    const sources = await desktopCapturer.getSources({
-      types: ['screen'],
-      thumbnailSize: { width: screen.getPrimaryDisplay().size.width, height: screen.getPrimaryDisplay().size.height }
-    });
-
-    if (sources.length === 0) {
-      return { success: false, error: 'No screen sources available' };
-    }
-
-    const screenshot = sources[0].thumbnail;
-    const image = screenshot.crop({ x, y, width, height });
-    const dataUrl = image.toDataURL();
-
-    return {
-      success: true,
-      image: dataUrl
-    };
-  } catch (error) {
-    console.error('[Screen] Capture error:', error);
-    return {
-      success: false,
-      error: error.message
-    };
-  }
-});
 
 // ============================================================================
 // APPLICATION SEARCH - Search for installed applications

@@ -23,6 +23,7 @@ import { User } from 'firebase/auth';
 import SyncSettings from './SyncSettings'; // Import the new SyncSettings component
 import { firebaseConfigStorage } from '@/lib/firebaseConfigStorage';
 import ExtensionSettings from './ExtensionSettings';
+import McpSettings from './McpSettings';
 
 const SettingsPanel = ({ onClose, defaultSection = 'profile' }: { onClose: () => void, defaultSection?: string }) => {
     const store = useAppStore();
@@ -639,15 +640,7 @@ const SettingsPanel = ({ onClose, defaultSection = 'profile' }: { onClose: () =>
                             </div>
                         )}
 
-                        {activeSection === 'mcp' && (
-                            <div className="p-8 rounded-[2rem] bg-white/[0.03] border border-white/5 space-y-8">
-                                <div className="text-center py-12">
-                                    <Globe size={48} className="mx-auto mb-4 text-white/20" />
-                                    <p className="text-white/40">MCP Servers configuration coming soon</p>
-
-                                </div>
-                            </div>
-                        )}
+                        {activeSection === 'mcp' && <McpSettings />}
 
                         {activeSection === 'admin' && <AdminDashboard />}
 

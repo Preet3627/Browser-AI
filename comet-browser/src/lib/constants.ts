@@ -8,7 +8,8 @@ export type Action =
     | 'new-incognito-tab'
     | 'zoom-in'
     | 'zoom-out'
-    | 'zoom-reset';
+    | 'zoom-reset'
+    | 'toggle-spotlight';
 
 export interface Shortcut {
     accelerator: string;
@@ -27,4 +28,5 @@ export const defaultShortcuts: Shortcut[] = [
     { accelerator: 'CommandOrControl+Plus', action: 'zoom-in' }, // Add this for completeness, although '=' usually covers it
     { accelerator: 'CommandOrControl+-', action: 'zoom-out' },
     { accelerator: 'CommandOrControl+0', action: 'zoom-reset' },
+    { accelerator: 'Capslock+S', action: 'toggle-spotlight' },
 ];

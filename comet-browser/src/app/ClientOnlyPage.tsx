@@ -132,6 +132,16 @@ export default function Home() {
   const [isAmbientPlaying, setIsAmbientPlaying] = useState(false);
   const [inputValue, setInputValue] = useState(store.currentUrl); // New state for input field's raw value
   const [showSpotlightSearch, setShowSpotlightSearch] = useState(false); // New state for global spotlight search
+  const [isPopupWindow, setIsPopupWindow] = useState(false);
+
+  const handleSettingsClose = useCallback(() => {
+    if (isPopupWindow && window.electronAPI) {
+      window.electronAPI.closeWindow();
+    } else {
+      setShowSettings(false);
+      setSettingsSection('profile');
+    }
+  }, [isPopupWindow]);
 
   // Synchronize inputValue with store.currentUrl
   useEffect(() => {
@@ -176,6 +186,20 @@ export default function Home() {
 
   useEffect(() => {
     store.setActiveView('browser');
+
+    // Handle panel query parameter for deep-linking (e.g., from popup windows)
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const panel = params.get('panel');
+      if (panel) {
+        setIsPopupWindow(true);
+        if (panel === 'settings' || panel === 'profile' || panel === 'extensions' || panel === 'downloads' || panel === 'clipboard') {
+          setSettingsSection(panel === 'settings' ? 'profile' : panel);
+          setShowSettings(true);
+        }
+      }
+    }
+
     if (window.electronAPI) {
       const cleanStart = window.electronAPI.on('download-started', (name: string) => {
         setDownloads(prev => [{ name, status: 'downloading' }, ...prev].slice(0, 10));
@@ -192,10 +216,35 @@ export default function Home() {
         setIsDownloading(false);
         setDownloadStatus('failed');
       });
+
+      const cleanExtInstalled = window.electronAPI.on('extension-installed', ({ name, id }: { name: string, id: string }) => {
+        setAiOverview({ query: `Extension Installed: ${name}`, result: `Successfully installed extension ${name}. You can manage it in settings.`, sources: null, isLoading: false });
+      });
+
+      const cleanTheme = window.electronAPI.on('apply-theme', (theme: any) => {
+        if (theme && theme.colors) {
+          const colors = theme.colors;
+          const root = document.documentElement;
+          // Map Chrome theme colors to our CSS variables
+          if (colors.frame) root.style.setProperty('--primary-bg', `rgb(${colors.frame.join(',')})`);
+          if (colors.toolbar) root.style.setProperty('--navbar-bg', `rgb(${colors.toolbar.join(',')})`);
+          if (colors.tab_text) root.style.setProperty('--primary-text', `rgb(${colors.tab_text.join(',')})`);
+          // Add more mappings as needed
+          setAiOverview({ query: `Theme Applied`, result: `Successfully applied Chrome theme.`, sources: null, isLoading: false });
+        }
+      });
+
+      const cleanTranslation = window.electronAPI.on('trigger-translation-dialog', () => {
+        setShowTranslateDialog(true);
+      });
+
       return () => {
         cleanStart();
         cleanDone();
         cleanFail();
+        cleanExtInstalled();
+        cleanTheme();
+        cleanTranslation();
       };
     }
   }, []);
@@ -266,7 +315,7 @@ export default function Home() {
         properties: ['openFile', 'openDirectory']
       });
       if (filePath) {
-        store.setAmbientMusicUrl(`file://${filePath}`);
+        store.setAmbientMusicUrl(`media://${filePath}`);
       }
     }
   };
@@ -636,7 +685,7 @@ export default function Home() {
   // Handle Global Shortcuts from Main Process
   useEffect(() => {
     if (window.electronAPI) {
-      const cleanup = window.electronAPI.onShortcut((action: string) => {
+      const cleanupShortcuts = window.electronAPI.onShortcut((action: string) => {
         switch (action) {
           case 'new-tab': store.addTab(); break;
           case 'close-tab': store.removeTab(store.activeTabId); break;
@@ -645,9 +694,20 @@ export default function Home() {
           case 'toggle-sidebar': store.toggleSidebar(); break;
           case 'open-settings': setShowSettings(true); break;
           case 'new-incognito-tab': store.addIncognitoTab(); break;
+          case 'toggle-spotlight': setShowSpotlightSearch(prev => !prev); break;
         }
       });
-      return cleanup;
+
+      // Handle settings section changes from main process
+      const cleanupSettings = window.electronAPI.on('set-settings-section', (section: string) => {
+        setSettingsSection(section);
+        setShowSettings(true);
+      });
+
+      return () => {
+        cleanupShortcuts();
+        cleanupSettings();
+      };
     }
   }, [store.addTab, store.removeTab, store.activeTabId, store.nextTab, store.prevTab, store.toggleSidebar]);
 
@@ -1296,10 +1356,7 @@ export default function Home() {
             <AnimatePresence>
               {showSettings && (
                 <SettingsPanel
-                  onClose={useCallback(() => {
-                    setShowSettings(false);
-                    setSettingsSection('profile');
-                  }, [])}
+                  onClose={handleSettingsClose}
                   defaultSection={settingsSection}
                 />
               )}
@@ -1481,9 +1538,9 @@ export default function Home() {
                 <ChevronRight size={14} />
                 <span className="text-xs font-bold uppercase tracking-widest">Forward</span>
               </button>
-              <button onClick={handleTranslate} className="w-full px-4 py-2 flex items-center gap-3 hover:bg-accent/10 text-secondary-text hover:text-accent transition-all">
+              <button onClick={() => { setShowTranslateDialog(true); setShowContextMenu(null); }} className="w-full px-4 py-2 flex items-center gap-3 hover:bg-accent/10 text-secondary-text hover:text-accent transition-all">
                 <Languages size={14} />
-                <span className="text-xs font-bold uppercase tracking-widest">Translate to English</span>
+                <span className="text-xs font-bold uppercase tracking-widest">Translate Website</span>
               </button>
               <div className="h-[1px] bg-border-color my-1" />
               <button onClick={() => { handleOfflineSave(); setShowContextMenu(null); }} className="w-full px-4 py-2 flex items-center gap-3 hover:bg-accent/10 text-secondary-text hover:text-accent transition-all">
@@ -1536,30 +1593,34 @@ export default function Home() {
             <div className="w-full max-w-sm bg-[#0a0a0f] border border-white/10 rounded-2xl shadow-3xl overflow-hidden p-6">
               <h3 className="text-sm font-black uppercase tracking-widest text-white mb-4 text-center">TRANSLATE SITE</h3>
               <div className="grid grid-cols-2 gap-2">
-                {[
-                  { code: 'hi', name: 'Hindi' },
-                  { code: 'gu', name: 'Gujarati' },
-                  { code: 'mr', name: 'Marathi' },
-                  { code: 'bn', name: 'Bengali' },
-                  { code: 'ta', name: 'Tamil' },
-                  { code: 'te', name: 'Telugu' },
-                  { code: 'ml', name: 'Malayalam' },
-                  { code: 'kn', name: 'Kannada' }
-                ].map(lang => (
-                  <button
-                    key={lang.code}
-                    onClick={async () => {
-                      if (window.electronAPI) {
-                        await window.electronAPI.translateWebsite({ targetLanguage: lang.code });
-                      }
-                      setShowTranslateDialog(false);
-                    }}
-                    className="flex flex-col items-center justify-center p-4 bg-white/5 hover:bg-accent/10 border border-white/5 hover:border-accent/40 rounded-xl transition-all group"
-                  >
-                    <span className="text-sm font-black text-white group-hover:text-accent transition-colors">{lang.name}</span>
-                    <span className="text-[10px] font-bold text-white/20 uppercase tracking-widest mt-1">{lang.code}</span>
-                  </button>
-                ))}
+                {store.availableLanguages.map(langCode => {
+                  const names: Record<string, string> = {
+                    en: 'English', hi: 'Hindi', bn: 'Bengali', te: 'Telugu',
+                    mr: 'Marathi', ta: 'Tamil', gu: 'Gujarati', ur: 'Urdu',
+                    kn: 'Kannada', or: 'Odia', ml: 'Malayalam', pa: 'Punjabi',
+                    as: 'Assamese', mai: 'Maithili', sat: 'Santali', ks: 'Kashmiri',
+                    ne: 'Nepali', kok: 'Konkani', sd: 'Sindhi', doi: 'Dogri',
+                    mni: 'Manipuri', sa: 'Sanskrit', brx: 'Bodo',
+                    es: 'Spanish', fr: 'French', de: 'German',
+                    ja: 'Japanese', zh: 'Chinese', ru: 'Russian',
+                    pt: 'Portuguese', it: 'Italian', ko: 'Korean'
+                  };
+                  return (
+                    <button
+                      key={langCode}
+                      onClick={async () => {
+                        if (window.electronAPI) {
+                          await window.electronAPI.translateWebsite({ targetLanguage: langCode });
+                        }
+                        setShowTranslateDialog(false);
+                      }}
+                      className="flex flex-col items-center justify-center p-4 bg-white/5 hover:bg-accent/10 border border-white/5 hover:border-accent/40 rounded-xl transition-all group"
+                    >
+                      <span className="text-sm font-black text-white group-hover:text-accent transition-colors">{names[langCode] || langCode}</span>
+                      <span className="text-[10px] font-bold text-white/20 uppercase tracking-widest mt-1">{langCode}</span>
+                    </button>
+                  );
+                })}
               </div>
               <button onClick={() => setShowTranslateDialog(false)} className="w-full mt-6 py-2 text-[10px] font-black uppercase tracking-widest text-white/40 hover:text-white">Close</button>
             </div>

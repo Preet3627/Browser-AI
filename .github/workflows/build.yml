@@ -4,8 +4,69 @@ on:
   workflow_dispatch: {}
 
 jobs:
-  build-mobile:
-    name: Build Mobile (${{ matrix.target }})
+  # ============================================================================
+  # PREVIOUS MOBILE CONFIGURATION (DEPRECATED)
+  # This job built the old CometBrowserMobile/comet_ai project.
+  # We are moving towards 'flutter_browser_app' as the primary mobile codebase.
+  # commenting this out to avoid redundant builds and potential conflicts.
+  # ============================================================================
+  # build-mobile:
+  #   name: Build Mobile (${{ matrix.target }})
+  #   runs-on: ${{ matrix.os }}
+  #   strategy:
+  #     matrix:
+  #       target: [android, ios]
+  #       include:
+  #         - target: android
+  #           os: ubuntu-latest
+  #         - target: ios
+  #           os: macos-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #
+  #     - name: Setup Java (Android)
+  #       if: matrix.target == 'android'
+  #       uses: actions/setup-java@v4
+  #       with:
+  #         distribution: 'zulu'
+  #         java-version: '17'
+  #
+  #     - name: Setup Flutter
+  #       uses: subosito/flutter-action@v2
+  #       with:
+  #         channel: 'stable'
+  #
+  #     - name: Install dependencies
+  #       working-directory: CometBrowserMobile/comet_ai
+  #       run: |
+  #         flutter precache --ios
+  #         flutter pub get
+  #
+  #     - name: Build Android APK
+  #       if: matrix.target == 'android'
+  #       working-directory: CometBrowserMobile/comet_ai
+  #       run: flutter build apk --release
+  #
+  #     - name: Build iOS App
+  #       if: matrix.target == 'ios'
+  #       working-directory: CometBrowserMobile/comet_ai
+  #       run: flutter build ios --release --no-codesign
+  #
+  #     - name: Upload Mobile Artifact
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: mobile-${{ matrix.target }}
+  #         path: |
+  #           CometBrowserMobile/comet_ai/build/app/outputs/flutter-apk/app-release.apk
+  #           CometBrowserMobile/comet_ai/build/ios/iphoneos/Runner.app
+
+  # ============================================================================
+  # CURRENT MOBILE CONFIGURATION (flutter_browser_app)
+  # This is the new primary mobile build job for Comet-AI.
+  # ============================================================================
+
+  build-flutter-browser:
+    name: Build Flutter Browser (${{ matrix.target }})
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -31,28 +92,28 @@ jobs:
           channel: 'stable'
 
       - name: Install dependencies
-        working-directory: CometBrowserMobile/comet_ai
+        working-directory: flutter_browser_app
         run: |
           flutter precache --ios
           flutter pub get
 
       - name: Build Android APK
         if: matrix.target == 'android'
-        working-directory: CometBrowserMobile/comet_ai
+        working-directory: flutter_browser_app
         run: flutter build apk --release
 
       - name: Build iOS App
         if: matrix.target == 'ios'
-        working-directory: CometBrowserMobile/comet_ai
+        working-directory: flutter_browser_app
         run: flutter build ios --release --no-codesign
 
-      - name: Upload Mobile Artifact
+      - name: Upload Flutter Browser Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: mobile-${{ matrix.target }}
+          name: flutter-browser-${{ matrix.target }}
           path: |
-            CometBrowserMobile/comet_ai/build/app/outputs/flutter-apk/app-release.apk
-            CometBrowserMobile/comet_ai/build/ios/iphoneos/Runner.app
+            flutter_browser_app/build/app/outputs/flutter-apk/app-release.apk
+            flutter_browser_app/build/ios/iphoneos/Runner.app
 
   build-desktop:
     name: Build Desktop (${{ matrix.target }})

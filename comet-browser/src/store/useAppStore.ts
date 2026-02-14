@@ -229,6 +229,12 @@ interface BrowserState {
     // Adblocker
     enableAdblocker: boolean;
     setEnableAdblocker: (enable: boolean) => void;
+
+    // MCP Servers
+    mcpServers: Array<{ id: string; name: string; url: string; status: 'online' | 'offline' | 'connecting' }>;
+    addMcpServer: (server: { name: string; url: string }) => void;
+    removeMcpServer: (id: string) => void;
+    updateMcpServerStatus: (id: string, status: 'online' | 'offline' | 'connecting') => void;
 }
 
 export const useAppStore = create<BrowserState>()(
@@ -385,6 +391,18 @@ export const useAppStore = create<BrowserState>()(
                 maxRam: 2048, // 2GB
                 keepAudioTabsActive: true,
             },
+
+            // MCP Servers
+            mcpServers: [],
+            addMcpServer: (server) => set((state) => ({
+                mcpServers: [...state.mcpServers, { ...server, id: `mcp-${Date.now()}`, status: 'connecting' }]
+            })),
+            removeMcpServer: (id) => set((state) => ({
+                mcpServers: state.mcpServers.filter(s => s.id !== id)
+            })),
+            updateMcpServerStatus: (id, status) => set((state) => ({
+                mcpServers: state.mcpServers.map(s => s.id === id ? { ...s, status } : s)
+            })),
 
             // URL and navigation
             setDefaultUrl: (url) => set({ defaultUrl: url }),

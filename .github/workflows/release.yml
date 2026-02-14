@@ -10,8 +10,77 @@ permissions:
   contents: write
 
 jobs:
-  build-android:
-    name: Build Android APK
+  # ============================================================================
+  # PREVIOUS MOBILE JOBS (DEPRECATED)
+  # ============================================================================
+  # build-android:
+  #   name: Build Android APK
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #
+  #     - name: Setup Java
+  #       uses: actions/setup-java@v4
+  #       with:
+  #         distribution: 'zulu'
+  #         java-version: '17'
+  #
+  #     - name: Setup Flutter
+  #       uses: subosito/flutter-action@v2
+  #       with:
+  #         channel: 'stable'
+  #
+  #     - name: Install dependencies
+  #       working-directory: CometBrowserMobile/comet_ai
+  #       run: flutter pub get
+  #
+  #     - name: Build APK
+  #       working-directory: CometBrowserMobile/comet_ai
+  #       run: flutter build apk --release
+  #
+  #     - name: Upload APK
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: app-release-apk
+  #         path: CometBrowserMobile/comet_ai/build/app/outputs/flutter-apk/app-release.apk
+  #
+  # build-ios:
+  #   name: Build iOS IPA
+  #   runs-on: macos-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #
+  #     - name: Setup Flutter
+  #       uses: subosito/flutter-action@v2
+  #       with:
+  #         channel: 'stable'
+  #
+  #     - name: Install dependencies
+  #       working-directory: CometBrowserMobile/comet_ai
+  #       run: flutter pub get
+  #
+  #     - name: Build iOS
+  #       working-directory: CometBrowserMobile/comet_ai
+  #       run: flutter build ios --release --no-codesign
+  #
+  #     - name: Create Payload and Zip
+  #       working-directory: CometBrowserMobile/comet_ai
+  #       run: |
+  #         mkdir Payload
+  #         cp -r build/ios/iphoneos/Runner.app Payload/
+  #         zip -r CometBrowser.ipa Payload
+  #
+  #     - name: Upload IPA
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: app-release-ios
+  #         path: CometBrowserMobile/comet_ai/CometBrowser.ipa
+
+  # ============================================================================
+  # NEW MOBILE JOBS (flutter_browser_app)
+  # ============================================================================
+  build-flutter-android:
+    name: Build Flutter Browser Android
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -28,21 +97,21 @@ jobs:
           channel: 'stable'
 
       - name: Install dependencies
-        working-directory: CometBrowserMobile/comet_ai
+        working-directory: flutter_browser_app
         run: flutter pub get
 
       - name: Build APK
-        working-directory: CometBrowserMobile/comet_ai
+        working-directory: flutter_browser_app
         run: flutter build apk --release
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-release-apk
-          path: CometBrowserMobile/comet_ai/build/app/outputs/flutter-apk/app-release.apk
+          name: flutter-browser-apk
+          path: flutter_browser_app/build/app/outputs/flutter-apk/app-release.apk
 
-  build-ios:
-    name: Build iOS IPA
+  build-flutter-ios:
+    name: Build Flutter Browser iOS
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -53,25 +122,25 @@ jobs:
           channel: 'stable'
 
       - name: Install dependencies
-        working-directory: CometBrowserMobile/comet_ai
+        working-directory: flutter_browser_app
         run: flutter pub get
 
       - name: Build iOS
-        working-directory: CometBrowserMobile/comet_ai
+        working-directory: flutter_browser_app
         run: flutter build ios --release --no-codesign
 
       - name: Create Payload and Zip
-        working-directory: CometBrowserMobile/comet_ai
+        working-directory: flutter_browser_app
         run: |
           mkdir Payload
           cp -r build/ios/iphoneos/Runner.app Payload/
-          zip -r CometBrowser.ipa Payload
+          zip -r Comet-AI.ipa Payload
           
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: app-release-ios
-          path: CometBrowserMobile/comet_ai/CometBrowser.ipa
+          name: flutter-browser-ipa
+          path: flutter_browser_app/Comet-AI.ipa
 
   build-desktop:
     name: Build Desktop (${{ matrix.target }})
@@ -128,19 +197,19 @@ jobs:
 
   create-release:
     name: Create Draft Release
-    needs: [build-android, build-ios, build-desktop]
+    needs: [build-flutter-android, build-flutter-ios, build-desktop]
     runs-on: ubuntu-latest
     steps:
       - name: Download Android APK
         uses: actions/download-artifact@v4
         with:
-          name: app-release-apk
+          name: flutter-browser-apk
           path: release-artifacts
 
       - name: Download iOS IPA
         uses: actions/download-artifact@v4
         with:
-          name: app-release-ios
+          name: flutter-browser-ipa
           path: release-artifacts
 
       - name: Download Desktop Artifacts

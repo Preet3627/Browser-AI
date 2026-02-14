@@ -97,14 +97,31 @@ const ExtensionSettings = () => {
                 <div className="p-6 rounded-3xl bg-white/[0.02] border border-white/5 space-y-3">
                     <div className="flex items-center gap-3 text-deep-space-accent-neon">
                         <ShieldCheck size={20} />
-                        <span className="text-xs font-bold uppercase tracking-tight">Manual Sideloading</span>
+                        <span className="text-xs font-bold uppercase tracking-tight">Direct Installation</span>
                     </div>
-                    <p className="text-[11px] text-white/40 leading-relaxed">
-                        To install a local extension:
-                        <br />1. Download the extension source folder.
-                        <br />2. Open the <b>Extensions Dir</b> using the button above.
-                        <br />3. Drop the folder containing <code className="text-deep-space-accent-light">manifest.json</code> inside.
-                        <br />4. Restart Comet to activate.
+                    <div className="flex gap-2">
+                        <input
+                            type="text"
+                            placeholder="Paste Extension URL or ID"
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    const val = e.currentTarget.value;
+                                    let id = val;
+                                    if (val.includes('chromewebstore.google.com')) {
+                                        const parts = val.split('/');
+                                        id = parts[parts.length - 1].split('?')[0];
+                                    }
+                                    if (id && id.length > 20) {
+                                        const downloadUrl = `https://clients2.google.com/service/update2/crx?response=redirect&prodversion=120.0&x=id%3D${id}%26installsource%3Dondemand%26uc`;
+                                        window.open(downloadUrl, '_self');
+                                    }
+                                }
+                            }}
+                            className="flex-1 bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-[11px] text-white focus:outline-none focus:border-deep-space-accent-neon/50"
+                        />
+                    </div>
+                    <p className="text-[9px] text-white/20 leading-relaxed">
+                        Paste a Chrome Web Store URL and press Enter to auto-download and install.
                     </p>
                 </div>
             </div>
