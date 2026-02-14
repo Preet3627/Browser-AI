@@ -320,6 +320,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Shell Command Execution (for brightness, volume, WiFi, Bluetooth, etc.)
   executeShellCommand: (command) => ipcRenderer.invoke('execute-shell-command', command),
+  setVolume: (level) => ipcRenderer.invoke('set-volume', level),
+  setBrightness: (level) => ipcRenderer.invoke('set-brightness', level),
 
   // Cross-App Control APIs
   captureScreenRegion: (region) => ipcRenderer.invoke('capture-screen-region', region),

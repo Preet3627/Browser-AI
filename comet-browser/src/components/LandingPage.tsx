@@ -25,7 +25,7 @@ import {
 import { firebaseConfigStorage, FirebaseConfig } from "@/lib/firebaseConfigStorage";
 
 const COMET_README = `
-# ☄️ Comet Browser (v0.1.7)
+# ☄️ Comet Browser (v0.1.8)
 Made in India 🇮🇳
 ### The Intelligent Workspace for the Future
 
@@ -39,7 +39,7 @@ Made in India 🇮🇳
 
 ---
 
-## 🚀 Features (v0.1.7 Stable)
+## 🚀 Features (v0.1.8 Stable)
 
 ### 🧠 Intelligence & RAG
 *   **Perplexity-Style Answers**: Ask complex questions to your sidebar. Comet scans your current page and retrieves relevant context from your history.
@@ -58,6 +58,8 @@ Made in India 🇮🇳
 *   **Admin Console**: (Enterprise) Manage user access and monitor sync status.
 `.trim();
 
+import { firebaseSyncService } from "@/lib/FirebaseSyncService";
+
 const LandingPage = () => {
     const store = useAppStore();
     const [isLoading, setIsLoading] = useState(false);
@@ -65,9 +67,15 @@ const LandingPage = () => {
     const { scrollYProgress } = useScroll();
 
     useEffect(() => {
-        if (store.user) {
+        if (store.user && window.electronAPI) {
             store.setActiveView("browser");
             return;
+        } else if (store.user && !window.electronAPI) {
+            // Web Mode: Activate Sync
+            if (!store.cloudSyncConsent) store.setCloudSyncConsent(true);
+            firebaseSyncService.syncClipboard();
+            firebaseSyncService.syncHistory();
+            // Don't auto-switch view, let user stay on landing page dashboard
         }
 
         const done = sessionStorage.getItem("comet_startup_done");
@@ -100,7 +108,14 @@ const LandingPage = () => {
                 });
 
                 if (email.endsWith("@ponsrischool.in")) store.setAdmin(true);
-                store.setActiveView("browser");
+
+                if (window.electronAPI) {
+                    store.setActiveView("browser");
+                } else {
+                    // On Web: Stay on Landing Page but activate Sync
+                    store.setCloudSyncConsent(true);
+                }
+
                 store.setHasSeenWelcomePage(true);
                 store.startActiveSession();
                 window.history.replaceState({}, document.title, window.location.pathname);
@@ -199,7 +214,7 @@ const LandingPage = () => {
                         <motion.div initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }}>
                             <div className="inline-block px-4 py-1.5 rounded-full bg-sky-500/10 border border-sky-400/20 text-sky-400 text-[10px] font-black uppercase tracking-widest mb-8">
                                 <Sparkles size={12} className="inline mr-2" />
-                                Experimental Preview • v0.1.7 Stable
+                                Experimental Preview • v0.1.8 Stable
                             </div>
                             <h1 className="text-7xl md:text-[8.5rem] font-black uppercase mb-8 leading-[0.82] tracking-tighter text-white">
                                 Navigate <br /> <span className="text-transparent bg-clip-text bg-gradient-to-r from-sky-400 via-indigo-400 to-purple-500 animate-gradient-x">THE VOID</span>
@@ -340,7 +355,7 @@ const LandingPage = () => {
                             </div>
                             <div>
                                 <h3 className="text-4xl font-black text-white uppercase tracking-tighter">Documentation</h3>
-                                <p className="text-slate-500 font-bold uppercase tracking-[0.2em] text-xs">V0.1.7 Hardware Specification</p>
+                                <p className="text-slate-500 font-bold uppercase tracking-[0.2em] text-xs">V0.1.8 Hardware Specification</p>
                             </div>
                         </div>
 

@@ -220,8 +220,17 @@ export default function Home() {
     }
 
     if (window.electronAPI) {
-      const text = await window.electronAPI.getSelectedText();
-      const pageText = text || "No text selected to read aloud.";
+      let text = await window.electronAPI.getSelectedText();
+
+      if (!text || text.trim().length === 0) {
+        // Fallback to full page content if no selection
+        const pageContent = await window.electronAPI.extractPageContent();
+        if (pageContent && pageContent.content) {
+          text = pageContent.content.substring(0, 5000); // Limit to reasonable length
+        }
+      }
+
+      const pageText = text || "No readable content found on this page.";
 
       const utterance = new SpeechSynthesisUtterance(pageText);
       const voices = window.speechSynthesis.getVoices();
@@ -823,7 +832,9 @@ export default function Home() {
     if (window.electronAPI) {
       // Only hide BrowserView for full-screen overlays that completely cover the page
       // Small overlays (context menu, AI overview, etc.) will use z-[9999] to appear on top
-      const hasFullScreenOverlay = showSettings || activeManager !== null || showCamera;
+      // Only hide BrowserView for full-screen overlays that completely cover the page
+      // Small overlays (context menu, AI overview, etc.) will use z-[9999] to appear on top
+      const hasFullScreenOverlay = showSettings || activeManager !== null || showCamera || showDownloads || showCart || showExtensionsPopup || showClipboard;
 
       if (hasFullScreenOverlay) {
         window.electronAPI.hideAllViews();
@@ -950,23 +961,32 @@ export default function Home() {
   }, [store]);
 
   // Auto-trigger Google Login if no user and not already seen welcome page
+  // Auto-trigger Google Login - Use Store Config
   useEffect(() => {
-    if (!store.user && !store.hasSeenWelcomePage && window.electronAPI) {
-      const GOOGLE_CLIENT_ID = '601898745585-8g9t0k72gq4q1a4s1o4d1t6t7e5v4c4g.apps.googleusercontent.com'; // Placeholder
-      const GOOGLE_REDIRECT_URI = 'https://browser.ponsrischool.in/oauth2callback';
+    // 1. Fetch App Config first
+    if (!store.googleClientId) {
+      store.fetchAppConfig();
+    }
+
+    // 2. Auto-login if conditions met (commented out by default to prevent spam, but logic is ready)
+    /*
+    if (!store.user && !store.hasSeenWelcomePage && window.electronAPI && store.googleClientId) {
+      const clientId = store.googleClientId;
+      const redirectUri = store.googleRedirectUri;
 
       const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
-        `client_id=${GOOGLE_CLIENT_ID}&` +
-        `redirect_uri=${GOOGLE_REDIRECT_URI}&` +
+        `client_id=${clientId}&` +
+        `redirect_uri=${redirectUri}&` +
         `response_type=code&` +
         `scope=email profile openid&` +
         `access_type=offline&` +
         `prompt=consent`;
 
       window.electronAPI.openAuthWindow(authUrl);
-      store.setHasSeenWelcomePage(true); // Prevent re-triggering on subsequent renders
+      store.setHasSeenWelcomePage(true);
     }
-  }, [store.user, store.hasSeenWelcomePage]);
+    */
+  }, [store.user, store.hasSeenWelcomePage, store.googleClientId]);
 
   // Temporarily commented out for automatic Google login
   // if ((!store.user && !store.hasSeenWelcomePage) || store.activeView === 'landing-page') {

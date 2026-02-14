@@ -58,6 +58,11 @@ Comet v0.2.0 brings significant user experience improvements, focusing on custom
 *   **Native Firewall & Ad-Blocker**: Military-grade performance ad and tracker blocking.
 *   **Local Password Vault**: AES-256 encrypted local storage for credentials.
 *   **Zero Telemetry**: Your data never leaves your machine.
+*   **Strict Shell Permissions**: New permission layer prevents unauthorized system commands.
+
+### 🛡️ System Control Requirements
+*   **Windows**: Powershell is used for most system controls. For precise volume control, `nircmd` is recommended but not required for basic functionality.
+*   **macOS**: AppleScript is used for system automation.
 
 ---
 

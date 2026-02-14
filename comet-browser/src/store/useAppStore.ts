@@ -70,6 +70,9 @@ interface BrowserState {
     setGoogleToken: (token: string | null) => void;
     setGithubToken: (token: string | null) => void;
     loginWithGoogleToken: (token: string) => void;
+    googleClientId: string;
+    googleRedirectUri: string;
+    fetchAppConfig: () => Promise<void>;
 
     // View and UI
     activeView: string;
@@ -250,6 +253,24 @@ export const useAppStore = create<BrowserState>()(
             googleToken: null,
             setLocalPhotoURL: (url) => set({ localPhotoURL: url }),
             githubToken: null,
+            googleClientId: '',
+            googleRedirectUri: '',
+            fetchAppConfig: async () => {
+                try {
+                    const res = await fetch('https://browser.ponsrischool.in/api/config');
+                    if (res.ok) {
+                        const config = await res.json();
+                        set({
+                            googleClientId: config.googleClientId || '601898745585-8g9t0k72gq4q1a4s1o4d1t6t7e5v4c4g.apps.googleusercontent.com', // Fallback to placeholder if fetch fails or env missing
+                            googleRedirectUri: config.googleRedirectUri || 'https://browser.ponsrischool.in/oauth2callback',
+                            customFirebaseConfig: config.firebaseConfig || null
+                        });
+                        console.log('App config synced from Vercel:', config);
+                    }
+                } catch (e) {
+                    console.error('Failed to sync app config:', e);
+                }
+            },
 
             // View and UI
             activeView: 'browser',
@@ -610,7 +631,7 @@ export const useAppStore = create<BrowserState>()(
 
                 // Ensure we never default to 'about:blank' or empty unless explicitly requested
                 let finalUrl = url;
-                if (!finalUrl) {
+                if (!finalUrl || finalUrl === 'about:blank') {
                     if (state.defaultUrl && state.defaultUrl !== 'about:blank') {
                         finalUrl = state.defaultUrl;
                     } else {

@@ -67,7 +67,7 @@ class FirebaseSyncService {
         const decrypted = await Promise.all(
           data.map(item => Security.decrypt(item, store.syncPassphrase || undefined))
         );
-        store.clipboard = decrypted;
+        useAppStore.setState({ clipboard: decrypted });
       }
     });
   }
@@ -107,7 +107,7 @@ class FirebaseSyncService {
         // Double-check guest mode and sync consent before syncing
         if (store.isGuestMode || !store.cloudSyncConsent) return;
 
-        store.setHistory(data);
+        useAppStore.setState({ history: data });
       }
     });
   }

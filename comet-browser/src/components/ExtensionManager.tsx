@@ -76,7 +76,11 @@ const ExtensionManager = () => {
       transition={{ duration: 0.3 }}
       className="p-6 bg-zinc-800 rounded-lg shadow-xl"
     >
-      <h2 className="text-2xl font-bold mb-6 text-white">Extension Manager</h2>
+      <h2 className="text-2xl font-bold mb-2 text-white">Extension Manager</h2>
+      <p className="text-sm text-gray-400 mb-6">
+        Installed extensions run automatically in the background on all open tabs.
+        You don't need to click them to activate their core functionality (like ad-blocking).
+      </p>
 
       <div className="mb-6 flex justify-between items-center">
         <button

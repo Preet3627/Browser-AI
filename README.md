@@ -1,4 +1,4 @@
-# 🌟 Comet AI Browser
+# 🌟 Comet AI Browser (v0.1.8)
 
 <div align="center">
 
@@ -8,7 +8,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-cyan.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Android%20%7C%20iOS-blue)]()
-[![Version](https://img.shields.io/badge/Version-0.1.7--stable-green)]()
+[![Version](https://img.shields.io/badge/Version-0.1.8--stable-green)]()
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)]()
 
 [Features](#-features) • [Download](#-download) • [Quick Start](#-quick-start) • [Development Status](#-development-status) • [Contributing](#-contributing)
@@ -46,15 +46,15 @@ Measured on real hardware, not marketing slides.
 
 ---
 
-## 🧠 Recent Updates (v0.1.7)
+## 🧠 Recent Updates (v0.1.8)
 
 We've been hard at work refining the Comet experience. Here are the latest improvements:
 
+- **Synced Config**: Added secure environment variable syncing (Google Client ID, Firebase Config) from the landing page.
+- **Admin Secrets**: Admins can now manage app configuration directly from the landing page.
+- **AI/LLM Optimization**: Added `robots.txt`, `sitemap.xml`, and `LLM.md` for better indexing by AI crawlers and bots.
+- **Improved New Tab**: Fixed the "about:blank" issue; new tabs now redirect correctly to the default engine.
 - **Performance Boost**: Lazy-loaded OCR (Tesseract.js) to eliminate startup freezes.
-- **Enhanced AI**: The AI is now platform-aware (Windows/Mac/Linux) and can execute OS-specific shell commands.
-- **Production Fixes**: Resolved issues with Settings, Extensions, and Profile popups in production builds.
-- **Mobile Polish**: Updated Android branding, icons, and fixed splash screen issues.
-- **User Experience**: Improved "New Tab" behavior to respect user defaults and search engines.
 
 ---
 

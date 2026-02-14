@@ -18,13 +18,13 @@ const TitleBar = ({ onToggleSpotlightSearch }: TitleBarProps) => {
     const store = useAppStore();
     const router = useRouter(); // Initialize useRouter
 
-    const GOOGLE_CLIENT_ID = '601898745585-8g9t0k72gq4q1a4s1o4d1t6t7e5v4c4g.apps.googleusercontent.com'; // Placeholder, replace with actual
-    const GOOGLE_REDIRECT_URI = 'https://browser.ponsrischool.in/oauth2callback'; // From clientOnlyPage.tsx
-
     const handleGoogleSignIn = useCallback(() => {
+        const clientId = store.googleClientId || '601898745585-8g9t0k72gq4q1a4s1o4d1t6t7e5v4c4g.apps.googleusercontent.com';
+        const redirectUri = store.googleRedirectUri || 'https://browser.ponsrischool.in/oauth2callback';
+
         const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
-            `client_id=${GOOGLE_CLIENT_ID}&` +
-            `redirect_uri=${GOOGLE_REDIRECT_URI}&` +
+            `client_id=${clientId}&` +
+            `redirect_uri=${redirectUri}&` +
             `response_type=code&` +
             `scope=email profile openid&` + // Request email, profile, and openid
             `access_type=offline&` +
@@ -33,7 +33,7 @@ const TitleBar = ({ onToggleSpotlightSearch }: TitleBarProps) => {
         if (window.electronAPI) {
             window.electronAPI.openAuthWindow(authUrl);
         }
-    }, []);
+    }, [store.googleClientId, store.googleRedirectUri]);
 
     const isTabSuspended = (tabId: string) => {
         const tab = store.tabs.find((t) => t.id === tabId);
