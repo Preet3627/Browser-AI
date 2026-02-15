@@ -211,7 +211,8 @@ class _BrowserState extends State<Browser> with SingleTickerProviderStateMixin {
                 webViewTabStateKey.currentState?.pause();
                 var screenshotData = webViewTab.webViewModel.screenshot;
                 Widget screenshotImage = Container(
-                  decoration: const BoxDecoration(color: Colors.white),
+                  decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surface),
                   width: double.infinity,
                   child: screenshotData != null
                       ? Image.memory(screenshotData)
@@ -236,7 +237,7 @@ class _BrowserState extends State<Browser> with SingleTickerProviderStateMixin {
                           ? Colors.blue
                           : (webViewTab.webViewModel.isIncognitoMode
                               ? Colors.black
-                              : Colors.white),
+                              : Theme.of(context).colorScheme.surface),
                       child: ListTile(
                         leading: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -262,7 +263,7 @@ class _BrowserState extends State<Browser> with SingleTickerProviderStateMixin {
                               color: webViewTab.webViewModel.isIncognitoMode ||
                                       isCurrentTab
                                   ? Colors.white
-                                  : Colors.black,
+                                  : Theme.of(context).colorScheme.onSurface,
                             ),
                             overflow: TextOverflow.ellipsis),
                         subtitle:
@@ -272,7 +273,10 @@ class _BrowserState extends State<Browser> with SingleTickerProviderStateMixin {
                                       webViewTab.webViewModel.isIncognitoMode ||
                                               isCurrentTab
                                           ? Colors.white60
-                                          : Colors.black54,
+                                          : Theme.of(context)
+                                              .colorScheme
+                                              .onSurface
+                                              .withOpacity(0.6),
                                 ),
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis),

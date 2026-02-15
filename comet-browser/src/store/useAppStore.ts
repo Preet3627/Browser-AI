@@ -706,8 +706,8 @@ export const useAppStore = create<BrowserState>()(
                     return {
                         tabs: newTabs,
                         activeTabId: id,
-                        currentUrl: finalUrl,
-                        activeView: 'browser'
+                        currentUrl: finalUrl
+                        // Preserve activeView - don't force 'browser' view
                     };
                 });
             },
@@ -740,8 +740,8 @@ export const useAppStore = create<BrowserState>()(
                     return {
                         tabs: newTabs,
                         activeTabId: id,
-                        currentUrl: finalUrl,
-                        activeView: 'browser'
+                        currentUrl: finalUrl
+                        // Preserve activeView - don't force 'browser' view
                     };
                 });
             },

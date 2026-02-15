@@ -28,6 +28,8 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import dracula from 'react-syntax-highlighter/dist/cjs/styles/prism/dracula'; // A dark theme for code blocks
 import Tesseract from 'tesseract.js'; // Import Tesseract.js
 import { useRouter } from 'next/navigation'; // Import useRouter
+import { AICommandQueue, AICommand } from './AICommandQueue';
+import { parseAICommands, prepareCommandsForExecution, getCommandDescription } from '@/lib/AICommandParser';
 
 // Delay helper function
 const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
@@ -126,6 +128,10 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = (props) => {
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [aiMode, setAiMode] = useState<'cloud' | 'offline' | 'auto'>('auto');
   const [isOnline, setIsOnline] = useState(true);
+  const [commandQueue, setCommandQueue] = useState<AICommand[]>([]);
+  const [currentCommandIndex, setCurrentCommandIndex] = useState(0);
+  const processingQueueRef = useRef(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
   const [attachments, setAttachments] = useState<{ name: string; type: string; data: string }[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -358,6 +364,335 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = (props) => {
     }
   };
 
+  // Process command queue
+  const processCommandQueue = async (commands: AICommand[]) => {
+    if (!processingQueueRef.current) return;
+
+    // Create an AbortController for this queue execution
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    for (let i = 0; i < commands.length; i++) {
+      if (controller.signal.aborted || !processingQueueRef.current) break;
+
+      const cmd = commands[i];
+      setCurrentCommandIndex(i);
+
+      // Update status to executing
+      setCommandQueue(prev => prev.map(c => c.id === cmd.id ? { ...c, status: 'executing' } : c));
+
+      try {
+        let result = '';
+
+        // Execute command based on type
+        switch (cmd.type) {
+          case 'NAVIGATE':
+            const url = cmd.value;
+            store.setCurrentUrl(url);
+            if (url.startsWith('comet://')) {
+              const resourcePath = url.substring('comet://'.length);
+              router.push(`/${resourcePath}`);
+              store.setActiveView('browser');
+              result = `Navigated to internal page: /${resourcePath}`;
+            } else {
+              store.setActiveView('browser');
+              if (window.electronAPI) {
+                await window.electronAPI.navigateBrowserView({ tabId: store.activeTabId, url });
+              }
+              result = `Navigated to ${url}`;
+            }
+            await delay(1000);
+            break;
+
+          case 'SEARCH':
+          case 'WEB_SEARCH':
+            const query = cmd.value;
+            const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+            store.setCurrentUrl(searchUrl);
+            store.setActiveView('browser');
+            if (window.electronAPI) {
+              await window.electronAPI.navigateBrowserView({ tabId: store.activeTabId, url: searchUrl });
+            }
+            result = `Searched for: ${query}`;
+            await delay(1000);
+            break;
+
+          case 'SET_THEME':
+            store.setTheme(cmd.value.toLowerCase() as any);
+            result = `Theme set to ${cmd.value}`;
+            break;
+
+          case 'OPEN_VIEW':
+            store.setActiveView(cmd.value.toLowerCase());
+            result = `Opened ${cmd.value} view`;
+            break;
+
+          case 'RELOAD':
+            if (window.electronAPI) window.electronAPI.reload();
+            result = 'Reloaded page';
+            await delay(500);
+            break;
+
+          case 'GO_BACK':
+            if (window.electronAPI) window.electronAPI.goBack();
+            result = 'Navigated back';
+            await delay(500);
+            break;
+
+          case 'GO_FORWARD':
+            if (window.electronAPI) window.electronAPI.goForward();
+            result = 'Navigated forward';
+            await delay(500);
+            break;
+
+          case 'READ_PAGE_CONTENT':
+            if (window.electronAPI) {
+              const extraction = await window.electronAPI.extractPageContent();
+              if (extraction.content) {
+                BrowserAI.addToVectorMemory(extraction.content, { type: 'page_content', url: store.currentUrl });
+                setMessages(prev => [...prev, { role: 'model', content: `\n\n[PAGE_CONTENT_READ]: ${(extraction.content || '').substring(0, 500)}... (saved to memory)` }]);
+                result = 'Read page content';
+              } else {
+                throw new Error('Failed to read page content');
+              }
+            } else {
+              throw new Error('API not available');
+            }
+            break;
+
+          case 'SCREENSHOT_AND_ANALYZE':
+            if (window.electronAPI) {
+              const screenshotDataUrl = await window.electronAPI.captureBrowserViewScreenshot();
+              if (screenshotDataUrl && tesseractWorkerRef.current) {
+                const { data: { text: ocrText } } = await tesseractWorkerRef.current.recognize(screenshotDataUrl);
+                BrowserAI.addToVectorMemory(ocrText, { type: 'screenshot_ocr', url: store.currentUrl });
+                setMessages(prev => [...prev, { role: 'model', content: `\n\n[SCREENSHOT_ANALYSIS]: ${ocrText}` }]);
+                result = 'Analyzed screenshot';
+              } else {
+                // Fallback if failing silently
+                throw new Error('Failed to capture or analyze screenshot');
+              }
+            } else {
+              throw new Error('API not available');
+            }
+            break;
+
+          case 'LIST_OPEN_TABS':
+            if (window.electronAPI) {
+              const openTabs = await window.electronAPI.getOpenTabs();
+              if (openTabs) {
+                const tabsList = openTabs.map((t: any) => `- ${t.title} (${t.url})`).join('\n');
+                setMessages(prev => [...prev, { role: 'model', content: `\n\n[OPEN_TABS]:\n${tabsList}` }]);
+                result = `Listed ${openTabs.length} tabs`;
+              } else {
+                result = 'No open tabs';
+              }
+            }
+            break;
+
+          case 'SET_VOLUME':
+          case 'SET_BRIGHTNESS':
+            if (window.electronAPI) {
+              const percentage = parseInt(cmd.value, 10);
+              const isBrightness = cmd.type === 'SET_BRIGHTNESS';
+              const label = isBrightness ? 'Brightness' : 'Volume';
+
+              let shellCmd = '';
+              const platform = navigator.platform;
+
+              if (platform.includes('Win')) {
+                if (isBrightness) {
+                  shellCmd = `powershell -Command "(Get-WmiObject -Namespace root/WMI -Class WmiMonitorBrightnessMethods).WmiSetBrightness(1,${percentage})"`;
+                } else {
+                  const winVolume = Math.round((percentage / 100) * 65535);
+                  shellCmd = `nircmd.exe setsysvolume ${winVolume}`;
+                }
+              } else if (platform.includes('Mac')) {
+                if (isBrightness) {
+                  shellCmd = `brightness ${percentage / 100}`;
+                } else {
+                  shellCmd = `osascript -e "set volume output volume ${percentage}"`;
+                }
+              } else {
+                // Linux fallback
+                if (isBrightness) shellCmd = `brightnessctl set ${percentage}%`;
+                else shellCmd = `amixer set 'Master' ${percentage}%`;
+              }
+
+              if (shellCmd) {
+                await window.electronAPI.executeShellCommand(shellCmd);
+                result = `Set ${label} to ${percentage}%`;
+              } else {
+                throw new Error('Platform not supported');
+              }
+            }
+            break;
+
+          case 'SHELL_COMMAND':
+            if (window.electronAPI) {
+              const output = await window.electronAPI.executeShellCommand(cmd.value);
+              if (output && output.success) {
+                result = 'Command executed successfully';
+              } else {
+                throw new Error(output?.error || 'Command failed');
+              }
+            }
+            break;
+
+          case 'OPEN_APP':
+            if (window.electronAPI) {
+              const res = await window.electronAPI.openExternalApp(cmd.value);
+              if (res.success) result = `Opened ${cmd.value}`;
+              else throw new Error(res.error || 'Failed to open app');
+            }
+            break;
+
+          case 'FILL_FORM':
+            if (window.electronAPI) {
+              const [selector, value] = cmd.value.split('|').map(s => s.trim());
+              const script = `
+                            const el = document.querySelector('${selector}');
+                            if (el) {
+                                el.value = '${value}';
+                                el.dispatchEvent(new Event('input', { bubbles: true }));
+                                el.dispatchEvent(new Event('change', { bubbles: true }));
+                                true;
+                            } else false;
+                        `;
+              const res = await window.electronAPI.executeJavaScript(script);
+              if (res) result = `Filled form field ${selector}`;
+              else throw new Error(`Element ${selector} not found`);
+            }
+            break;
+
+          case 'SCROLL_TO':
+            if (window.electronAPI) {
+              const [target, offsetStr] = cmd.value.split('|').map(s => s.trim());
+              const offset = parseInt(offsetStr || '0', 10);
+              const script = `
+                            if ('${target}' === 'top') window.scrollTo({ top: ${offset}, behavior: 'smooth' });
+                            else if ('${target}' === 'bottom') window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+                            else {
+                                const el = document.querySelector('${target}');
+                                if (el) {
+                                    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                    if (${offset} !== 0) window.scrollBy(0, ${offset});
+                                }
+                            }
+                        `;
+              await window.electronAPI.executeJavaScript(script);
+              result = `Scrolled to ${target}`;
+            }
+            break;
+
+          case 'EXTRACT_DATA':
+            if (window.electronAPI) {
+              const script = `document.querySelector('${cmd.value}')?.innerText`;
+              const text = await window.electronAPI.executeJavaScript(script);
+              if (text) {
+                BrowserAI.addToVectorMemory(text, { type: 'extracted_data', url: store.currentUrl, selector: cmd.value });
+                setMessages(prev => [...prev, { role: 'model', content: `\n\n[EXTRACTED]: ${text}` }]);
+                result = 'Data extracted';
+              } else {
+                throw new Error('Element not found or empty');
+              }
+            }
+            break;
+
+          case 'CREATE_NEW_TAB_GROUP':
+            result = `Created tab group: ${cmd.value.split('|')[0]}`;
+            break;
+
+          case 'OCR_COORDINATES':
+          case 'OCR_SCREEN':
+            if (window.electronAPI) {
+              let x, y, width, height;
+              if (cmd.value) [x, y, width, height] = cmd.value.split(',').map(Number);
+
+              const screenshot = await window.electronAPI.captureBrowserViewScreenshot();
+              if (screenshot && tesseractWorkerRef.current) {
+                const { data: { text } } = await tesseractWorkerRef.current.recognize(screenshot);
+                setMessages(prev => [...prev, { role: 'model', content: `\n\n[OCR]: ${text}` }]);
+                result = 'OCR completed';
+              }
+            }
+            break;
+
+          case 'FIND_AND_CLICK':
+            if (window.electronAPI && window.electronAPI.findAndClickText) {
+              const res = await window.electronAPI.findAndClickText(cmd.value);
+              if (res.success) result = `Clicked "${cmd.value}"`;
+              else throw new Error(res.error || 'Failed to find text');
+            }
+            break;
+
+          case 'GMAIL_AUTHORIZE':
+            if (window.electronAPI) {
+              const res = await window.electronAPI.gmailAuthorize();
+              if (res.success) result = 'Gmail authorized';
+              else throw new Error(res.error);
+            }
+            break;
+
+          case 'GMAIL_LIST_MESSAGES':
+            if (window.electronAPI) {
+              const [q, max] = cmd.value.split('|');
+              const res = await window.electronAPI.gmailListMessages(q, parseInt(max) || 10);
+              if (res.success) {
+                const list = (res.messages || []).map((m: any) => m.id).join('\n');
+                setMessages(prev => [...prev, { role: 'model', content: `\n\n[EMAILS]:\n${list}` }]);
+                result = `Listed ${(res.messages || []).length} emails`;
+              } else throw new Error(res.error);
+            }
+            break;
+
+          case 'GUIDE_CLICK':
+            result = 'Guidance provided';
+            await delay(3000);
+            break;
+
+          case 'WAIT':
+            const duration = parseInt(cmd.value, 10);
+            await delay(duration);
+            result = `Waited ${duration}ms`;
+            break;
+
+          case 'EXPLAIN_CAPABILITIES':
+            result = 'Capabilities explained';
+            break;
+
+          default:
+            result = 'Command executed';
+        }
+
+        // Update status to completed
+        const output = result;
+        setCommandQueue(prev => prev.map(c => c.id === cmd.id ? { ...c, status: 'completed', output } : c));
+
+      } catch (error: any) {
+        console.error(`Command failed: ${cmd.type}`, error);
+        setCommandQueue(prev => prev.map(c => c.id === cmd.id ? { ...c, status: 'failed', error: error.message } : c));
+      }
+
+    }
+
+    // Reset queue after processing
+    setTimeout(() => {
+      setCommandQueue([]);
+      processingQueueRef.current = false;
+      abortControllerRef.current = null;
+    }, 5000);
+  };
+
+  const cancelActions = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    setCommandQueue([]);
+    processingQueueRef.current = false;
+    abortControllerRef.current = null;
+  };
+
   const handleSendMessage = async (customContent?: string) => {
     const contentToUse = customContent || inputMessage.trim();
     if (!contentToUse && attachments.length === 0) return;
@@ -505,1456 +840,224 @@ ${pageContext || "Content not loaded. Use [READ_PAGE_CONTENT] command to read fu
           let fullResponseText = response.text; // Store the original response text
 
           // Multi-Layered Task Processing (Chained Commands)
+          // Multi-Layered Task Processing (Chained Commands)
           const executeCommands = async (content: string) => {
-            // Regex to find all command patterns
-            const commandRegex = /\[(NAVIGATE|SEARCH|SET_THEME|OPEN_VIEW|RELOAD|GO_BACK|GO_FORWARD|SCREENSHOT_AND_ANALYZE|WEB_SEARCH|READ_PAGE_CONTENT|LIST_OPEN_TABS|GENERATE_PDF|GENERATE_DIAGRAM|SHELL_COMMAND|OCR_COORDINATES|CLICK_ELEMENT|GMAIL_AUTHORIZE|GMAIL_LIST_MESSAGES|GMAIL_GET_MESSAGE|GMAIL_SEND_MESSAGE|GMAIL_ADD_LABEL|WAIT):([^\]]+?)\]/gi;
-            let match;
-            let lastIndex = 0;
-            let processedTextParts: string[] = [];
-            const commandsToExecute: { type: string; value: string; originalMatch: string }[] = [];
+            const { commands, responseText } = prepareCommandsForExecution(content);
 
-            // Extract all commands and their positions
-            while ((match = commandRegex.exec(content)) !== null) {
-              // Add text before the command
-              if (match.index > lastIndex) {
-                processedTextParts.push(content.substring(lastIndex, match.index));
-              }
-              commandsToExecute.push({
-                type: match[1].toUpperCase(),
-                value: match[2].trim(),
-                originalMatch: match[0]
-              });
-              lastIndex = commandRegex.lastIndex;
-            }
-            // Add any remaining text after the last command
-            if (lastIndex < content.length) {
-              processedTextParts.push(content.substring(lastIndex));
+            // Show the text part of the response immediately if it exists
+            if (responseText.trim()) {
+              setMessages(prev => [...prev, { role: 'model', content: responseText }]);
+            } else if (commands.length === 0) {
+              // If no text and no commands, might be an empty response or just whitespace
+              // But usually we have at least one.
             }
 
-            let currentTextContent = processedTextParts.join(''); // Initial text without commands
-
-            for (const cmd of commandsToExecute) {
-              let commandOutput = '';
-              let shouldReturn = false;
-
-              switch (cmd.type) {
-                case 'NAVIGATE':
-                  const url = cmd.value;
-                  console.log('[AI Command] Navigating to:', url);
-                  store.setCurrentUrl(url); // Always update current URL in store
-
-                  if (url.startsWith('comet://')) {
-                    // Handle internal comet:// URLs via Next.js router
-                    const resourcePath = url.substring('comet://'.length); // e.g., 'vault', 'extensions'
-                    router.push(`/${resourcePath}`);
-                    store.setActiveView('browser'); // Keep browser view active for internal pages
-                    commandOutput = `🚀 **Navigating to internal Comet page:** /${resourcePath}`;
-                  } else {
-                    // Handle external URLs via BrowserView
-                    store.setActiveView('browser');
-                    if (window.electronAPI) {
-                      await window.electronAPI.navigateBrowserView({ tabId: store.activeTabId, url });
-                    }
-                    commandOutput = `🌐 **Navigating to ${url}...**`;
-                  }
-                  await delay(1000); // General delay after navigation
-                  break;
-
-                case 'SEARCH':
-                  const query = cmd.value;
-                  console.log('[AI Command] Searching for:', query);
-                  const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
-                  store.setCurrentUrl(searchUrl);
-                  store.setActiveView('browser');
-                  if (window.electronAPI) {
-                    await window.electronAPI.navigateBrowserView({ tabId: store.activeTabId, url: searchUrl });
-                  }
-                  commandOutput = `🔍 **Searching for:** ${query}`;
-                  await delay(1000); // General delay after search
-                  break;
-
-                case 'SET_THEME':
-                  const theme = cmd.value;
-                  store.setTheme(theme.toLowerCase() as any);
-                  commandOutput = `🎨 **Theme updated to ${theme}**`;
-                  await delay(500);
-                  break;
-
-                case 'OPEN_VIEW':
-                  const view = cmd.value;
-                  store.setActiveView(view.toLowerCase());
-                  commandOutput = `🚀 **Opening ${view} view**`;
-                  await delay(500);
-                  break;
-
-                case 'RELOAD':
-                  if (window.electronAPI) window.electronAPI.reload();
-                  commandOutput = '🔄 **Reloading page...**';
-                  await delay(1000);
-                  break;
-
-                case 'GO_BACK':
-                  if (window.electronAPI) window.electronAPI.goBack();
-                  commandOutput = '◀️ **Going back...**';
-                  await delay(1000);
-                  break;
-
-                case 'GO_FORWARD':
-                  if (window.electronAPI) window.electronAPI.goForward();
-                  commandOutput = '▶️ **Going forward...**';
-                  await delay(1000);
-                  break;
-
-
-
-                case 'SCREENSHOT_AND_ANALYZE':
-                  if (window.electronAPI) {
-                    commandOutput = '📸 **Taking screenshot and analyzing...**';
-                    // Display immediate feedback to user
-                    setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
-
-                    try {
-                      const screenshotDataUrl = await window.electronAPI.captureBrowserViewScreenshot();
-                      if (screenshotDataUrl && tesseractWorkerRef.current) {
-                        const { data: { text: ocrText } } = await tesseractWorkerRef.current.recognize(screenshotDataUrl);
-                        // Add to vector memory
-                        BrowserAI.addToVectorMemory(ocrText, { type: 'screenshot_ocr', url: store.currentUrl });
-                        const screenshotContext = `\n\n[SCREENSHOT_ANALYSIS]: ${ocrText}`;
-                        console.log('[OCR] Extracted text:', ocrText.substring(0, 200));
-                        // Re-send the user's original message with screenshot context for AI to analyze
-                        await handleSendMessage(userMessage.content + screenshotContext);
-                        shouldReturn = true; // Prevent further processing of the current AI response
-                      } else {
-                        commandOutput = tesseractWorkerRef.current ? '⚠️ **Failed to capture screenshot.**' : '⚠️ **OCR engine still initializing, please try again.**';
-                      }
-                    } catch (err) {
-                      console.error('[OCR] Screenshot analysis failed:', err);
-                      commandOutput = '⚠️ **Screenshot analysis failed. Please try again.**';
-                    }
-                  } else {
-                    commandOutput = '⚠️ **Screenshot analysis not available in this environment.**';
-                  }
-                  await delay(2000); // Longer delay for analysis
-                  break;
-
-                case 'READ_PAGE_CONTENT':
-                  if (window.electronAPI) {
-                    commandOutput = '📄 **Reading page content...**';
-                    setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
-
-                    const extraction = await window.electronAPI.extractPageContent();
-                    if (extraction.content) {
-                      // Add to vector memory
-                      BrowserAI.addToVectorMemory(extraction.content, { type: 'page_content', url: store.currentUrl });
-                      await handleSendMessage(userMessage.content + `\n\n[PAGE_CONTENT_READ]: ${extraction.content}`);
-                      shouldReturn = true;
-                    } else {
-                      commandOutput = '⚠️ **Failed to read page content.**';
-                    }
-                  } else {
-                    commandOutput = '⚠️ **Page content reading not available.**';
-                  }
-                  await delay(1500);
-                  break;
-
-                case 'LIST_OPEN_TABS':
-                  if (window.electronAPI) {
-                    commandOutput = '📝 **Listing open tabs...**';
-                    setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
-
-                    const openTabs = await window.electronAPI.getOpenTabs();
-                    if (openTabs && openTabs.length > 0) {
-                      const tabsContext = openTabs.map((tab: any) => `Tab ID: ${tab.tabId}, Title: ${tab.title}, URL: ${tab.url}${tab.isActive ? ' (Active)' : ''}`).join('\n');
-                      await handleSendMessage(userMessage.content + `\n\n[OPEN_TABS_LIST]:\n${tabsContext}`);
-                      shouldReturn = true;
-                    } else {
-                      commandOutput = '⚠️ **No open tabs found.**';
-                    }
-                  } else {
-                    commandOutput = '⚠️ **Tab listing not available.**';
-                  }
-                  await delay(1000);
-                  break;
-
-                case 'WEB_SEARCH':
-                  const webQuery = cmd.value;
-                  commandOutput = `🌐 **Performing Web Search for:** ${webQuery}...`;
-                  setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
-                  const newSearchUrl = `https://www.google.com/search?q=${encodeURIComponent(webQuery)}`;
-                  store.addTab(newSearchUrl);
-                  shouldReturn = true; // AI will analyze new tab when loaded
-                  await delay(1000);
-                  break;
-
-                case 'OCR_SCREEN':
-                case 'OCR_COORDINATES':
-                case 'FIND_AND_CLICK':
-                  if (window.electronAPI && window.electronAPI.findAndClickText) {
-                    commandOutput = `👁️ **Scanning screen for text:** "${cmd.value}"...`;
-                    setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
-
-                    try {
-                      const result = await window.electronAPI.findAndClickText(cmd.value);
-                      if (result.success) {
-                        commandOutput = `✅ **Found and clicked:** "${cmd.value}"`;
-                      } else {
-                        commandOutput = `❌ **Failed to find/click:** "${cmd.value}" (${result.error || 'not found'})`;
-                      }
-                    } catch (e: any) {
-                      commandOutput = `❌ **Error during vision action:** ${e.message}`;
-                    }
-                  } else {
-                    commandOutput = `⚠️ **Vision actions not supported.**`;
-                  }
-                  await delay(1500);
-                  break;
-
-                case 'CLICK_ELEMENT':
-                  if (window.electronAPI && window.electronAPI.clickElement) {
-                    commandOutput = `🖱️ **Clicking element:** "${cmd.value}"...`;
-                    try {
-                      const result = await window.electronAPI.clickElement(cmd.value);
-                      commandOutput = result.success ? `✅ **Clicked:** ${cmd.value}` : `❌ **Failed to click:** ${result.error}`;
-                    } catch (e: any) {
-                      commandOutput = `❌ **Error clicking:** ${e.message}`;
-                    }
-                  } else {
-                    commandOutput = `⚠️ **Element clicking not supported.**`;
-                  }
-                  await delay(1000);
-                  break;
-
-                case 'GENERATE_DIAGRAM':
-                  const mermaidCode = cmd.value;
-                  commandOutput = `\n\`\`\`mermaid\n${mermaidCode}\n\`\`\`\n`;
-                  await delay(500);
-                  break;
-
-                case 'SHELL_COMMAND':
-                  if (store.aiSafetyMode) {
-                    const confirm = window.confirm(`⚠️ AI SAFETY WARNING\n\nThe AI wants to execute a system command:\n"${cmd.value}"\n\nThis command runs directly on your Operating System. Only allow if you trust this action.\n\nAllow this action?`);
-                    if (!confirm) {
-                      commandOutput = `❌ **Command blocked by user safety settings.**`;
-                      shouldReturn = false; // Do not recurse if blocked
-                      break;
-                    }
-                  }
-
-                  if (window.electronAPI) {
-                    const command = cmd.value;
-                    commandOutput = `🖥️ **Executing shell command:** ${command}`;
-                    setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
-
-                    try {
-                      const result = await window.electronAPI.executeShellCommand(command);
-                      if (result.success) {
-                        await handleSendMessage(userMessage.content + `\n\n[SHELL_OUTPUT]: ${result.output}`);
-                      } else {
-                        await handleSendMessage(userMessage.content + `\n\n[SHELL_ERROR]: ${result.error}`);
-                      }
-                    } catch (err) {
-                      await handleSendMessage(userMessage.content + `\n\n[SHELL_ERROR]: Command execution failed`);
-                    }
-                    shouldReturn = true;
-                  } else {
-                    commandOutput = '⚠️ **Shell command execution not available.**';
-                  }
-                  await delay(2000);
-                  break;
-
-                case 'SET_BRIGHTNESS':
-                  if (window.electronAPI) {
-                    const percentage = parseInt(cmd.value, 10);
-                    if (isNaN(percentage) || percentage < 0 || percentage > 100) {
-                      commandOutput = `⚠️ **Invalid brightness percentage: ${cmd.value}. Must be between 0 and 100.**`;
-                    } else {
-                      let shellCmd = '';
-                      const platform = navigator.platform; // e.g., "Win32", "MacIntel", "Linux x86_64"
-
-                      if (platform.includes('Win')) {
-                        // Windows: Requires PowerShell and WMI
-                        // Note: WmiMonitorBrightnessMethods might require admin privileges or specific hardware support
-                        shellCmd = `powershell -Command "(Get-WmiObject -Namespace root/WMI -Class WmiMonitorBrightnessMethods).WmiSetBrightness(1,${percentage})"`;
-                      } else if (platform.includes('Mac')) {
-                        // macOS: Requires 'brightness' tool (installed via Homebrew) or osascript (less precise)
-                        // For simplicity and broader compatibility, assuming 'brightness' tool is installed.
-                        const macBrightness = percentage / 100; // brightness tool uses 0 to 1
-                        shellCmd = `brightness ${macBrightness}`;
-                      } else if (platform.includes('Linux')) {
-                        // Linux: Using brightnessctl (most common for modern systems)
-                        shellCmd = `brightnessctl set ${percentage}%`;
-                      } else {
-                        commandOutput = `⚠️ **Brightness control not supported on ${platform}.**`;
-                      }
-
-                      if (shellCmd) {
-                        commandOutput = `💡 **Setting brightness to ${percentage}%...**`;
-                        setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
-
-                        try {
-                          const result = await window.electronAPI.executeShellCommand(shellCmd);
-                          if (result.success) {
-                            commandOutput = `✅ **Brightness set to ${percentage}%.**`;
-                          } else {
-                            commandOutput = `❌ **Failed to set brightness: ${result.error}.**`;
-                          }
-                        } catch (err) {
-                          commandOutput = `❌ **Failed to execute brightness command.**`;
-                        }
-                      }
-                    }
-                  } else {
-                    commandOutput = '⚠️ **Brightness control not available.**';
-                  }
-                  await delay(2000);
-                  break;
-
-
-                case 'SET_BRIGHTNESS':
-                case 'SET_VOLUME': {
-                  if (store.aiSafetyMode) {
-                    // Could add confirmation here if strict mode desired
-                  }
-
-                  if (window.electronAPI) {
-                    const percentage = parseInt(cmd.value, 10);
-                    const isBrightness = cmd.type === 'SET_BRIGHTNESS';
-                    const label = isBrightness ? 'Brightness' : 'Volume';
-
-                    if (isNaN(percentage) || percentage < 0 || percentage > 100) {
-                      commandOutput = `⚠️ **Invalid ${label.toLowerCase()} percentage: ${cmd.value}. Must be between 0 and 100.**`;
-                    } else {
-                      let shellCmd = '';
-                      const platform = navigator.platform;
-
-                      if (platform.includes('Win')) {
-                        if (isBrightness) {
-                          shellCmd = `powershell -Command "(Get-WmiObject -Namespace root/WMI -Class WmiMonitorBrightnessMethods).WmiSetBrightness(1,${percentage})"`;
-                        } else {
-                          // Windows: Requires NirCmd (third-party) placeholder
-                          const winVolume = Math.round((percentage / 100) * 65535);
-                          shellCmd = `nircmd.exe setsysvolume ${winVolume}`;
-                        }
-                      } else if (platform.includes('Mac')) {
-                        if (isBrightness) {
-                          const macBrightness = percentage / 100;
-                          shellCmd = `brightness ${macBrightness}`;
-                        } else {
-                          shellCmd = `osascript -e "set volume output volume ${percentage}"`;
-                        }
-                      } else if (platform.includes('Linux')) {
-                        if (isBrightness) {
-                          shellCmd = `brightnessctl set ${percentage}%`;
-                        } else {
-                          shellCmd = `amixer set 'Master' ${percentage}%`;
-                        }
-                      } else {
-                        commandOutput = `⚠️ **${label} control not fully supported on ${platform}.**`;
-                      }
-
-                      if (shellCmd) {
-                        commandOutput = `${isBrightness ? '💡' : '🔊'} **Setting ${label.toLowerCase()} to ${percentage}%...**`;
-                        setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
-
-                        try {
-                          const result = await window.electronAPI.executeShellCommand(shellCmd);
-                          if (result && result.success) {
-                            commandOutput = `✅ **${label} set to ${percentage}%.**`;
-                          } else {
-                            commandOutput = `❌ **Failed to set ${label.toLowerCase()}: ${result?.error || 'Unknown error'}.**`;
-                          }
-                        } catch (err: any) {
-                          commandOutput = `❌ **Failed to execute ${label.toLowerCase()} command: ${err.message || 'Unknown error'}.**`;
-                        }
-                      }
-                    }
-                  } else {
-                    commandOutput = `⚠️ **${cmd.type === 'SET_BRIGHTNESS' ? 'Brightness' : 'Volume'} control not available.**`;
-                  }
-                  await delay(2000);
-                  break;
-                }
-
-                case 'OPEN_APP':
-
-                  if (window.electronAPI) {
-
-                    const appNameOrPath = cmd.value;
-
-                    commandOutput = `🚀 **Attempting to open application:** "${appNameOrPath}"...`;
-
-                    setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
-
-
-
-                    try {
-
-                      const result = await window.electronAPI.openExternalApp(appNameOrPath);
-
-                      if (result.success) {
-
-                        commandOutput = `✅ **Successfully opened application:** "${appNameOrPath}".`;
-
-                      } else {
-
-                        commandOutput = `❌ **Failed to open application:** "${appNameOrPath}". Error: ${result.error || 'Unknown error'}.`;
-
-                      }
-
-                    } catch (err: any) {
-
-                      commandOutput = `❌ **Failed to open application:** "${appNameOrPath}". Error: ${err.message || 'Unknown error'}.`;
-
-                    }
-
-                  } else {
-
-                    commandOutput = '⚠️ **Application opening not available in this environment.**';
-
-                  }
-
-                  await delay(3000); // Give time for the app to open
-
-                  break;
-
-
-
-                case 'FILL_FORM':
-
-                  if (window.electronAPI) {
-
-                    const [selector, value] = cmd.value.split(' | ').map(s => s.trim());
-
-                    commandOutput = `✍️ **Filling form field "${selector}" with value: "${value}"...**`;
-
-                    setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
-
-
-
-                    try {
-
-                      const script = `
-                                                    
-                                                                                                                const element = document.querySelector('${selector}');
-                                                    
-                                                                                                                if (element) {
-                                                    
-                                                                                                                  element.value = \`${value}\`;
-                                                    
-                                                                                                                  element.dispatchEvent(new Event('input', { bubbles: true })); // Trigger input event
-                                                    
-                                                                                                                  element.dispatchEvent(new Event('change', { bubbles: true })); // Trigger change event
-                                                    
-                                                                                                                  true;
-                                                    
-                                                                                                                } else {
-                                                    
-                                                                                                                  false;
-                                                    
-                                                                                                                }
-                                                    
-                                                                                                              `;
-
-                      const result = await window.electronAPI.executeJavaScript(script);
-
-                      if (result) {
-
-                        commandOutput = `✅ **Form field "${selector}" filled successfully.**`;
-
-                      } else {
-
-                        commandOutput = `❌ **Failed to find or fill form field "${selector}".**`;
-
-                      }
-
-                    } catch (err: any) {
-
-                      commandOutput = `❌ **Error filling form field "${selector}": ${err.message || 'Unknown error'}.**`;
-
-                    }
-
-                  } else {
-
-                    commandOutput = '⚠️ **Form filling not available in this environment.**';
-
-                  }
-
-                  await delay(1500);
-
-                  break;
-
-
-
-                case 'SCROLL_TO':
-
-
-
-                  if (window.electronAPI) {
-
-
-
-                    const [target, offsetStr = '0'] = cmd.value.split(' | ').map(s => s.trim());
-
-
-
-                    const offset = parseInt(offsetStr, 10);
-
-
-
-                    commandOutput = `⬇️ **Scrolling to "${target}" with offset ${offset}...**`;
-
-
-
-                    setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
-
-
-
-
-
-
-
-                    try {
-
-
-
-                      const script = `
-                                                    
-                                                                              
-                                                    
-                                                                                                                                          let success = false;
-                                                    
-                                                                              
-                                                    
-                                                                                                                                          if ('${target}' === 'top') {
-                                                    
-                                                                              
-                                                    
-                                                                                                                                            window.scrollTo({ top: ${offset}, behavior: 'smooth' });
-                                                    
-                                                                              
-                                                    
-                                                                                                                                            success = true;
-                                                    
-                                                                              
-                                                    
-                                                                                                                                          } else if ('${target}' === 'bottom') {
-                                                    
-                                                                              
-                                                    
-                                                                                                                                            window.scrollTo({ top: document.body.scrollHeight - window.innerHeight + ${offset}, behavior: 'smooth' });
-                                                    
-                                                                              
-                                                    
-                                                                                                                                            success = true;
-                                                    
-                                                                              
-                                                    
-                                                                                                                                          } else {
-                                                    
-                                                                              
-                                                    
-                                                                                                                                            const element = document.querySelector('${target}');
-                                                    
-                                                                              
-                                                    
-                                                                                                                                            if (element) {
-                                                    
-                                                                              
-                                                    
-                                                                                                                                              element.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                                                    
-                                                                              
-                                                    
-                                                                                                                                              if (${offset} !== 0) {
-                                                    
-                                                                              
-                                                    
-                                                                                                                                                window.scrollBy(0, ${offset}); // Apply offset after scrolling to element
-                                                    
-                                                                              
-                                                    
-                                                                                                                                              }
-                                                    
-                                                                              
-                                                    
-                                                                                                                                              success = true;
-                                                    
-                                                                              
-                                                    
-                                                                                                                                            }
-                                                    
-                                                                              
-                                                    
-                                                                                                                                          }
-                                                    
-                                                                              
-                                                    
-                                                                                                                                          success;
-                                                    
-                                                                              
-                                                    
-                                                                                                                                        `;
-
-
-
-                      const result = await window.electronAPI.executeJavaScript(script);
-
-
-
-                      if (result) {
-
-
-
-                        commandOutput = `✅ **Scrolled to "${target}".**`;
-
-
-
-                      } else {
-
-
-
-                        commandOutput = `❌ **Failed to scroll to "${target}".**`;
-
-
-
-                      }
-
-
-
-                    } catch (err: any) {
-
-
-
-                      commandOutput = `❌ **Error scrolling to "${target}": ${err.message || 'Unknown error'}.**`;
-
-
-
-                    }
-
-
-
-                  } else {
-
-
-
-                    commandOutput = '⚠️ **Scrolling functionality not available in this environment.**';
-
-
-
-                  }
-
-
-
-                  await delay(1500);
-
-
-
-                  break;
-
-
-
-
-
-
-
-                case 'CREATE_NEW_TAB_GROUP':
-
-
-
-                  if (window.electronAPI) {
-
-
-
-                    const [groupName, urlsString] = cmd.value.split(' | ').map(s => s.trim());
-
-
-
-                    const urls = urlsString.split(',').map(url => url.trim());
-
-
-
-                    commandOutput = `➕ **Creating new tab group "${groupName}" with ${urls.length} tabs...**`;
-
-
-
-                    setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
-
-
-
-
-
-
-
-                    for (const url of urls) {
-
-
-
-                      store.addTab(url);
-
-
-
-                      await delay(500); // Small delay between opening tabs
-
-
-
-                    }
-
-
-
-                    commandOutput = `✅ **Tab group "${groupName}" created with ${urls.length} tabs.**`;
-
-
-
-                  } else {
-
-
-
-                    commandOutput = '⚠️ **Tab grouping not available in this environment.**';
-
-
-
-                  }
-
-
-
-                  await delay(2000);
-
-
-
-                  break;
-
-
-
-
-
-
-
-                case 'EXTRACT_DATA':
-
-
-
-                  if (window.electronAPI) {
-
-
-
-                    const selector = cmd.value;
-
-
-
-                    commandOutput = `🔍 **Extracting data from element "${selector}"...**`;
-
-
-
-                    setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
-
-
-
-
-
-
-
-                    try {
-
-
-
-                      const script = `
-                                                    
-                                                                              
-                                                    
-                                                                                                                                          const element = document.querySelector('${selector}');
-                                                    
-                                                                              
-                                                    
-                                                                                                                                          if (element) {
-                                                    
-                                                                              
-                                                    
-                                                                                                                                            element.innerText; // Get innerText of the element
-                                                    
-                                                                              
-                                                    
-                                                                                                                                          } else {
-                                                    
-                                                                              
-                                                    
-                                                                                                                                            null; // Return null if element not found
-                                                    
-                                                                              
-                                                    
-                                                                                                                                          }
-                                                    
-                                                                              
-                                                    
-                                                                                                                                        `;
-
-
-
-                      const extractedData = await window.electronAPI.executeJavaScript(script);
-
-
-
-                      if (extractedData !== null) {
-
-
-
-                        // Add to vector memory
-
-                        BrowserAI.addToVectorMemory(extractedData, { type: 'extracted_data', url: store.currentUrl, selector });
-
-
-
-                        await handleSendMessage(userMessage.content + `\n\n[EXTRACTED_DATA]: ${extractedData}`);
-
-
-
-                      } else {
-
-
-
-                        commandOutput = `❌ **Element "${selector}" not found for data extraction.**`;
-
-
-
-                      }
-
-
-
-                    } catch (err: any) {
-
-
-
-                      commandOutput = `❌ **Error extracting data from "${selector}": ${err.message || 'Unknown error'}.**`;
-
-
-
-                    }
-
-
-
-                    shouldReturn = true;
-
-
-
-                  } else {
-
-
-
-                    commandOutput = '⚠️ **Data extraction not available in this environment.**';
-
-
-
-                  }
-
-
-
-                  await delay(1500);
-
-
-
-                  break; case 'OCR_COORDINATES':
-                  if (window.electronAPI) {
-                    const [x, y, width, height] = cmd.value.split(',').map(Number);
-                    commandOutput = `🔍 **Performing OCR on coordinates:** ${x},${y} ${width}x${height}`;
-                    setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
-
-                    try {
-                      const screenshotDataUrl = await window.electronAPI.captureBrowserViewScreenshot();
-                      if (screenshotDataUrl && tesseractWorkerRef.current) {
-                        const tesseractWorker = tesseractWorkerRef.current; // Capture current value
-                        const img = new Image();
-                        img.onload = async () => {
-                          const canvas = document.createElement('canvas');
-                          canvas.width = width;
-                          canvas.height = height;
-                          const ctx = canvas.getContext('2d');
-                          if (ctx) {
-                            ctx.drawImage(img, x, y, width, height, 0, 0, width, height);
-                            const croppedDataUrl = canvas.toDataURL();
-                            const { data: { text: ocrText } } = await tesseractWorker.recognize(croppedDataUrl); // Use captured variable
-                            // Add to vector memory
-                            BrowserAI.addToVectorMemory(ocrText, { type: 'ocr_coordinates', url: store.currentUrl, x, y, width, height });
-                            await handleSendMessage(userMessage.content + `\n\n[OCR_RESULT]: ${ocrText}`);
-                          }
-                        };
-                        img.src = screenshotDataUrl;
-                      }
-                    } catch (err) {
-                      await handleSendMessage(userMessage.content + `\n\n[OCR_ERROR]: Failed to perform OCR on coordinates`);
-                    }
-                    shouldReturn = true;
-                  } else {
-                    commandOutput = '⚠️ **OCR on coordinates not available.**';
-                  }
-                  await delay(2000);
-                  break;
-
-                case 'OCR_SCREEN':
-                  if (window.electronAPI) {
-                    let coords: { x?: number, y?: number, width?: number, height?: number } = {};
-                    if (cmd.value && cmd.value.split(',').length === 4) {
-                      const [x, y, width, height] = cmd.value.split(',').map(Number);
-                      coords = { x, y, width, height };
-                      commandOutput = `🔍 **Performing OCR on screen region:** ${x},${y} ${width}x${height}`;
-                    } else {
-                      commandOutput = `🔍 **Performing OCR on full screen...**`;
-                    }
-                    setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
-
-                    try {
-                      // Fix: captureScreenRegion returns { image, success, error }
-                      const { success, image: dataURL, error: captureError } = await (window.electronAPI as any).captureScreenRegion(coords as { x: number; y: number; width: number; height: number });
-                      if (success && dataURL && tesseractWorkerRef.current) {
-                        const { data: { text: ocrText } } = await tesseractWorkerRef.current.recognize(dataURL);
-                        // Add to vector memory
-                        BrowserAI.addToVectorMemory(ocrText, { type: 'ocr_screen', url: store.currentUrl, coords });
-                        await handleSendMessage(userMessage.content + `\n\n[OCR_SCREEN_RESULT]: ${ocrText}`);
-                      } else {
-                        await handleSendMessage(userMessage.content + `\n\n[OCR_SCREEN_ERROR]: Failed to capture screen: ${captureError}`);
-                      }
-                    } catch (err) {
-                      await handleSendMessage(userMessage.content + `\n\n[OCR_SCREEN_ERROR]: Failed to perform screen OCR.`);
-                    }
-                    shouldReturn = true;
-                  } else {
-                    commandOutput = '⚠️ **Screen OCR not available in this environment.**';
-                  }
-                  await delay(3000); // Longer delay for screen OCR
-                  break;
-                case 'CLICK_ELEMENT':
-                  if (window.electronAPI) {
-                    const selector = cmd.value;
-                    commandOutput = `🖱️ **Clicking element:** ${selector}`;
-                    setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
-
-                    try {
-                      const result = await window.electronAPI.clickElement(selector);
-                      if (result.success) {
-                        await handleSendMessage(userMessage.content + `\n\n[CLICK_SUCCESS]: Element clicked successfully`);
-                      } else {
-                        await handleSendMessage(userMessage.content + `\n\n[CLICK_ERROR]: ${result.error}`);
-                      }
-                    } catch (err) {
-                      await handleSendMessage(userMessage.content + `\n\n[CLICK_ERROR]: Failed to click element`);
-                    }
-                    shouldReturn = true;
-                  } else {
-                    commandOutput = '⚠️ **Click element not available.**';
-                  }
-                  await delay(1000);
-                  break;
-
-                case 'FIND_AND_CLICK':
-                  if (window.electronAPI && tesseractWorkerRef.current) {
-                    const textToFind = cmd.value?.trim().toLowerCase() || '';
-                    if (!textToFind) {
-                      commandOutput = '⚠️ **No text specified for Find & Click.**';
-                      setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
-                      break;
-                    }
-
-                    commandOutput = `🔍 **Scanning screen for "${textToFind}"...**`;
-                    setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
-
-                    try {
-                      // 1. Capture Screen
-                      const width = window.screen.width * window.devicePixelRatio;
-                      const height = window.screen.height * window.devicePixelRatio;
-
-                      const { success, image } = await window.electronAPI.captureScreenRegion({ x: 0, y: 0, width, height });
-
-                      if (success && image) {
-                        // 2. OCR
-                        const { data } = await tesseractWorkerRef.current.recognize(image);
-                        // 3. Find Match
-                        // Tesseract.js v7 Page type structure requires traversing blocks/paragraphs/lines
-                        const words = data.blocks
-                          ? data.blocks.flatMap(block =>
-                            block.paragraphs.flatMap(para =>
-                              para.lines.flatMap(line => line.words)
-                            )
-                          )
-                          : [];
-
-                        const match = words.find((w: any) => w.text.toLowerCase().includes(textToFind));
-
-                        if (match) {
-                          const { x0, y0, x1, y1 } = match.bbox;
-                          const clickX = Math.round((x0 + x1) / 2);
-                          const clickY = Math.round((y0 + y1) / 2);
-
-                          // 4. Click
-                          await window.electronAPI.performCrossAppClick({ x: clickX, y: clickY });
-                          commandOutput = `✅ **Clicked "${match.text}" at (${clickX}, ${clickY}).**`;
-                        } else {
-                          commandOutput = `❌ **Text "${textToFind}" not found on screen.**`;
-                        }
-                      } else {
-                        commandOutput = `❌ **Failed to capture screen.**`;
-                      }
-                    } catch (err: any) {
-                      commandOutput = `❌ **Error during Find & Click: ${err.message}**`;
-                    }
-                  } else {
-                    commandOutput = '⚠️ **Find & Click not available (Worker not ready).**';
-                  }
-                  await delay(2000);
-                  break;
-
-                case 'GENERATE_PDF':
-                  if (window.electronAPI) {
-                    const [title, pdfContent] = cmd.value.split(' | ');
-                    window.electronAPI.exportChatAsPdf([{ role: 'system', content: `Title: ${title}\n\n${pdfContent}` }]);
-                    commandOutput = `📄 **Generated PDF:** ${title}`;
-                  } else {
-                    commandOutput = '⚠️ **PDF generation not available.**';
-                  }
-                  await delay(1000);
-                  break;
-
-                case 'GMAIL_AUTHORIZE':
-                  if (window.electronAPI) {
-                    commandOutput = '📧 **Authorizing Gmail API...**';
-                    setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
-                    try {
-                      const result = await window.electronAPI.gmailAuthorize();
-                      if (result.success) {
-                        await handleSendMessage(userMessage.content + `\n\n[GMAIL_AUTH_SUCCESS]: Gmail API authorized successfully.`);
-                      } else {
-                        await handleSendMessage(userMessage.content + `\n\n[GMAIL_AUTH_ERROR]: ${result.error}`);
-                      }
-                    } catch (err) {
-                      await handleSendMessage(userMessage.content + `\n\n[GMAIL_AUTH_ERROR]: Failed to authorize Gmail API.`);
-                    }
-                    shouldReturn = true;
-                  } else {
-                    commandOutput = '⚠️ **Gmail API not available.**';
-                  }
-                  await delay(1500);
-                  break;
-
-                case 'GMAIL_LIST_MESSAGES':
-                  if (window.electronAPI) {
-                    const [query, maxResultsStr] = cmd.value.split(' | ');
-                    const maxResults = parseInt(maxResultsStr, 10);
-                    commandOutput = `📧 **Listing Gmail messages for query:** "${query}"`;
-                    setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
-
-                    try {
-                      const { success, messages, error } = await window.electronAPI.gmailListMessages(query, maxResults);
-                      if (success && messages) {
-                        const messageList = messages.map((msg: any) => `- ID: ${msg.id}`).join('\n');
-                        await handleSendMessage(userMessage.content + `\n\n[GMAIL_MESSAGES_LIST]:\n${messageList}`);
-                      } else {
-                        await handleSendMessage(userMessage.content + `\n\n[GMAIL_LIST_ERROR]: ${error}`);
-                      }
-                    } catch (err) {
-                      await handleSendMessage(userMessage.content + `\n\n[GMAIL_LIST_ERROR]: Failed to list Gmail messages.`);
-                    }
-                    shouldReturn = true;
-                  } else {
-                    commandOutput = '⚠️ **Gmail API not available.**';
-                  }
-                  await delay(1500);
-                  break;
-
-                case 'GMAIL_GET_MESSAGE':
-                  if (window.electronAPI) {
-                    const messageId = cmd.value;
-                    commandOutput = `📧 **Getting Gmail message:** "${messageId}"`;
-                    setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
-
-                    try {
-                      const { success, message, error } = await window.electronAPI.gmailGetMessage(messageId);
-                      if (success && message) {
-                        const payload = message.payload;
-                        const headers = payload.headers;
-                        const subject = headers.find((h: any) => h.name === 'Subject')?.value;
-                        const from = headers.find((h: any) => h.name === 'From')?.value;
-                        let body = '';
-
-                        const decodeBody = (parts: any) => {
-                          let decodedText = '';
-                          if (!parts) return decodedText;
-                          for (const part of parts) {
-                            if (part.mimeType === 'text/plain' && part.body.data) {
-                              decodedText += Buffer.from(part.body.data, 'base64').toString('utf-8');
-                            } else if (part.parts) {
-                              decodedText += decodeBody(part.parts);
-                            }
-                          }
-                          return decodedText;
-                        };
-
-                        if (payload.body.data) {
-                          body = Buffer.from(payload.body.data, 'base64').toString('utf-8');
-                        } else if (payload.parts) {
-                          body = decodeBody(payload.parts);
-                        }
-                        const messageContent = `Subject: ${subject}\nFrom: ${from}\nBody: ${body}`;
-                        // Add to vector memory
-                        BrowserAI.addToVectorMemory(messageContent, { type: 'gmail_message', messageId, subject, from });
-                        await handleSendMessage(userMessage.content + `\n\n[GMAIL_MESSAGE_CONTENT]:\nSubject: ${subject}\nFrom: ${from}\nBody: ${body.substring(0, 500)}...`);
-                      } else {
-                        await handleSendMessage(userMessage.content + `\n\n[GMAIL_GET_ERROR]: ${error}`);
-                      }
-                    } catch (err) {
-                      await handleSendMessage(userMessage.content + `\n\n[GMAIL_GET_ERROR]: Failed to get Gmail message.`);
-                    }
-                    shouldReturn = true;
-                  } else {
-                    commandOutput = '⚠️ **Gmail API not available.**';
-                  }
-                  await delay(1500);
-                  break;
-
-                case 'GMAIL_SEND_MESSAGE':
-                  if (window.electronAPI) {
-                    const [to, subject, body, threadId = null] = cmd.value.split(' | ');
-                    commandOutput = `📧 **Sending Gmail message to:** "${to}"`;
-                    setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
-
-                    try {
-                      const { success, result, error } = await window.electronAPI.gmailSendMessage(to, subject, body, threadId);
-                      if (success && result) {
-                        await handleSendMessage(userMessage.content + `\n\n[GMAIL_SEND_SUCCESS]: Message sent successfully. ID: ${result.id}`);
-                      } else {
-                        await handleSendMessage(userMessage.content + `\n\n[GMAIL_SEND_ERROR]: ${error}`);
-                      }
-                    } catch (err) {
-                      await handleSendMessage(userMessage.content + `\n\n[GMAIL_SEND_ERROR]: Failed to send Gmail message.`);
-                    }
-                    shouldReturn = true;
-                  } else {
-                    commandOutput = '⚠️ **Gmail API not available.**';
-                  }
-                  await delay(2000);
-                  break;
-
-                case 'GMAIL_ADD_LABEL':
-                  if (window.electronAPI) {
-                    const [messageId, labelName] = cmd.value.split(' | ');
-                    commandOutput = `📧 **Adding label "${labelName}" to message:** "${messageId}"`;
-                    setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
-
-                    try {
-                      const { success, result, error } = await window.electronAPI.gmailAddLabelToMessage(messageId, labelName);
-                      if (success && result) {
-                        await handleSendMessage(userMessage.content + `\n\n[GMAIL_LABEL_SUCCESS]: Label "${labelName}" added to message "${messageId}".`);
-                      } else {
-                        await handleSendMessage(userMessage.content + `\n\n[GMAIL_LABEL_ERROR]: ${error}`);
-                      }
-                    } catch (err) {
-                      await handleSendMessage(userMessage.content + `\n\n[GMAIL_LABEL_ERROR]: Failed to add label to Gmail message.`);
-                    }
-                    shouldReturn = true;
-                  } else {
-                    commandOutput = '⚠️ **Gmail API not available.**';
-                  }
-                  await delay(1500);
-                  break;
-
-                case 'WAIT':
-                  const duration = parseInt(cmd.value, 10);
-                  if (!isNaN(duration) && duration > 0) {
-                    commandOutput = `⏳ **AI pausing for ${duration / 1000} seconds...**`;
-                    setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
-                    await delay(duration);
-                    commandOutput = `✅ **Resuming AI operations.**`; // Clear the waiting message
-                  } else {
-                    commandOutput = `⚠️ **Invalid WAIT duration specified: ${cmd.value}**`;
-                  }
-                  break;
-
-                case 'GUIDE_CLICK':
-                  const [clickDescription, clickCoords] = cmd.value.split(' | ').map(s => s.trim());
-                  commandOutput = `👉 **AI suggests you click:** "${clickDescription}" at coordinates: ${clickCoords}`;
-                  setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
-                  await delay(3000); // Give user time to see the guidance
-                  break;
-
-                case 'EXPLAIN_CAPABILITIES':
-                  commandOutput = `🧠 **Comet AI is preparing a detailed explanation of its capabilities...**`;
-                  setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
-                  await delay(2000);
-
-                  const capabilitiesExplanation = `
-🌟 **Comet AI Capabilities:** [WAIT: 1000]
-
-I am the core intelligence of the Comet Browser. [WAIT: 1500]
-
-**Core functionalities include:** [WAIT: 1000]
-
-**1. Browser Automation:** [WAIT: 500]
-   - [NAVIGATE: url] : Go to any URL.
-   - [SEARCH: query] : Search with default engine.
-   - [READ_PAGE_CONTENT] : Read active tab content.
-
-**2. Vision & OS Interaction:** [WAIT: 500]
-   - [SCREENSHOT_AND_ANALYZE] : Visual analysis.
-   - [OCR_SCREEN: x,y,width,height] : Read screen text.
-   - [FIND_AND_CLICK: text] : Automate OS clicks.
-
-**3. System Controls:** [WAIT: 500]
-   - [SET_VOLUME: %] : Control audio.
-   - [SET_BRIGHTNESS: %] : Control brightness.
-   - [SHELL_COMMAND: cmd] : Execute commands.
-
-How can I assist you today?
-`.trim();
-                  await executeCommands(capabilitiesExplanation);
-                  shouldReturn = true;
-                  break;
-
-
-                case 'TYPE_TEXT':
-                  if (window.electronAPI) {
-                    const [selector, text] = cmd.value.split(' | ');
-                    commandOutput = `⌨️ **Typing "${text}" into "${selector}"...**`;
-                    setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
-                    try {
-                      await window.electronAPI.typeText(selector, text);
-                      commandOutput = `✅ **Typed text successfully.**`;
-                    } catch (err: any) {
-                      commandOutput = `❌ **Error typing text: ${err.message}.**`;
-                    }
-                  } else {
-                    commandOutput = '⚠️ **Type text not available.**';
-                  }
-                  await delay(1000);
-                  break;
-
-                case 'FILL_FORM':
-                  if (window.electronAPI) {
-                    const formData = JSON.parse(cmd.value);
-                    commandOutput = `📝 **Filling form with data...**`;
-                    setMessages(prev => [...prev, { role: 'model', content: commandOutput }]);
-                    try {
-                      await window.electronAPI.fillForm(formData);
-                      commandOutput = `✅ **Form filled successfully.**`;
-                    } catch (err: any) {
-                      commandOutput = `❌ **Error filling form: ${err.message}.**`;
-                    }
-                  } else {
-                    commandOutput = '⚠️ **Fill form not available.**';
-                  }
-                  await delay(1000);
-                  break;
-
-                default:
-                  commandOutput = `⚠️ ** Unknown command: ${cmd.type}** `;
-                  break;
-              }
-
-              // Append output to messages and update the display
-              // This ensures each step's output is visible
-              setMessages(prev => {
-                const lastMsg = prev[prev.length - 1];
-                if (lastMsg && lastMsg.role === 'model' && lastMsg.content.includes(cmd.originalMatch)) {
-                  // Replace the command in the previous message with its output
-                  lastMsg.content = lastMsg.content.replace(cmd.originalMatch, commandOutput);
-                  return [...prev.slice(0, -1), lastMsg];
-                }
-                // If not replacing, just add as a new message
-                return [...prev, { role: 'model', content: commandOutput }];
-              });
-
-              if (shouldReturn) {
-                return ''; // Stop further command processing in this chain
-              }
+            if (commands.length > 0) {
+              console.log('[AI Command Parser] Found commands:', commands);
+              // Map parsed commands to AICommand format
+              const aiCommands: AICommand[] = commands.map((cmd, idx) => ({
+                id: `cmd-${Date.now()}-${idx}-${Math.random().toString(36).substr(2, 9)}`,
+                type: cmd.type,
+                value: cmd.value,
+                status: 'pending',
+                timestamp: Date.now()
+              }));
+
+              setCommandQueue(aiCommands);
+              setCurrentCommandIndex(0);
+              processingQueueRef.current = true;
+
+              // Start processing the queue
+              // We don't await this because we want the UI to update immediately
+              processCommandQueue(aiCommands);
             }
-            return currentTextContent; // Return the text portion that was not part of any command
           };
 
-          const finalProcessedText = await executeCommands(fullResponseText);
-
-          // Display any remaining non-command text
-          if (finalProcessedText.trim().length > 0) {
-            setMessages(prev => [...prev, { role: 'model', content: finalProcessedText }]);
-          }
+          await executeCommands(fullResponseText);
 
           // YouTube "Content Not Available" Detection and Auto-Fallback
           if (store.currentUrl.includes('youtube.com') && response.text.toLowerCase().includes('not available')) {
             console.log('[YouTube] Content unavailable detected, triggering web search fallback');
             const videoTopic = store.currentUrl.match(/[?&]v=([^&]+)/)?.[1] || 'video';
-            const searchQuery = `${videoTopic} video alternative`;
-            setMessages(prev => [...prev, { role: 'model', content: `\n\n⚠️ YouTube content unavailable.Searching for alternatives...[SEARCH: ${searchQuery}]` }]);
+            const searchQuery = `${ videoTopic } video alternative`;
+            setMessages(prev => [...prev, { role: 'model', content: `\n\n⚠️ YouTube content unavailable.Searching for alternatives...[SEARCH: ${ searchQuery }]` }]);
 
             // Execute search automatically after a short delay
             await delay(2000); // Wait for the message to be displayed
             const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(searchQuery)}`;
-            store.setCurrentUrl(searchUrl);
-            if (window.electronAPI) {
-              await window.electronAPI.navigateBrowserView({ tabId: store.activeTabId, url: searchUrl });
-            }
+store.setCurrentUrl(searchUrl);
+if (window.electronAPI) {
+  await window.electronAPI.navigateBrowserView({ tabId: store.activeTabId, url: searchUrl });
+}
           }
 
-          // Trigger Mermaid re-render if diagrams found
-          if (response.text.includes('mermaid') || response.text.includes('[GENERATE_DIAGRAM:')) {
-            setTimeout(() => {
-              (window as any).mermaid?.contentLoaded();
-            }, 500);
-          }
+// Trigger Mermaid re-render if diagrams found
+if (response.text.includes('mermaid') || response.text.includes('[GENERATE_DIAGRAM:')) {
+  setTimeout(() => {
+    (window as any).mermaid?.contentLoaded();
+  }, 500);
+}
         }
       } else {
-        setError("AI Engine not connected. Use the Comet Desktop App for full AI features.");
-      }
+  setError("AI Engine not connected. Use the Comet Desktop App for full AI features.");
+}
     } catch (err: any) {
-      setError(`Response Error: ${err.message}`);
-    } finally {
-      setIsLoading(false);
+  setError(`Response Error: ${err.message}`);
+} finally {
+  setIsLoading(false);
+}
+  };
+
+const handleExportTxt = async () => {
+  if (messages.length === 0) return;
+  const success = await window.electronAPI.exportChatAsTxt(messages);
+  if (success) alert('Exported as TXT');
+};
+
+const handleExportPdf = async () => {
+  if (messages.length === 0) return;
+  const success = await window.electronAPI.exportChatAsPdf(messages);
+  if (success) alert('Exported as PDF');
+};
+
+const handleExportDiagram = async (mermaidCode: string, resolution: number = 1080) => {
+  try {
+    if (!isMermaidLoaded || !(window as any).mermaid) {
+      setError("Mermaid.js is not loaded.");
+      return;
     }
-  };
 
-  const handleExportTxt = async () => {
-    if (messages.length === 0) return;
-    const success = await window.electronAPI.exportChatAsTxt(messages);
-    if (success) alert('Exported as TXT');
-  };
+    // Render the Mermaid code to an SVG string
+    const { svg } = await (window as any).mermaid.render('diagram-id', mermaidCode);
 
-  const handleExportPdf = async () => {
-    if (messages.length === 0) return;
-    const success = await window.electronAPI.exportChatAsPdf(messages);
-    if (success) alert('Exported as PDF');
-  };
+    // Create a temporary SVG element to get dimensions
+    const svgElement = document.createElement('div');
+    svgElement.innerHTML = svg;
+    document.body.appendChild(svgElement); // Temporarily add to DOM to calculate dimensions
+    const svgSvgElement = svgElement.querySelector('svg');
 
-  const handleExportDiagram = async (mermaidCode: string, resolution: number = 1080) => {
-    try {
-      if (!isMermaidLoaded || !(window as any).mermaid) {
-        setError("Mermaid.js is not loaded.");
-        return;
-      }
-
-      // Render the Mermaid code to an SVG string
-      const { svg } = await (window as any).mermaid.render('diagram-id', mermaidCode);
-
-      // Create a temporary SVG element to get dimensions
-      const svgElement = document.createElement('div');
-      svgElement.innerHTML = svg;
-      document.body.appendChild(svgElement); // Temporarily add to DOM to calculate dimensions
-      const svgSvgElement = svgElement.querySelector('svg');
-
-      if (!svgSvgElement) {
-        setError("Failed to render Mermaid to SVG.");
-        document.body.removeChild(svgElement);
-        return;
-      }
-
-      const svgWidth = svgSvgElement.clientWidth || 800; // Default width
-      const svgHeight = svgSvgElement.clientHeight || 600; // Default height
-      document.body.removeChild(svgElement); // Remove temporary element
-
-      const scale = resolution / svgHeight; // Calculate scale to match desired height
-      const targetWidth = svgWidth * scale;
-      const targetHeight = svgHeight * scale;
-
-      const canvas = document.createElement('canvas');
-      canvas.width = targetWidth;
-      canvas.height = targetHeight;
-      const ctx = canvas.getContext('2d');
-
-      if (!ctx) {
-        setError("Failed to get canvas context.");
-        return;
-      }
-
-      // Create an image from SVG
-      const img = new Image();
-      const svgBlob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
-      const url = URL.createObjectURL(svgBlob);
-
-      img.onload = async () => {
-        ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
-        URL.revokeObjectURL(url);
-
-        canvas.toBlob(async (blob) => {
-          if (blob && window.electronAPI) {
-            const reader = new FileReader();
-            reader.onloadend = async () => {
-              const base64data = reader.result as string; // Data URL format
-              const filename = `mermaid-diagram-${Date.now()}.png`;
-
-              // Trigger download via main process
-              const success = await window.electronAPI.triggerDownload(base64data, filename);
-              if (success) {
-                alert(`Diagram exported as ${filename} at ${resolution}p.`);
-              } else {
-                setError("Failed to trigger diagram download.");
-              }
-            };
-            reader.readAsDataURL(blob);
-          } else {
-            setError("Failed to convert canvas to blob or Electron API not available.");
-          }
-        }, 'image/png', 1); // Quality 1 for PNG
-      };
-      img.onerror = (err) => {
-        setError("Failed to load SVG into image for canvas.");
-        console.error("SVG to image conversion error:", err);
-      };
-      img.src = url;
-
-    } catch (err: any) {
-      console.error("Error exporting diagram:", err);
-      setError(`Failed to export diagram: ${err.message}`);
+    if (!svgSvgElement) {
+      setError("Failed to render Mermaid to SVG.");
+      document.body.removeChild(svgElement);
+      return;
     }
-  };
 
-  if (props.isCollapsed) {
-    return (
-      <div className="flex flex-col items-center h-full py-4 space-y-6">
-        <button onClick={props.toggleCollapse} className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/5 hover:bg-white/10 text-white/40">
-          {props.side === 'right' ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
-        </button>
-      </div>
-    );
+    const svgWidth = svgSvgElement.clientWidth || 800; // Default width
+    const svgHeight = svgSvgElement.clientHeight || 600; // Default height
+    document.body.removeChild(svgElement); // Remove temporary element
+
+    const scale = resolution / svgHeight; // Calculate scale to match desired height
+    const targetWidth = svgWidth * scale;
+    const targetHeight = svgHeight * scale;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+    const ctx = canvas.getContext('2d');
+
+    if (!ctx) {
+      setError("Failed to get canvas context.");
+      return;
+    }
+
+    // Create an image from SVG
+    const img = new Image();
+    const svgBlob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(svgBlob);
+
+    img.onload = async () => {
+      ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+      URL.revokeObjectURL(url);
+
+      canvas.toBlob(async (blob) => {
+        if (blob && window.electronAPI) {
+          const reader = new FileReader();
+          reader.onloadend = async () => {
+            const base64data = reader.result as string; // Data URL format
+            const filename = `mermaid-diagram-${Date.now()}.png`;
+
+            // Trigger download via main process
+            const success = await window.electronAPI.triggerDownload(base64data, filename);
+            if (success) {
+              alert(`Diagram exported as ${filename} at ${resolution}p.`);
+            } else {
+              setError("Failed to trigger diagram download.");
+            }
+          };
+          reader.readAsDataURL(blob);
+        } else {
+          setError("Failed to convert canvas to blob or Electron API not available.");
+        }
+      }, 'image/png', 1); // Quality 1 for PNG
+    };
+    img.onerror = (err) => {
+      setError("Failed to load SVG into image for canvas.");
+      console.error("SVG to image conversion error:", err);
+    };
+    img.src = url;
+
+  } catch (err: any) {
+    console.error("Error exporting diagram:", err);
+    setError(`Failed to export diagram: ${err.message}`);
   }
+};
 
+if (props.isCollapsed) {
   return (
-    <div
-      className={`flex flex-col h-full gap-4 p-4 bg-black/60 border-r border-transparent transition-all duration-500 z-[100] ${isFullScreen ? 'fixed inset-0 z-[9999] bg-[#020205] shadow-2xl overflow-hidden' : ''}
+    <div className="flex flex-col items-center h-full py-4 space-y-6">
+      <button onClick={props.toggleCollapse} className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/5 hover:bg-white/10 text-white/40">
+        {props.side === 'right' ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
+      </button>
+    </div>
+  );
+}
+
+return (
+  <div
+    className={`flex flex-col h-full gap-4 p-4 bg-black/60 border-r border-transparent transition-all duration-500 z-[100] ${isFullScreen ? 'fixed inset-0 z-[9999] bg-[#020205] shadow-2xl overflow-hidden' : ''}
           ${isDragOver ? 'border-accent/50 bg-accent/5' : ''}
         `}
-      style={{
-        // GPU-accelerated background with reduced backdrop-filter to prevent compositing issues
-        backdropFilter: isFullScreen ? 'none' : 'blur(20px)',
-        WebkitBackdropFilter: isFullScreen ? 'none' : 'blur(20px)',
-        // Ensure hardware acceleration
-        transform: 'translateZ(0)',
-        willChange: 'transform'
-      }}
-      onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
-      onDragLeave={() => setIsDragOver(false)}
-      onDrop={handleDrop}
-    >
-      {/* Resize Handle */}
-      {!isFullScreen && !props.isCollapsed && (
-        <div
-          className={`absolute top-0 ${props.side === 'right' ? 'left-0' : 'right-0'} w-1 h-full cursor-col-resize hover:bg-deep-space-accent-neon/50 transition-colors z-[110]`}
-          onMouseDown={(e) => {
-            e.preventDefault();
-            const startX = e.clientX;
-            const startWidth = store.sidebarWidth;
-            const handleMouseMove = (moveEvent: MouseEvent) => {
-              const delta = props.side === 'right' ? startX - moveEvent.clientX : moveEvent.clientX - startX;
-              let newWidth = startWidth + delta;
-              if (newWidth < 300) newWidth = 300;
-              if (newWidth > 800) newWidth = 800;
-              store.setSidebarWidth(newWidth);
-              if (window.electronAPI) {
-                // Trigger a resize event to update BrowserView bounds if needed
-                window.dispatchEvent(new Event('resize'));
-              }
-            };
-            const handleMouseUp = () => {
-              document.removeEventListener('mousemove', handleMouseMove);
-              document.removeEventListener('mouseup', handleMouseUp);
-            };
-            document.addEventListener('mousemove', handleMouseMove);
-            document.addEventListener('mouseup', handleMouseUp);
-          }}
-        />
-      )}
-      <style>{`
+    style={{
+      // GPU-accelerated background with reduced backdrop-filter to prevent compositing issues
+      backdropFilter: isFullScreen ? 'none' : 'blur(20px)',
+      WebkitBackdropFilter: isFullScreen ? 'none' : 'blur(20px)',
+      // Ensure hardware acceleration
+      transform: 'translateZ(0)',
+      willChange: 'transform'
+    }}
+    onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+    onDragLeave={() => setIsDragOver(false)}
+    onDrop={handleDrop}
+  >
+    {/* Resize Handle */}
+    {!isFullScreen && !props.isCollapsed && (
+      <div
+        className={`absolute top-0 ${props.side === 'right' ? 'left-0' : 'right-0'} w-1 h-full cursor-col-resize hover:bg-deep-space-accent-neon/50 transition-colors z-[110]`}
+        onMouseDown={(e) => {
+          e.preventDefault();
+          const startX = e.clientX;
+          const startWidth = store.sidebarWidth;
+          const handleMouseMove = (moveEvent: MouseEvent) => {
+            const delta = props.side === 'right' ? startX - moveEvent.clientX : moveEvent.clientX - startX;
+            let newWidth = startWidth + delta;
+            if (newWidth < 300) newWidth = 300;
+            if (newWidth > 800) newWidth = 800;
+            store.setSidebarWidth(newWidth);
+            if (window.electronAPI) {
+              // Trigger a resize event to update BrowserView bounds if needed
+              window.dispatchEvent(new Event('resize'));
+            }
+          };
+          const handleMouseUp = () => {
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+          };
+          document.addEventListener('mousemove', handleMouseMove);
+          document.addEventListener('mouseup', handleMouseUp);
+        }}
+      />
+    )}
+    <style>{`
           .modern-scrollbar::-webkit-scrollbar {
             width: 6px;
           }
@@ -1970,263 +1073,263 @@ How can I assist you today?
             background-color: rgba(var(--color-primary-text), 0.2);
           }
         `}</style>
-      <header className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xl flex items-center justify-center">
-            <img src="icon.png" alt="Comet AI Icon" className="w-full h-full object-contain" />
-          </div>
-          <h2 className="text-sm font-black uppercase tracking-[0.2em] text-white text-neon">Comet AI</h2>
-          {isOnline ? <Wifi size={12} className="text-green-400" /> : <WifiOff size={12} className="text-orange-400" />}
+    <header className="flex items-center justify-between">
+      <div className="flex items-center gap-3">
+        <div className="w-8 h-8 rounded-xl flex items-center justify-center">
+          <img src="icon.png" alt="Comet AI Icon" className="w-full h-full object-contain" />
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={() => setShowLLMProviderSettings(!showLLMProviderSettings)} className="w-8 h-8 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/40 transition-all no-drag-region" title="LLM Provider Settings">
-            <MoreVertical size={18} />
-          </button>
-          <button onClick={() => setIsFullScreen(!isFullScreen)} className="p-2 text-secondary-text hover:text-primary-text transition-colors">
-            {isFullScreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
-          </button>
-          <button onClick={props.toggleCollapse} className="p-2 text-secondary-text hover:text-primary-text transition-colors">
-            <X size={16} />
-          </button>
-        </div>
-      </header>
-      <div className="flex-1 overflow-y-auto modern-scrollbar space-y-4 relative pr-2">
-        {/* Antigravity RAG Panel */}
-        <AnimatePresence>
-          {showRagPanel && ragContextItems.length > 0 && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="mx-2 mb-2 rounded-xl bg-deep-space-accent-neon/5 overflow-hidden"
-            >
-              <div
-                className="px-3 py-2 flex items-center justify-between cursor-pointer bg-deep-space-accent-neon/10"
-                onClick={() => setShowRagPanel(!showRagPanel)}
-              >
-                <div className="flex items-center gap-2">
-                  <Sparkles size={12} className="text-deep-space-accent-neon animate-pulse" />
-                  <span className="text-[9px] font-black uppercase tracking-widest text-deep-space-accent-neon">Neural Context Active ({ragContextItems.length})</span>
-                </div>
-                <ChevronDown size={12} className="text-deep-space-accent-neon opacity-50" />
-              </div>
-              <div className="p-3 space-y-2">
-                {ragContextItems.map((item, i) => (
-                  <div key={i} className="text-[10px] text-white/50 leading-tight pl-2 border-l-2 border-deep-space-accent-neon/20">
-                    {item.text.substring(0, 120)}...
-                  </div>
-                ))}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {messages.map((msg, i) => (
-          <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
-            <div className={`max-w-[85%] p-4 rounded-3xl text-sm leading-[1.6] ${msg.role === 'user' ? 'bg-sky-500/10 text-white border border-sky-500/20 shadow-[0_0_20px_rgba(56,189,248,0.1)]' : 'bg-white/[0.03] text-slate-200 border border-white/5'}`}>
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm, remarkMath]}
-                rehypePlugins={[rehypeKatex]}
-                components={{
-                  code({ node, className, children, ...props }) {
-                    const match = /language-(\w+)/.exec(className || '');
-                    const codeString = String(children).replace(/\n$/, '');
-
-                    if (match && match[1] === 'mermaid' && isMermaidLoaded) {
-                      return (
-                        <div className="relative group bg-black/40 p-4 rounded-xl my-4 text-center" onClick={e => e.stopPropagation()}>
-                          <div className="mermaid">{codeString}</div>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleExportDiagram(codeString);
-                            }}
-                            className="absolute top-2 right-2 p-1 rounded-full bg-white/10 text-white/70 hover:bg-white/20 hover:text-white transition-all opacity-0 group-hover:opacity-100"
-                            title="Export Diagram"
-                          >
-                            <Download size={14} />
-                          </button>
-                        </div>
-                      );
-                    }
-
-                    return node && !node.properties.inline && match ? (
-                      <SyntaxHighlighter
-                        style={dracula as any}
-                        language={match[1]}
-                        PreTag="div"
-                      >
-                        {codeString}
-                      </SyntaxHighlighter>
-                    ) : (
-                      <code className={className} {...props}>
-                        {children}
-                      </code>
-                    );
-                  },
-                  // Add custom rendering for math if needed, e.g., using <MathJax> or <KaTeX> components
-                  // This example uses rehype-katex to process math within markdown directly
-                }}
-              >
-                {msg.content}
-              </ReactMarkdown>
-            </div>
-            {msg.role === 'model' && i === messages.length - 1 && groqSpeed && (
-              <div className="mt-1 ml-2 flex items-center gap-1 text-[9px] font-bold text-deep-space-accent-neon opacity-60">
-                <Zap size={10} /> {groqSpeed}
-              </div>
-            )}
-          </motion.div>
-        ))}
-        {isLoading && <ThinkingIndicator />}
-        {error && <div className="text-[10px] text-red-400 bg-red-400/10 p-2 rounded-lg border border-red-500/20">⚠️ {error}</div>}
-        <div ref={messagesEndRef} />
+        <h2 className="text-sm font-black uppercase tracking-[0.2em] text-white text-neon">Comet AI</h2>
+        {isOnline ? <Wifi size={12} className="text-green-400" /> : <WifiOff size={12} className="text-orange-400" />}
       </div>
+      <div className="flex items-center gap-2">
+        <button onClick={() => setShowLLMProviderSettings(!showLLMProviderSettings)} className="w-8 h-8 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/40 transition-all no-drag-region" title="LLM Provider Settings">
+          <MoreVertical size={18} />
+        </button>
+        <button onClick={() => setIsFullScreen(!isFullScreen)} className="p-2 text-secondary-text hover:text-primary-text transition-colors">
+          {isFullScreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+        </button>
+        <button onClick={props.toggleCollapse} className="p-2 text-secondary-text hover:text-primary-text transition-colors">
+          <X size={16} />
+        </button>
+      </div>
+    </header>
+    <div className="flex-1 overflow-y-auto modern-scrollbar space-y-4 relative pr-2">
+      {/* Antigravity RAG Panel */}
+      <AnimatePresence>
+        {showRagPanel && ragContextItems.length > 0 && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="mx-2 mb-2 rounded-xl bg-deep-space-accent-neon/5 overflow-hidden"
+          >
+            <div
+              className="px-3 py-2 flex items-center justify-between cursor-pointer bg-deep-space-accent-neon/10"
+              onClick={() => setShowRagPanel(!showRagPanel)}
+            >
+              <div className="flex items-center gap-2">
+                <Sparkles size={12} className="text-deep-space-accent-neon animate-pulse" />
+                <span className="text-[9px] font-black uppercase tracking-widest text-deep-space-accent-neon">Neural Context Active ({ragContextItems.length})</span>
+              </div>
+              <ChevronDown size={12} className="text-deep-space-accent-neon opacity-50" />
+            </div>
+            <div className="p-3 space-y-2">
+              {ragContextItems.map((item, i) => (
+                <div key={i} className="text-[10px] text-white/50 leading-tight pl-2 border-l-2 border-deep-space-accent-neon/20">
+                  {item.text.substring(0, 120)}...
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {/* LLM Provider Settings */}
-      <LLMProviderSettings
-        {...props}
-        ollamaModels={ollamaModels}
-        setOllamaModels={setOllamaModels}
-        setError={setError}
-        showSettings={showLLMProviderSettings} // Pass new state
-        setShowSettings={setShowLLMProviderSettings} // Pass new setter
+      {messages.map((msg, i) => (
+        <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+          <div className={`max-w-[85%] p-4 rounded-3xl text-sm leading-[1.6] ${msg.role === 'user' ? 'bg-sky-500/10 text-white border border-sky-500/20 shadow-[0_0_20px_rgba(56,189,248,0.1)]' : 'bg-white/[0.03] text-slate-200 border border-white/5'}`}>
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm, remarkMath]}
+              rehypePlugins={[rehypeKatex]}
+              components={{
+                code({ node, className, children, ...props }) {
+                  const match = /language-(\w+)/.exec(className || '');
+                  const codeString = String(children).replace(/\n$/, '');
+
+                  if (match && match[1] === 'mermaid' && isMermaidLoaded) {
+                    return (
+                      <div className="relative group bg-black/40 p-4 rounded-xl my-4 text-center" onClick={e => e.stopPropagation()}>
+                        <div className="mermaid">{codeString}</div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleExportDiagram(codeString);
+                          }}
+                          className="absolute top-2 right-2 p-1 rounded-full bg-white/10 text-white/70 hover:bg-white/20 hover:text-white transition-all opacity-0 group-hover:opacity-100"
+                          title="Export Diagram"
+                        >
+                          <Download size={14} />
+                        </button>
+                      </div>
+                    );
+                  }
+
+                  return node && !node.properties.inline && match ? (
+                    <SyntaxHighlighter
+                      style={dracula as any}
+                      language={match[1]}
+                      PreTag="div"
+                    >
+                      {codeString}
+                    </SyntaxHighlighter>
+                  ) : (
+                    <code className={className} {...props}>
+                      {children}
+                    </code>
+                  );
+                },
+                // Add custom rendering for math if needed, e.g., using <MathJax> or <KaTeX> components
+                // This example uses rehype-katex to process math within markdown directly
+              }}
+            >
+              {msg.content}
+            </ReactMarkdown>
+          </div>
+          {msg.role === 'model' && i === messages.length - 1 && groqSpeed && (
+            <div className="mt-1 ml-2 flex items-center gap-1 text-[9px] font-bold text-deep-space-accent-neon opacity-60">
+              <Zap size={10} /> {groqSpeed}
+            </div>
+          )}
+        </motion.div>
+      ))}
+      {isLoading && <ThinkingIndicator />}
+      {error && <div className="text-[10px] text-red-400 bg-red-400/10 p-2 rounded-lg border border-red-500/20">⚠️ {error}</div>}
+      <div ref={messagesEndRef} />
+    </div>
+
+    {/* LLM Provider Settings */}
+    <LLMProviderSettings
+      {...props}
+      ollamaModels={ollamaModels}
+      setOllamaModels={setOllamaModels}
+      setError={setError}
+      showSettings={showLLMProviderSettings} // Pass new state
+      setShowSettings={setShowLLMProviderSettings} // Pass new setter
+    />
+
+    <footer className="space-y-4">
+      <textarea
+        value={inputMessage}
+        onChange={(e) => setInputMessage(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}
+        placeholder="Neural prompt..."
+        className="w-full neural-prompt rounded-2xl p-4 text-xs text-white focus:outline-none h-24"
       />
-
-      <footer className="space-y-4">
-        <textarea
-          value={inputMessage}
-          onChange={(e) => setInputMessage(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}
-          placeholder="Neural prompt..."
-          className="w-full neural-prompt rounded-2xl p-4 text-xs text-white focus:outline-none h-24"
-        />
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="relative">
-              <button
-                onClick={() => setShowActionsMenu(!showActionsMenu)}
-                className="p-2 rounded-lg bg-white/5 text-white/40 hover:text-white text-[10px] font-bold uppercase tracking-widest transition-all"
-                title="Actions"
-              >
-                <MoreVertical size={14} />
-              </button>
-              {showActionsMenu && (
-                <div className="absolute bottom-full mb-2 w-48 bg-black/80 backdrop-blur-md border border-white/10 rounded-lg shadow-lg">
-                  <button
-                    onClick={() => { fileInputRef.current?.click(); setShowActionsMenu(false); }}
-                    className="w-full flex items-center gap-2 px-4 py-2 text-xs text-left text-white/80 hover:bg-white/10"
-                  >
-                    📎
-                    <span>Attach File</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      const lastMessage = messages.filter((m) => m.role === 'model').pop();
-                      if (lastMessage) {
-                        navigator.clipboard.writeText(lastMessage.content);
-                      }
-                      setShowActionsMenu(false);
-                    }}
-                    className="w-full flex items-center gap-2 px-4 py-2 text-xs text-left text-white/80 hover:bg-white/10"
-                  >
-                    <CopyIcon size={14} />
-                    <span>Copy Last Response</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      const lastMessage = messages.filter((m) => m.role === 'model').pop();
-                      if (lastMessage && navigator.share) {
-                        navigator.share({
-                          title: 'Comet AI Response',
-                          text: lastMessage.content,
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <button
+              onClick={() => setShowActionsMenu(!showActionsMenu)}
+              className="p-2 rounded-lg bg-white/5 text-white/40 hover:text-white text-[10px] font-bold uppercase tracking-widest transition-all"
+              title="Actions"
+            >
+              <MoreVertical size={14} />
+            </button>
+            {showActionsMenu && (
+              <div className="absolute bottom-full mb-2 w-48 bg-black/80 backdrop-blur-md border border-white/10 rounded-lg shadow-lg">
+                <button
+                  onClick={() => { fileInputRef.current?.click(); setShowActionsMenu(false); }}
+                  className="w-full flex items-center gap-2 px-4 py-2 text-xs text-left text-white/80 hover:bg-white/10"
+                >
+                  📎
+                  <span>Attach File</span>
+                </button>
+                <button
+                  onClick={() => {
+                    const lastMessage = messages.filter((m) => m.role === 'model').pop();
+                    if (lastMessage) {
+                      navigator.clipboard.writeText(lastMessage.content);
+                    }
+                    setShowActionsMenu(false);
+                  }}
+                  className="w-full flex items-center gap-2 px-4 py-2 text-xs text-left text-white/80 hover:bg-white/10"
+                >
+                  <CopyIcon size={14} />
+                  <span>Copy Last Response</span>
+                </button>
+                <button
+                  onClick={() => {
+                    const lastMessage = messages.filter((m) => m.role === 'model').pop();
+                    if (lastMessage && navigator.share) {
+                      navigator.share({
+                        title: 'Comet AI Response',
+                        text: lastMessage.content,
+                      });
+                    }
+                    setShowActionsMenu(false);
+                  }}
+                  className="w-full flex items-center gap-2 px-4 py-2 text-xs text-left text-white/80 hover:bg-white/10"
+                >
+                  <Share2 size={14} />
+                  <span>Share Last Response</span>
+                </button>
+                <button
+                  onClick={() => {
+                    handleSendMessage('[FIND_AND_CLICK: ]'); // Prompt AI to ask for text
+                    setShowActionsMenu(false);
+                  }}
+                  className="w-full flex items-center gap-2 px-4 py-2 text-xs text-left text-white/80 hover:bg-white/10"
+                >
+                  <ScanLine size={14} />
+                  <span>Find & Click Text (OCR)</span>
+                </button>
+                <button
+                  onClick={() => {
+                    const lastMessage = messages.filter((m) => m.role === 'model').pop();
+                    if (lastMessage && window.electronAPI) {
+                      window.electronAPI.saveAiResponse(lastMessage.content);
+                    }
+                    setShowActionsMenu(false);
+                  }}
+                  className="w-full flex items-center gap-2 px-4 py-2 text-xs text-left text-white/80 hover:bg-white/10"
+                >
+                  <Download size={14} />
+                  <span>Save Last Response</span>
+                </button>
+                <div className="h-[1px] bg-white/10 my-1" />
+                <button
+                  onClick={() => { handleExportTxt(); setShowActionsMenu(false); }}
+                  className="w-full flex items-center gap-2 px-4 py-2 text-xs text-left text-white/80 hover:bg-white/10"
+                >
+                  <FileText size={14} />
+                  <span>Export as Text</span>
+                </button>
+                <button
+                  onClick={() => { handleExportPdf(); setShowActionsMenu(false); }}
+                  className="w-full flex items-center gap-2 px-4 py-2 text-xs text-left text-white/80 hover:bg-white/10"
+                >
+                  <FileText size={14} />
+                  <span>Export as PDF</span>
+                </button>
+                <div className="h-[1px] bg-white/10 my-1" />
+                <button
+                  onClick={() => {
+                    setShowActionsMenu(false);
+                    if (window.electronAPI?.findAndClickText) {
+                      const text = window.prompt('Enter text to find and click on screen (e.g. Submit, Sign in):');
+                      if (text?.trim()) {
+                        window.electronAPI.findAndClickText(text.trim()).then((r: { success?: boolean; error?: string }) => {
+                          if (r.success) setMessages(prev => [...prev, { role: 'model', content: '✅ **Find & Click:** Clicked successfully.' }]);
+                          else setMessages(prev => [...prev, { role: 'model', content: `⚠️ **Find & Click:** ${r.error || 'Failed'}` }]);
                         });
                       }
-                      setShowActionsMenu(false);
-                    }}
-                    className="w-full flex items-center gap-2 px-4 py-2 text-xs text-left text-white/80 hover:bg-white/10"
-                  >
-                    <Share2 size={14} />
-                    <span>Share Last Response</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      handleSendMessage('[FIND_AND_CLICK: ]'); // Prompt AI to ask for text
-                      setShowActionsMenu(false);
-                    }}
-                    className="w-full flex items-center gap-2 px-4 py-2 text-xs text-left text-white/80 hover:bg-white/10"
-                  >
-                    <ScanLine size={14} />
-                    <span>Find & Click Text (OCR)</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      const lastMessage = messages.filter((m) => m.role === 'model').pop();
-                      if (lastMessage && window.electronAPI) {
-                        window.electronAPI.saveAiResponse(lastMessage.content);
-                      }
-                      setShowActionsMenu(false);
-                    }}
-                    className="w-full flex items-center gap-2 px-4 py-2 text-xs text-left text-white/80 hover:bg-white/10"
-                  >
-                    <Download size={14} />
-                    <span>Save Last Response</span>
-                  </button>
-                  <div className="h-[1px] bg-white/10 my-1" />
-                  <button
-                    onClick={() => { handleExportTxt(); setShowActionsMenu(false); }}
-                    className="w-full flex items-center gap-2 px-4 py-2 text-xs text-left text-white/80 hover:bg-white/10"
-                  >
-                    <FileText size={14} />
-                    <span>Export as Text</span>
-                  </button>
-                  <button
-                    onClick={() => { handleExportPdf(); setShowActionsMenu(false); }}
-                    className="w-full flex items-center gap-2 px-4 py-2 text-xs text-left text-white/80 hover:bg-white/10"
-                  >
-                    <FileText size={14} />
-                    <span>Export as PDF</span>
-                  </button>
-                  <div className="h-[1px] bg-white/10 my-1" />
-                  <button
-                    onClick={() => {
-                      setShowActionsMenu(false);
-                      if (window.electronAPI?.findAndClickText) {
-                        const text = window.prompt('Enter text to find and click on screen (e.g. Submit, Sign in):');
-                        if (text?.trim()) {
-                          window.electronAPI.findAndClickText(text.trim()).then((r: { success?: boolean; error?: string }) => {
-                            if (r.success) setMessages(prev => [...prev, { role: 'model', content: '✅ **Find & Click:** Clicked successfully.' }]);
-                            else setMessages(prev => [...prev, { role: 'model', content: `⚠️ **Find & Click:** ${r.error || 'Failed'}` }]);
-                          });
-                        }
-                      }
-                    }}
-                    className="w-full flex items-center gap-2 px-4 py-2 text-xs text-left text-white/80 hover:bg-white/10"
-                  >
-                    <ScanLine size={14} />
-                    <span>Find & Click (OCR)</span>
-                  </button>
-                </div>
-              )}
-            </div>
+                    }
+                  }}
+                  className="w-full flex items-center gap-2 px-4 py-2 text-xs text-left text-white/80 hover:bg-white/10"
+                >
+                  <ScanLine size={14} />
+                  <span>Find & Click (OCR)</span>
+                </button>
+              </div>
+            )}
           </div>
-          <input type="file" ref={fileInputRef} onChange={handleFileSelect} className="hidden" multiple />
-          <button
-            type="button"
-            onClick={(e) => { e.preventDefault(); handleSendMessage(); }}
-            disabled={!inputMessage.trim() || isLoading}
-            className="group relative px-5 py-2.5 rounded-full bg-gradient-to-r from-deep-space-accent-neon to-accent overflow-hidden transition-all hover:shadow-[0_0_30px_rgba(0,255,255,0.6)] disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent translate-x-[-200%] group-hover:translate-x-[200%] transition-transform duration-700" />
-            <div className="relative flex items-center gap-2 text-black font-bold text-[10px] uppercase tracking-wider">
-              <Send size={12} className="group-hover:rotate-12 transition-transform" />
-              <span>Launch</span>
-            </div>
-          </button>
         </div>
-      </footer>
-    </div>
-  );
+        <input type="file" ref={fileInputRef} onChange={handleFileSelect} className="hidden" multiple />
+        <button
+          type="button"
+          onClick={(e) => { e.preventDefault(); handleSendMessage(); }}
+          disabled={!inputMessage.trim() || isLoading}
+          className="group relative px-5 py-2.5 rounded-full bg-gradient-to-r from-deep-space-accent-neon to-accent overflow-hidden transition-all hover:shadow-[0_0_30px_rgba(0,255,255,0.6)] disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent translate-x-[-200%] group-hover:translate-x-[200%] transition-transform duration-700" />
+          <div className="relative flex items-center gap-2 text-black font-bold text-[10px] uppercase tracking-wider">
+            <Send size={12} className="group-hover:rotate-12 transition-transform" />
+            <span>Launch</span>
+          </div>
+        </button>
+      </div>
+    </footer>
+  </div>
+);
 };
 
 export default AIChatSidebar;

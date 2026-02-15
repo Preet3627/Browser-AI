@@ -184,6 +184,23 @@ class _CometAIAppState extends State<CometAIApp> with WindowListener {
     final materialApp = MaterialApp(
       title: 'Comet-AI',
       debugShowCheckedModeBanner: false,
+      themeMode: ThemeMode.dark,
+      darkTheme: ThemeData(
+        useMaterial3: true,
+        brightness: Brightness.dark,
+        scaffoldBackgroundColor:
+            const Color(0xFF0A0E21), // Deep vibrant dark blue
+        colorScheme: const ColorScheme.dark(
+          primary: Color(0xFF29B6F6), // Light Blue 400
+          secondary: Color(0xFFD500F9), // Purple A400
+          surface: Color(0xFF1D1E33),
+          background: Color(0xFF0A0E21),
+        ),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+        ),
+      ),
       theme: ThemeData(
         visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
