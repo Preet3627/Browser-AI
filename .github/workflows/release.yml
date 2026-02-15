@@ -38,7 +38,10 @@ jobs:
 
       - name: Run Signing Report
         working-directory: flutter_browser_app/android
-        run: ./gradlew signingReport
+        run: |
+          ls -la
+          chmod +x ./gradlew
+          ./gradlew signingReport
 
   # ============================================================================
   # PREVIOUS MOBILE JOBS (DEPRECATED)
@@ -251,6 +254,11 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libarchive-tools icnsutils libxtst-dev libpng-dev libx11-dev
+
+      - name: Remove package-lock.json (Non-Windows)
+        if: runner.os != 'Windows'
+        working-directory: comet-browser
+        run: rm package-lock.json
 
       - name: Install Dependencies
         working-directory: comet-browser
