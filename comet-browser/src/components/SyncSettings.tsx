@@ -18,6 +18,8 @@ const SyncSettings: React.FC<SyncSettingsProps> = () => {
     const [statusMessage, setStatusMessage] = useState('');
     const [clipboardSyncEnabled, setClipboardSyncEnabled] = useState(true);
     const [historySyncEnabled, setHistorySyncEnabled] = useState(true);
+    const [wifiSyncQr, setWifiSyncQr] = useState<string | null>(null);
+    const [wifiConnected, setWifiConnected] = useState(false);
 
     useEffect(() => {
         if (!window.electronAPI) {
@@ -42,6 +44,22 @@ const SyncSettings: React.FC<SyncSettingsProps> = () => {
             setLocalDeviceId(deviceId);
         });
 
+        // WiFi Sync Listeners
+        const cleanupWifiStatus = window.electronAPI.onWifiSyncStatus((data) => {
+            setWifiConnected(data.connected);
+        });
+
+        const cleanupRemotePrompt = window.electronAPI.onRemoteAiPrompt((data) => {
+            // Forward to AI chat input
+            window.electronAPI.sendToAIChatInput(data.prompt);
+            setStatusMessage(`Remote prompt received: ${data.prompt}`);
+        });
+
+        // Initial QR fetch
+        window.electronAPI.getWifiSyncQr().then(qr => {
+            setWifiSyncQr(qr);
+        });
+
         // Fetch initial device ID
         window.electronAPI.getP2PLocalDeviceId().then((id: string) => {
             if (id) setLocalDeviceId(id);
@@ -57,6 +75,8 @@ const SyncSettings: React.FC<SyncSettingsProps> = () => {
             if (typeof cleanupDisconnected === 'function') cleanupDisconnected();
             if (typeof cleanupFirebaseReady === 'function') cleanupFirebaseReady();
             if (typeof cleanupLocalId === 'function') cleanupLocalId();
+            if (typeof cleanupWifiStatus === 'function') cleanupWifiStatus();
+            if (typeof cleanupRemotePrompt === 'function') cleanupRemotePrompt();
         };
     }, []);
 
@@ -122,6 +142,10 @@ const SyncSettings: React.FC<SyncSettingsProps> = () => {
                         <Cloud size={12} />
                         <span className="text-[10px] font-black uppercase tracking-widest">{firebaseReady ? `Cloud Ready (${firebaseUserId ? firebaseUserId.substring(0, 6) + '...' : 'Guest'})` : 'Cloud Not Ready'}</span>
                     </div>
+                    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full ${wifiConnected ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400' : 'bg-white/5 border-white/10 text-white/30'}`}>
+                        <Wifi size={12} />
+                        <span className="text-[10px] font-black uppercase tracking-widest">{wifiConnected ? 'Mobile Connected' : 'WiFi Sync Ready'}</span>
+                    </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -150,6 +174,48 @@ const SyncSettings: React.FC<SyncSettingsProps> = () => {
                 {statusMessage && (
                     <div className="flex items-center gap-2 text-xs p-3 rounded-lg bg-white/5 border border-white/10 text-white/70">
                         <Info size={16} /> {statusMessage}
+                    </div>
+                )}
+            </div>
+
+            {/* WiFi Sync Section */}
+            <div className="p-8 rounded-[2rem] bg-white/[0.03] border border-white/5 space-y-8">
+                <div className="flex justify-between items-start">
+                    <div>
+                        <h3 className="text-lg font-bold text-white mb-2">Mobile WiFi Sync</h3>
+                        <p className="text-xs text-white/30">Connect your mobile device to execute prompts and control the desktop.</p>
+                    </div>
+                </div>
+
+                {!wifiConnected && (
+                    <div className="flex flex-col items-center gap-6 py-8 border border-white/5 rounded-[2rem] bg-black/20">
+                        {wifiSyncQr ? (
+                            <div className="p-4 bg-white rounded-2xl shadow-[0_0_30px_rgba(255,255,255,0.1)]">
+                                <img src={wifiSyncQr} alt="WiFi Sync QR Code" className="w-48 h-48" />
+                            </div>
+                        ) : (
+                            <div className="w-48 h-48 flex items-center justify-center bg-white/5 rounded-2xl border border-white/10">
+                                <RefreshCw className="animate-spin text-deep-space-accent-neon" />
+                            </div>
+                        )}
+                        <div className="text-center space-y-2">
+                            <p className="text-sm font-bold text-white">Scan to Connect</p>
+                            <p className="text-xs text-white/40 max-w-xs px-4">
+                                Open Comet-AI on your mobile, go to "Connect Desktop" and scan this code.
+                            </p>
+                        </div>
+                    </div>
+                )}
+
+                {wifiConnected && (
+                    <div className="flex items-center gap-4 p-8 bg-cyan-500/5 border border-cyan-500/20 rounded-[2rem]">
+                        <div className="w-16 h-16 flex items-center justify-center bg-cyan-500/10 rounded-full shadow-[0_0_20px_rgba(0,255,255,0.1)]">
+                            <CheckCircle className="text-cyan-400" size={32} />
+                        </div>
+                        <div>
+                            <p className="text-lg font-bold text-white">Mobile Device Linked</p>
+                            <p className="text-sm text-white/40">Remote commands and AI prompts are active.</p>
+                        </div>
                     </div>
                 )}
             </div>

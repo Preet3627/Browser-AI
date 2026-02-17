@@ -31,6 +31,7 @@ const bodyParser = require('body-parser');
 const { getP2PSync } = require('./src/lib/P2PFileSyncService.js'); // Import the P2P service
 
 let p2pSyncService = null; // Declare p2pSyncService here
+let wifiSyncService = null; // Declare wifiSyncService here
 
 let mainWindow;
 let mcpServer;
@@ -2048,63 +2049,112 @@ app.whenReady().then(() => {
       clipboard.writeText(message.text);
       if (mainWindow) {
         mainWindow.webContents.send('clipboard-changed', message.text);
-        mainWindow.webContents.send('notification', { title: 'Sync', body: 'Clipboard synced from remote device' });
-      }
-    } else if (message.type === 'history-sync') {
-      appendToMemory({ action: 'remote-history', ...message.data });
-      if (mainWindow) {
-        mainWindow.webContents.send('notification', { title: 'Sync', body: 'Browsing history synced' });
       }
     }
   });
 
-  // Handle file downloads
-  session.defaultSession.on('will-download', (event, item, webContents) => {
-    const fileName = item.getFilename();
-    const downloadsPath = app.getPath('downloads');
-    const saveDataPath = path.join(downloadsPath, fileName);
+  // WiFi Sync Service (Mobile to Desktop)
+  try {
+    const { getWiFiSync } = require('./src/lib/WiFiSyncService.js');
+    wifiSyncService = getWiFiSync(3004);
+    wifiSyncService.start();
 
-    console.log(`[Main] Starting download: ${fileName} to ${saveDataPath}`);
+    wifiSyncService.on('command', ({ commandId, command, args, sendResponse }) => {
+      console.log(`[WiFi-Sync] Mobile requested command: ${command}`);
 
-    item.setSavePath(saveDataPath);
-    item.resume();
-
-    if (mainWindow) {
-      mainWindow.webContents.send('download-started', fileName);
-    }
-
-    item.on('updated', (event, state) => {
-      if (state === 'interrupted') {
-        console.log('Download is interrupted but can be resumed');
-      } else if (state === 'progressing') {
-        if (!item.isPaused()) {
-          // progress updates could be sent here
-        }
-      }
-    });
-
-    item.on('done', (event, state) => {
-      if (state === 'completed') {
-        console.log('Download successfully');
+      if (command === 'ai-prompt') {
         if (mainWindow) {
-          mainWindow.webContents.send('download-complete', item.getFilename());
+          mainWindow.webContents.send('remote-ai-prompt', { prompt: args.prompt, commandId });
+          sendResponse({ success: true, output: 'Prompt received by desktop' });
+        } else {
+          sendResponse({ success: false, error: 'Desktop window not available' });
         }
-
-        // Auto-install logic for Chrome Extensions (.crx)
-        if (fileName.endsWith('.crx')) {
-          console.log(`[Main] Detected extension download: ${fileName}. Installing...`);
-          installExtensionLocally(saveDataPath);
+      } else if (command === 'media-next' || command === 'media-prev' || command === 'media-play-pause') {
+        if (robot) {
+          const key = command === 'media-next' ? 'audio_next' : (command === 'media-prev' ? 'audio_prev' : 'audio_pause');
+          robot.keyTap(key);
+          sendResponse({ success: true, output: `Media key ${key} pressed` });
+        } else {
+          sendResponse({ success: false, error: 'robotjs not available' });
         }
       } else {
-        console.log(`Download failed: ${state}`);
-        if (mainWindow) {
-          mainWindow.webContents.send('download-failed', item.getFilename());
-        }
+        sendResponse({ success: false, error: `Command ${command} not implemented` });
       }
     });
 
-    item.resume();
+    wifiSyncService.on('client-connected', () => {
+      if (mainWindow) mainWindow.webContents.send('wifi-sync-status', { connected: true });
+    });
+
+    wifiSyncService.on('client-disconnected', () => {
+      if (mainWindow) mainWindow.webContents.send('wifi-sync-status', { connected: false });
+    });
+  } catch (e) {
+    console.error('[Main] Failed to initialize WiFi Sync Service:', e);
+  }
+
+  ipcMain.handle('get-wifi-sync-uri', () => {
+    return wifiSyncService ? wifiSyncService.getConnectUri() : null;
   });
+  if (mainWindow) {
+    mainWindow.webContents.send('clipboard-changed', message.text);
+    mainWindow.webContents.send('notification', { title: 'Sync', body: 'Clipboard synced from remote device' });
+  }
+} else if (message.type === 'history-sync') {
+  appendToMemory({ action: 'remote-history', ...message.data });
+  if (mainWindow) {
+    mainWindow.webContents.send('notification', { title: 'Sync', body: 'Browsing history synced' });
+  }
+}
+  });
+
+// Handle file downloads
+session.defaultSession.on('will-download', (event, item, webContents) => {
+  const fileName = item.getFilename();
+  const downloadsPath = app.getPath('downloads');
+  const saveDataPath = path.join(downloadsPath, fileName);
+
+  console.log(`[Main] Starting download: ${fileName} to ${saveDataPath}`);
+
+  item.setSavePath(saveDataPath);
+  item.resume();
+
+  if (mainWindow) {
+    mainWindow.webContents.send('download-started', fileName);
+  }
+
+  item.on('updated', (event, state) => {
+    if (state === 'interrupted') {
+      console.log('Download is interrupted but can be resumed');
+    } else if (state === 'progressing') {
+      if (!item.isPaused()) {
+        // progress updates could be sent here
+      }
+    }
+  });
+
+  item.on('done', (event, state) => {
+    if (state === 'completed') {
+      console.log('Download successfully');
+      if (mainWindow) {
+        mainWindow.webContents.send('download-complete', item.getFilename());
+      }
+
+      // Auto-install logic for Chrome Extensions (.crx)
+      if (fileName.endsWith('.crx')) {
+        console.log(`[Main] Detected extension download: ${fileName}. Installing...`);
+        installExtensionLocally(saveDataPath);
+      }
+    } else {
+      console.log(`Download failed: ${state}`);
+      if (mainWindow) {
+        mainWindow.webContents.send('download-failed', item.getFilename());
+      }
+    }
+  });
+
+  item.resume();
+});
 
 });
 
@@ -3166,6 +3216,12 @@ app.on('will-quit', () => {
   if (p2pSyncService) {
     p2pSyncService.disconnect();
     console.log('[Main] P2P Sync Service disconnected.');
+  }
+
+  // Stop WiFi Sync service
+  if (wifiSyncService) {
+    wifiSyncService.stop();
+    console.log('[Main] WiFi Sync Service stopped.');
   }
 
   // Unregister all shortcuts

@@ -23,6 +23,9 @@ import 'package:firebase_core/firebase_core.dart';
 import 'sync_service.dart';
 
 import 'browser.dart';
+import 'pages/comet_home_page.dart';
+import 'pages/connect_desktop_page.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 // ignore: non_constant_identifier_names
 late final String WEB_ARCHIVE_DIR;
@@ -231,10 +234,15 @@ class _CometAIAppState extends State<CometAIApp> with WindowListener {
           backgroundColor: Colors.transparent,
           elevation: 0,
         ),
+        textTheme: GoogleFonts.outfitTextTheme(ThemeData.dark().textTheme),
       ),
       theme: ThemeData(visualDensity: VisualDensity.adaptivePlatformDensity),
       initialRoute: '/',
-      routes: {'/': (context) => const Browser()},
+      routes: {
+        '/': (context) => const CometHomePage(),
+        '/connect-desktop': (context) => const ConnectDesktopPage(),
+        '/browser': (context) => const Browser(),
+      },
     );
 
     return Util.isMobile()

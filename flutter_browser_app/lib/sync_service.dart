@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:path_provider/path_provider.dart';
@@ -79,7 +80,7 @@ class SyncService {
       'iceServers': [
         {'urls': 'stun:stun.l.google.com:19302'},
         {'urls': 'stun:stun1.l.google.com:19302'},
-      ]
+      ],
     };
 
     _peerConnection = await createPeerConnection(configuration);
@@ -136,16 +137,16 @@ class SyncService {
     if (signal['sdp'] != null) {
       _peerConnection!
           .setRemoteDescription(
-        RTCSessionDescription(signal['sdp']['sdp'], signal['sdp']['type']),
-      )
+            RTCSessionDescription(signal['sdp']['sdp'], signal['sdp']['type']),
+          )
           .then((_) {
-        if (signal['sdp']['type'] == 'offer') {
-          _peerConnection!.createAnswer().then((answer) {
-            _peerConnection!.setLocalDescription(answer);
-            _sendSignal({'sdp': answer.toMap()});
+            if (signal['sdp']['type'] == 'offer') {
+              _peerConnection!.createAnswer().then((answer) {
+                _peerConnection!.setLocalDescription(answer);
+                _sendSignal({'sdp': answer.toMap()});
+              });
+            }
           });
-        }
-      });
     } else if (signal['candidate'] != null) {
       _peerConnection!.addCandidate(
         RTCIceCandidate(
@@ -170,19 +171,151 @@ class SyncService {
     if (text == _lastSentClipboard) return;
     _lastSentClipboard = text;
     if (isConnected && _dataChannel != null) {
-      _dataChannel!.send(RTCDataChannelMessage(jsonEncode({
-        'type': 'clipboard-sync',
-        'text': text,
-      })));
+      _dataChannel!.send(
+        RTCDataChannelMessage(
+          jsonEncode({'type': 'clipboard-sync', 'text': text}),
+        ),
+      );
     }
   }
 
   void sendHistory(Map data) {
     if (isConnected && _dataChannel != null) {
-      _dataChannel!.send(RTCDataChannelMessage(jsonEncode({
-        'type': 'history-sync',
-        'data': data,
-      })));
+      _dataChannel!.send(
+        RTCDataChannelMessage(
+          jsonEncode({'type': 'history-sync', 'data': data}),
+        ),
+      );
     }
+  }
+
+  // Desktop connection via WiFi
+  WebSocket? _desktopSocket;
+  String? _desktopIp;
+  int? _desktopPort;
+  bool isConnectedToDesktop = false;
+
+  final StreamController<Map> _commandResponseController =
+      StreamController<Map>.broadcast();
+  Stream<Map> get onCommandResponse => _commandResponseController.stream;
+
+  Future<void> connectToDesktop(String ip, int port, String deviceId) async {
+    try {
+      _desktopIp = ip;
+      _desktopPort = port;
+      remoteDeviceId = deviceId;
+
+      // Connect via WebSocket
+      _desktopSocket = await WebSocket.connect('ws://$ip:$port');
+
+      // Send handshake
+      _desktopSocket!.add(
+        jsonEncode({
+          'type': 'handshake',
+          'deviceId': this.deviceId,
+          'platform': 'mobile',
+        }),
+      );
+
+      // Listen for messages
+      _desktopSocket!.listen(
+        (data) {
+          _handleDesktopMessage(data);
+        },
+        onDone: () {
+          isConnectedToDesktop = false;
+          print('[Sync] Desktop connection closed');
+        },
+        onError: (error) {
+          isConnectedToDesktop = false;
+          print('[Sync] Desktop connection error: $error');
+        },
+      );
+
+      isConnectedToDesktop = true;
+      print('[Sync] Connected to desktop at $ip:$port');
+    } catch (e) {
+      print('[Sync] Failed to connect to desktop: $e');
+      rethrow;
+    }
+  }
+
+  void _handleDesktopMessage(dynamic data) {
+    try {
+      final msg = jsonDecode(data);
+
+      if (msg['type'] == 'command-response') {
+        _commandResponseController.add(msg);
+        print('[Sync] Command response received: ${msg['output']}');
+      } else if (msg['type'] == 'clipboard-sync') {
+        _lastSentClipboard = msg['text'];
+        Clipboard.setData(ClipboardData(text: msg['text']));
+        _clipboardController.add(msg['text']);
+      }
+    } catch (e) {
+      print('[Sync] Error handling desktop message: $e');
+    }
+  }
+
+  /// Send a command to execute on the desktop
+  Future<Map?> executeOnDesktop(
+    String command, {
+    Map<String, dynamic>? args,
+  }) async {
+    if (!isConnectedToDesktop || _desktopSocket == null) {
+      throw Exception('Not connected to desktop');
+    }
+
+    final commandId = const Uuid().v4();
+
+    _desktopSocket!.add(
+      jsonEncode({
+        'type': 'execute-command',
+        'commandId': commandId,
+        'command': command,
+        'args': args ?? {},
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+      }),
+    );
+
+    // Wait for response (with timeout)
+    try {
+      final response = await onCommandResponse
+          .firstWhere(
+            (msg) => msg['commandId'] == commandId,
+            orElse: () => {'error': 'Timeout'},
+          )
+          .timeout(const Duration(seconds: 30));
+
+      return response;
+    } catch (e) {
+      print('[Sync] Command execution failed: $e');
+      return {'error': e.toString()};
+    }
+  }
+
+  /// Send a prompt to be executed on desktop (for AI features)
+  Future<Map?> sendPromptToDesktop(String prompt) async {
+    return executeOnDesktop('ai-prompt', args: {'prompt': prompt});
+  }
+
+  /// Disconnect from desktop
+  void disconnectFromDesktop() {
+    _desktopSocket?.close();
+    _desktopSocket = null;
+    isConnectedToDesktop = false;
+    _desktopIp = null;
+    _desktopPort = null;
+    print('[Sync] Disconnected from desktop');
+  }
+
+  /// Get current connection info
+  Map<String, dynamic> getConnectionInfo() {
+    return {
+      'isConnected': isConnectedToDesktop,
+      'desktopIp': _desktopIp,
+      'desktopPort': _desktopPort,
+      'remoteDeviceId': remoteDeviceId,
+    };
   }
 }

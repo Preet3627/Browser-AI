@@ -349,4 +349,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('open-unified-search', subscription);
     return () => ipcRenderer.removeListener('open-unified-search', subscription);
   },
+
+  // WiFi Sync (Mobile to Desktop)
+  getWifiSyncQr: () => ipcRenderer.invoke('get-wifi-sync-qr'),
+  onWifiSyncStatus: (callback) => {
+    const subscription = (event, data) => callback(data);
+    ipcRenderer.on('wifi-sync-status', subscription);
+    return () => ipcRenderer.removeListener('wifi-sync-status', subscription);
+  },
+  onRemoteAiPrompt: (callback) => {
+    const subscription = (event, data) => callback(data);
+    ipcRenderer.on('remote-ai-prompt', subscription);
+    return () => ipcRenderer.removeListener('remote-ai-prompt', subscription);
+  },
 });

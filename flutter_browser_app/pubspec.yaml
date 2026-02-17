@@ -69,6 +69,9 @@ dependencies:
   firebase_core: ^3.10.1
   firebase_database: ^11.3.1
   flutter_webrtc: ^0.12.3
+  google_fonts: ^6.2.1
+  qr_code_scanner: ^1.0.1
+  qr_flutter: ^4.1.0
 
 dev_dependencies:
   flutter_test:

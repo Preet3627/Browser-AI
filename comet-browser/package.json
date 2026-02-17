@@ -1,6 +1,6 @@
 {
   "name": "comet-browser",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "private": true,
   "description": "Comet AI Browser - A high-performance, intelligence-driven browsing workspace with local LLM support and advanced productivity features.",
   "author": "Latestinssan",
@@ -13,7 +13,7 @@
     "build": "next build",
     "start": "npx serve@latest out",
     "lint": "eslint",
-    "predev": "npx tsc src/lib/P2PFileSyncService.ts src/types/electron.d.ts --outDir src/lib --module CommonJS --skipLibCheck --esModuleInterop",
+    "predev": "npx tsc src/lib/P2PFileSyncService.ts src/lib/WiFiSyncService.ts src/types/electron.d.ts --outDir src/lib --module CommonJS --skipLibCheck --esModuleInterop",
     "test:prod": "node test-production.js",
     "prebuild-electron": "node verify-build.js",
     "build-electron": "npm run build && electron-builder",
@@ -46,6 +46,7 @@
     "object-inspect": "^1.13.3",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^4.10.38",
+    "qrcode": "^1.5.4",
     "qs": "^6.13.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -60,6 +61,7 @@
     "side-channel": "^1.1.0",
     "tesseract.js": "^7.0.0",
     "wait-on": "^9.0.3",
+    "ws": "^8.18.0",
     "zustand": "^5.0.9"
   },
   "devDependencies": {
@@ -72,6 +74,7 @@
     "@types/react-dom": "^19.2.3",
     "@types/react-syntax-highlighter": "^15.5.13",
     "@types/tesseract.js": "^0.0.2",
+    "@types/ws": "^8.18.1",
     "concurrently": "^8.2.2",
     "cross-env": "^10.1.0",
     "electron": "40.1.0",

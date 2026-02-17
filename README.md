@@ -1,14 +1,14 @@
-# 🌟 Comet AI Browser (v0.1.8)
+# 🌟 Comet AI Browser (v0.1.9)
 
 <div align="center">
 
-![Comet AI Browser](C:\Users\admin\Desktop\Projects\AI-BROWSER\Browser-AI\icon.ico)
+![Comet AI Browser](https://raw.githubusercontent.com/Preet3627/Browser-AI/main/icon.ico)
 
 **The World's Most Advanced Privacy-First AI Browser**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-cyan.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Android%20%7C%20iOS-blue)]()
-[![Version](https://img.shields.io/badge/Version-0.1.8--stable-green)]()
+[![Version](https://img.shields.io/badge/Version-0.1.9--stable-green)]()
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)]()
 
 [Features](#-features) • [Download](#-download) • [Quick Start](#-quick-start) • [Development Status](#-development-status) • [Contributing](#-contributing)
@@ -46,19 +46,15 @@ Measured on real hardware, not marketing slides.
 
 ---
 
-## 🧠 Recent Updates (v0.1.8)
+## 🧠 Recent Updates (v0.1.9)
 
-We've been hard at work refining the Comet experience. Here are the latest improvements:
+We've been hard at work refining the Comet experience:
 
-- **Synced Config**: Added secure environment variable syncing (Google Client ID, Firebase Config) from the landing page.
-- **Admin Secrets**: Admins can now manage app configuration directly from the landing page.
-- **AI/LLM Optimization**: Added `robots.txt`, `sitemap.xml`, and `LLM.md` for better indexing by AI crawlers and bots.
-- **Improved New Tab**: Fixed the "about:blank" issue; new tabs now redirect correctly to the default engine.
-- **Performance Boost**: Lazy-loaded OCR (Tesseract.js) to eliminate startup freezes.
-- **Cross-Platform**: Now building for **iOS** (Beta) alongside Android, Windows, macOS, and Linux.
-- **Branding**: Officially rebranded to **Comet-AI**.
-- **Enhanced AI Chat**: Improved "Find and Click" capabilities and fixed variable declaration issues in chat logic.
-- **Build Pipeline**: Robust CI/CD with secure secret handling for all platforms.
+- **Vibrant Glassmorphic UI**: Completely redesigned mobile home page with stunning cosmic themes and glassmorphism.
+- **WiFi Desktop Sync**: Connect mobile to desktop via WiFi & QR scan to execute commands remotely.
+- **Fixed Android Launch**: Resolved `ClassNotFoundException` and platform-specific crashes.
+- **Synced Config**: Secure environment variable syncing from landing page.
+- **Cross-Platform**: Full support for Android, iOS (Beta), Windows, macOS, and Linux.
 
 ---
 
@@ -76,7 +72,7 @@ Comet AI Browser is a multi-platform, open-source project in active development.
 ### 📱 Mobile (Android / iOS)
 **Framework**: Flutter
 
-- 🧪 **Android**: Core browser + UI ready, P2P sync & offline AI in progress.
+- ✅ **Android**: Vibrant UI, WiFi Desktop Sync, and core browser functionality ready.
 - 🧪 **iOS**: Design & simulator testing phase.
 
 ---
@@ -86,31 +82,26 @@ Comet AI Browser is a multi-platform, open-source project in active development.
 | Feature | 🖥️ Desktop | 📱 Mobile | Status |
 | :--- | :---: | :---: | :--- |
 | **Glassmorphic UI** | ✅ | ✅ | Production Ready |
+| **WiFi Desktop Sync** | ✅ | ✅ | **New!** |
 | **AI Sidebar (Cloud)** | ✅ | ✅ | OpenAI / Gemini |
 | **Offline AI Models** | ✅ | 🧪 | Local LLM optimization |
 | **AI Web Agency** | ✅ | 🧪 | Command-based navigation |
 | **P2P Sync (WebRTC)** | ✅ | 🧪 | Zero-cloud design |
-| **Music Visualizer** | ✅ | ✅ | Local + Cloud |
-| **Phone Call Control** | ✅ | 🚧 | Bluetooth HID |
-| **OTP Auto Detection** | ✅ | ✅ | Native listeners |
-| **PDF Workspace + OCR** | ✅ | 🧪 | Tesseract WASM |
-| **Chrome Extensions** | ✅ | ❌ | Desktop only |
-| **Cross-device Sync** | ✅ | ✅ | Firebase + P2P |
+| **History & Clipboard** | ✅ | ✅ | Cross-device |
 
 ---
 
 ## 🤖 Intelligent AI Assistant
 
-Comet AI is designed as an autonomous browser-level agent, not just a chat overlay.
+Comet AI is designed as an autonomous browser-level agent.
 
 - **Smart Provider Switching**: OpenAI, Gemini, Groq, or fully local models.
-- **Natural Commands**: "Open YouTube", "Search JEE news", "Switch to dark mode".
+- **Natural Commands**: "Open YouTube", "Summarize this page", "Execute on Windows".
 - **Action Tags**:
     - `[NAVIGATE: url]`
     - `[SEARCH: query]`
     - `[SET_THEME: dark|light|system]`
-    - `[OPEN_VIEW: view_name]`
-    - `[SCREENSHOT_ANALYSE]`
+    - `[EXEC_DESKTOP: command]`
 
 ---
 
@@ -144,18 +135,16 @@ npm install
 
 ```bash
 cd comet-browser
-# Create a local environment file
-cp .env.example .env.local
-# Start development server
+npm install
 npm run dev
-# In a new terminal, launch Electron
+# In new terminal:
 npm run electron-start
 ```
 
 ### Run Mobile App
 
 ```bash
-cd CometBrowserMobile/comet_ai
+cd flutter_browser_app
 flutter pub get
 flutter run
 ```

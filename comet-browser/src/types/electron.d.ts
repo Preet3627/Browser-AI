@@ -193,6 +193,11 @@ declare global {
             translateWebsite: (args: { targetLanguage: string }) => Promise<{ success?: boolean; error?: string }>;
             onTriggerTranslationDialog: (callback: () => void) => () => void;
             toggleAdblocker: (enable: boolean) => void;
+
+            // WiFi Sync (Mobile to Desktop)
+            getWifiSyncQr: () => Promise<string | null>;
+            onWifiSyncStatus: (callback: (data: { connected: boolean }) => void) => () => void;
+            onRemoteAiPrompt: (callback: (data: { prompt: string; commandId: string }) => void) => () => void;
         };
     }
 }
