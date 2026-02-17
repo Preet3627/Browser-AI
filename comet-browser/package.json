@@ -113,14 +113,7 @@
       "icon": "icon.ico",
       "target": [
         "nsis"
-      ],
-      "certificateFile": "certs/comet-browser.pfx",
-      "certificatePassword": "",
-      "signingHashAlgorithms": [
-        "sha256"
-      ],
-      "signDlls": true,
-      "rfc3161TimeStampServer": "http://timestamp.digicert.com"
+      ]
     },
     "mac": {
       "icon": "icon.png",
