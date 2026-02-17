@@ -17,8 +17,12 @@
     "test:prod": "node test-production.js",
     "prebuild-electron": "node verify-build.js",
     "build-electron": "npm run build && electron-builder",
+    "electron:build:win": "npm run build && electron-builder --win --x64",
+    "electron:build:mac": "npm run build && electron-builder --mac",
+    "electron:build:linux": "npm run build && electron-builder --linux",
     "dist:win": "npm run build && electron-builder --win --x64",
-    "dist:mac": "npm run build && electron-builder --mac"
+    "dist:mac": "npm run build && electron-builder --mac",
+    "check-dups": "node check_dups.js"
   },
   "dependencies": {
     "@ghostery/adblocker-electron": "^2.13.4",
@@ -109,7 +113,14 @@
       "icon": "icon.ico",
       "target": [
         "nsis"
-      ]
+      ],
+      "certificateFile": "certs/comet-browser.pfx",
+      "certificatePassword": "",
+      "signingHashAlgorithms": [
+        "sha256"
+      ],
+      "signDlls": true,
+      "rfc3161TimeStampServer": "http://timestamp.digicert.com"
     },
     "mac": {
       "icon": "icon.png",

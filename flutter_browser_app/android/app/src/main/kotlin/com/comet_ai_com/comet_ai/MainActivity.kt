@@ -1,4 +1,4 @@
-package com.comet_ai_com.flutter_browser
+package com.comet_ai_com.comet_ai
 
 import android.app.SearchManager
 import android.content.Intent

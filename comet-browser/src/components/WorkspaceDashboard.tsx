@@ -15,7 +15,7 @@ const WorkspaceDashboard = () => {
     const [activeTab, setActiveTab] = useState<'mail' | 'drive'>('mail');
     const [searchQuery, setSearchQuery] = useState('');
 
-    const isConnected = !!store.googleToken;
+    const isConnected = !!store.authToken;
 
     useEffect(() => {
         if (isConnected) {
@@ -26,8 +26,8 @@ const WorkspaceDashboard = () => {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const fetchedMails = await IntegrationService.fetchMails(store.googleToken || '');
-            const fetchedFiles = await IntegrationService.fetchFiles(store.googleToken || '');
+            const fetchedMails = await IntegrationService.fetchMails(store.authToken || '');
+            const fetchedFiles = await IntegrationService.fetchFiles(store.authToken || '');
 
             // Run "AI" organization
             const organizedMails = IntegrationService.runAIOrganization(fetchedMails);

@@ -37,6 +37,14 @@ config/*.json
 *-firebase-adminsdk-*.json
 service-account.json
 
+# Code Signing Certificates
+certs/
+*.pfx
+*.p12
+*.cer
+*.pem
+certificate-base64.txt
+
 # Database
 *.db
 *.sqlite

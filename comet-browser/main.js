@@ -139,12 +139,38 @@ function readMemory() {
   }).filter(Boolean);
 }
 
-const llmCache = new Map();
+// Persistent LLM Cache
+const cacheFilePath = path.join(app.getPath('userData'), 'llm_cache.json');
+let llmCache = new Map();
+
+function loadLLMCache() {
+  try {
+    if (fs.existsSync(cacheFilePath)) {
+      const data = JSON.parse(fs.readFileSync(cacheFilePath, 'utf8'));
+      llmCache = new Map(Object.entries(data));
+      console.log(`[LLM] Loaded ${llmCache.size} items from cache.`);
+    }
+  } catch (e) {
+    console.error('[LLM] Failed to load cache:', e);
+  }
+}
+
+function saveLLMCache() {
+  try {
+    const data = Object.fromEntries(llmCache);
+    fs.writeFileSync(cacheFilePath, JSON.stringify(data), 'utf8');
+  } catch (e) {
+    console.error('[LLM] Failed to save cache:', e);
+  }
+}
+
+loadLLMCache();
 
 // Global LLM Generation Handler
 const llmGenerateHandler = async (messages, options = {}) => {
   const cacheKey = JSON.stringify(messages);
   if (llmCache.has(cacheKey)) {
+    console.log('[LLM] Cache hit');
     return llmCache.get(cacheKey);
   }
 
@@ -333,11 +359,12 @@ const llmGenerateHandler = async (messages, options = {}) => {
 
     clearTimeout(timeoutId);
     llmCache.set(cacheKey, result);
+    saveLLMCache(); // Persist cache
     return result;
-  } catch (e) {
+  } catch (error) {
     clearTimeout(timeoutId);
-    console.error("LLM Error:", e);
-    return { error: e.name === 'AbortError' ? 'Neural Link Timed Out (Reasoning Overload)' : e.message };
+    console.error("LLM Error:", error);
+    return { error: error.name === 'AbortError' ? 'Neural Link Timed Out (Reasoning Overload)' : error.message };
   }
 };
 
@@ -1357,35 +1384,21 @@ ipcMain.handle('capture-browser-view-screenshot', async () => {
   return null;
 });
 
-ipcMain.removeHandler('capture-screen-region');
-ipcMain.handle('capture-screen-region', async (event, { x, y, width, height }) => {
-  console.log('[Screen] Capturing region:', { x, y, width, height });
-
+ipcMain.handle('capture-screen-region', async (event, bounds) => {
+  console.log('[Screen] Capturing region:', bounds);
+  const tempFile = path.join(os.tmpdir(), `capture_${Date.now()}.png`);
   try {
-    const sources = await desktopCapturer.getSources({
-      types: ['screen'],
-      thumbnailSize: { width: screen.getPrimaryDisplay().size.width, height: screen.getPrimaryDisplay().size.height }
-    });
-
-    if (sources.length === 0) {
-      return { success: false, error: 'No screen sources available' };
-    }
-
-    let image = sources[0].thumbnail; // This is a NativeImage
-
-    // If coordinates are provided, crop the image
-    if (x !== undefined && y !== undefined && width !== undefined && height !== undefined) {
-      const cropRect = { x, y, width, height };
-      image = image.crop(cropRect);
-    }
-
-    return { success: true, dataURL: image.toDataURL() };
-
-  } catch (error) {
-    console.error('[Main] Failed to capture screen region:', error);
-    return { success: false, error: error.message };
+    await captureScreenRegion(bounds, tempFile);
+    const imageBuffer = fs.readFileSync(tempFile);
+    const base64Image = `data:image/png;base64,${imageBuffer.toString('base64')}`;
+    return { success: true, path: tempFile, image: base64Image };
+  } catch (e) {
+    console.error('[Screen] Capture failed:', e);
+    return { success: false, error: e.message };
   }
 });
+
+
 
 /**
  * Maps OCR result coordinates (from Tesseract) to screen coordinates.
@@ -1817,13 +1830,43 @@ ipcMain.handle('set-brightness', async (event, level) => {
 // Open External Application
 ipcMain.handle('open-external-app', async (event, app_name_or_path) => {
   try {
-    const fullPath = path.resolve(app_name_or_path); // Resolve to absolute path
-    const result = await shell.openPath(fullPath);
-    if (result) {
-      // If result is a string, it indicates an error message
-      return { success: false, error: result };
+    console.log('[Main] Opening external app:', app_name_or_path);
+
+    // First try as a direct path
+    if (path.isAbsolute(app_name_or_path) && fs.existsSync(app_name_or_path)) {
+      const result = await shell.openPath(app_name_or_path);
+      if (!result) return { success: true };
     }
-    return { success: true };
+
+    // On Windows, use 'start' to find apps in PATH or registered apps
+    if (process.platform === 'win32') {
+      return new Promise((resolve) => {
+        // Use 'start' command which is internal to cmd.exe
+        // Double quotes for title (empty) and then the app command
+        exec(`start "" "${app_name_or_path}"`, (error) => {
+          if (error) {
+            console.error(`[Main] Start command failed:`, error);
+            resolve({ success: false, error: error.message });
+          } else {
+            resolve({ success: true });
+          }
+        });
+      });
+    } else if (process.platform === 'darwin') {
+      return new Promise((resolve) => {
+        exec(`open -a "${app_name_or_path}"`, (error) => {
+          if (error) {
+            // Fallback to general open
+            shell.openPath(app_name_or_path).then(res => resolve({ success: !res, error: res }));
+          } else {
+            resolve({ success: true });
+          }
+        });
+      });
+    }
+
+    const result = await shell.openPath(app_name_or_path);
+    return { success: !result, error: result };
   } catch (error) {
     console.error('[Main] Failed to open external app:', error);
     return { success: false, error: error.message };
@@ -1930,6 +1973,15 @@ app.whenReady().then(() => {
       mainWindow.webContents.send('load-auth-token', savedToken);
       if (savedUser) mainWindow.webContents.send('load-user-info', savedUser);
       console.log('[Main] Loaded and sent persistent auth data to renderer.');
+    }
+  });
+
+  // Handle successful authentication from external sources (e.g. landing page)
+  ipcMain.on('set-auth-token', (event, token) => {
+    console.log('[Main] Setting auth token');
+    store.set('auth_token', token);
+    if (mainWindow) {
+      mainWindow.webContents.send('load-auth-token', token);
     }
   });
 
@@ -2671,71 +2723,7 @@ ipcMain.on('open-cart-popup', () => {
   });
 });
 
-// Google OAuth Integration - Direct browser engine authentication
-ipcMain.on('google-oauth-login', (event) => {
-  const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '601898745585-8g9t0k72gq4q1a4s1o4d1t6t7e5v4c4g.apps.googleusercontent.com';
-  const REDIRECT_URI = 'http://localhost:3003/auth/google/callback';
-
-  const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
-    `client_id=${GOOGLE_CLIENT_ID}&` +
-    `redirect_uri=${encodeURIComponent(REDIRECT_URI)}&` +
-    `response_type=code&` +
-    `scope=${encodeURIComponent('email profile openid')}&` +
-    `access_type=offline&` +
-    `prompt=consent`;
-
-  // Create OAuth window
-  const oauthWindow = new BrowserWindow({
-    width: 600,
-    height: 700,
-    webPreferences: {
-      nodeIntegration: false,
-      contextIsolation: true,
-    },
-    parent: mainWindow,
-    modal: true,
-    show: false,
-    alwaysOnTop: true,
-  });
-
-  oauthWindow.loadURL(authUrl);
-
-  oauthWindow.once('ready-to-show', () => {
-    oauthWindow.show();
-  });
-
-  // Listen for the redirect
-  oauthWindow.webContents.on('will-redirect', (event, url) => {
-    if (url.startsWith(REDIRECT_URI)) {
-      event.preventDefault();
-      const urlObj = new URL(url);
-      const code = urlObj.searchParams.get('code');
-
-      if (code && mainWindow) {
-        mainWindow.webContents.send('google-oauth-code', code);
-      }
-
-      oauthWindow.close();
-    }
-  });
-
-  oauthWindow.webContents.on('did-navigate', (event, url) => {
-    if (url.startsWith(REDIRECT_URI)) {
-      const urlObj = new URL(url);
-      const code = urlObj.searchParams.get('code');
-
-      if (code && mainWindow) {
-        mainWindow.webContents.send('google-oauth-code', code);
-      }
-
-      oauthWindow.close();
-    }
-  });
-
-  oauthWindow.on('closed', () => {
-    // Cleanup
-  });
-});
+// Google login removed. Authentication redirected to ponsrischool web-auth.
 
 // ============================================================================
 // SHELL COMMAND EXECUTION - For AI control of system features
@@ -3127,18 +3115,7 @@ ipcMain.handle('get-window-info', async () => {
   }
 });
 
-// Handler: Capture Screen Region (Direct)
-ipcMain.handle('capture-screen-region', async (event, bounds) => {
-  const tempFile = path.join(os.tmpdir(), `capture_${Date.now()}.png`);
-  try {
-    await captureScreenRegion(bounds, tempFile);
-    const imageBuffer = fs.readFileSync(tempFile);
-    const base64Image = `data:image/png;base64,${imageBuffer.toString('base64')}`;
-    return { success: true, path: tempFile, image: base64Image };
-  } catch (e) {
-    return { success: false, error: e.message };
-  }
-});
+// Duplicate capture-screen-region removed - now consolidated in main handlers section
 
 // ============================================================================
 // GLOBAL HOTKEY - Register global shortcuts

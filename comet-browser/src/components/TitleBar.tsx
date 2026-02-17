@@ -8,9 +8,10 @@ import { useRouter } from 'next/navigation'; // Import useRouter
 
 interface TitleBarProps {
     onToggleSpotlightSearch: () => void;
+    onOpenSettings: () => void;
 }
 
-const TitleBar = ({ onToggleSpotlightSearch }: TitleBarProps) => {
+const TitleBar = ({ onToggleSpotlightSearch, onOpenSettings }: TitleBarProps) => {
     const handleMinimize = () => window.electronAPI?.minimizeWindow();
     const handleMaximize = () => window.electronAPI?.maximizeWindow();
     const handleClose = () => window.electronAPI?.closeWindow();
@@ -18,9 +19,9 @@ const TitleBar = ({ onToggleSpotlightSearch }: TitleBarProps) => {
     const store = useAppStore();
     const router = useRouter(); // Initialize useRouter
 
-    const handleGoogleSignIn = useCallback(() => {
-        const clientId = store.googleClientId || '601898745585-8g9t0k72gq4q1a4s1o4d1t6t7e5v4c4g.apps.googleusercontent.com';
-        const redirectUri = store.googleRedirectUri || 'https://browser.ponsrischool.in/oauth2callback';
+    const handleSignIn = useCallback(() => {
+        const clientId = store.clientId || '601898745585-8g9t0k72gq4q1a4s1o4d1t6t7e5v4c4g.apps.googleusercontent.com';
+        const redirectUri = store.redirectUri || 'https://browser.ponsrischool.in/oauth2callback';
 
         const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
             `client_id=${clientId}&` +
@@ -33,7 +34,7 @@ const TitleBar = ({ onToggleSpotlightSearch }: TitleBarProps) => {
         if (window.electronAPI) {
             window.electronAPI.openAuthWindow(authUrl);
         }
-    }, [store.googleClientId, store.googleRedirectUri]);
+    }, [store.clientId, store.redirectUri]);
 
     const isTabSuspended = (tabId: string) => {
         const tab = store.tabs.find((t) => t.id === tabId);
@@ -42,12 +43,8 @@ const TitleBar = ({ onToggleSpotlightSearch }: TitleBarProps) => {
 
     const showTabBar = store.activeView === 'browser';
 
-    const handleOpenSettings = () => {
-        if (window.electronAPI) {
-            (window.electronAPI as any).openSettingsPopup('profile');
-        } else {
-            router.push('/settings');
-        }
+    const handleOpenSettingsAction = () => {
+        onOpenSettings();
     };
 
     return (
@@ -96,7 +93,7 @@ const TitleBar = ({ onToggleSpotlightSearch }: TitleBarProps) => {
                     />
                 ) : (
                     <button
-                        onClick={handleGoogleSignIn}
+                        onClick={handleSignIn}
                         className="px-3 py-1 bg-white/5 hover:bg-white/10 rounded-full text-xs font-semibold text-white/80 transition-colors flex items-center gap-1"
                         title="Sign in with Google"
                     >
@@ -104,7 +101,7 @@ const TitleBar = ({ onToggleSpotlightSearch }: TitleBarProps) => {
                         <span>Sign in</span>
                     </button>
                 )}
-                <button onClick={handleOpenSettings} className="ml-2 p-1 text-white/60 hover:text-white transition-colors">
+                <button onClick={handleOpenSettingsAction} className="ml-2 p-1 text-white/60 hover:text-white transition-colors">
                     <Settings size={18} />
                 </button>
             </div>

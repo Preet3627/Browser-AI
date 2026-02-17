@@ -46,9 +46,24 @@ jobs:
       - name: Build Next.js app
         run: npm run build
       
+      - name: Prepare Windows Code Signing (Windows)
+        if: matrix.os == 'windows-latest' && github.event_name != 'pull_request'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path certs
+          if ($env:WINDOWS_CERTIFICATE) {
+            $bytes = [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE)
+            [IO.File]::WriteAllBytes("certs/comet-browser.pfx", $bytes)
+          }
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+      
       - name: Build Electron app (Windows)
         if: matrix.os == 'windows-latest'
         run: npm run electron:build:win
+        env:
+          CSC_LINK: certs/comet-browser.pfx
+          CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
       
       - name: Build Electron app (macOS)
         if: matrix.os == 'macos-latest'

@@ -65,13 +65,13 @@ interface BrowserState {
     setUser: (user: { uid: string; email: string; displayName: string; photoURL: string } | null) => void;
     setLocalPhotoURL: (url: string | null) => void;
     setAdmin: (isAdmin: boolean) => void;
-    googleToken: string | null;
+    authToken: string | null;
     githubToken: string | null;
-    setGoogleToken: (token: string | null) => void;
+    setAuthToken: (token: string | null) => void;
     setGithubToken: (token: string | null) => void;
-    loginWithGoogleToken: (token: string) => void;
-    googleClientId: string;
-    googleRedirectUri: string;
+    loginWithToken: (token: string) => void;
+    clientId: string;
+    redirectUri: string;
     fetchAppConfig: () => Promise<void>;
 
     // View and UI
@@ -256,19 +256,19 @@ export const useAppStore = create<BrowserState>()(
             user: null,
             isAdmin: false,
             localPhotoURL: null,
-            googleToken: null,
+            authToken: null,
             setLocalPhotoURL: (url) => set({ localPhotoURL: url }),
             githubToken: null,
-            googleClientId: '',
-            googleRedirectUri: '',
+            clientId: '',
+            redirectUri: '',
             fetchAppConfig: async () => {
                 try {
                     const res = await fetch('https://browser.ponsrischool.in/api/config');
                     if (res.ok) {
                         const config = await res.json();
                         set({
-                            googleClientId: config.googleClientId || '601898745585-8g9t0k72gq4q1a4s1o4d1t6t7e5v4c4g.apps.googleusercontent.com', // Fallback to placeholder if fetch fails or env missing
-                            googleRedirectUri: config.googleRedirectUri || 'https://browser.ponsrischool.in/oauth2callback',
+                            clientId: config.googleClientId || '601898745585-8g9t0k72gq4q1a4s1o4d1t6t7e5v4c4g.apps.googleusercontent.com',
+                            redirectUri: config.googleRedirectUri || 'https://browser.ponsrischool.in/oauth2callback',
                             customFirebaseConfig: config.firebaseConfig || null
                         });
                         console.log('App config synced from Vercel:', config);
@@ -474,16 +474,14 @@ export const useAppStore = create<BrowserState>()(
             // User and auth
             setUser: (user) => set({ user, isAdmin: user?.email === 'preetjgfilj2@gmail.com' }),
             setAdmin: (isAdmin) => set({ isAdmin }),
-            setGoogleToken: (token) => set({ googleToken: token }),
+            setAuthToken: (token) => set({ authToken: token }),
             setGithubToken: (token) => set({ githubToken: token }),
-            loginWithGoogleToken: (token: string) => {
-                // Assuming the token received from browser.ponsrischool.in is a Google ID token
-                // If browser.ponsrischool.in uses a different auth method, this logic will need to be updated.
-                set({ googleToken: token });
+            loginWithToken: (token: string) => {
+                set({ authToken: token });
                 const credential = GoogleAuthProvider.credential(token);
                 if (!auth) return;
                 signInWithCredential(auth, credential).catch((error) => {
-                    console.error("Deep link sign-in error:", error);
+                    console.error("Token sign-in error:", error);
                 });
             },
 

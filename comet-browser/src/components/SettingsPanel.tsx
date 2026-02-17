@@ -60,7 +60,7 @@ const SettingsPanel = ({ onClose, defaultSection = 'profile' }: { onClose: () =>
         };
     }, [setUser, fetchHistory]);
 
-    const handleGoogleLogin = async () => {
+    const handleLogin = async () => {
         if (window.electronAPI) {
             const authUrl = `https://browser.ponsrischool.in/auth?client_id=desktop-app&redirect_uri=comet-browser%3A%2F%2Fauth&firebase_config=${btoa(JSON.stringify(firebaseConfigStorage.load() || {}))}`;
             window.electronAPI.openAuthWindow(authUrl);
@@ -102,11 +102,11 @@ const SettingsPanel = ({ onClose, defaultSection = 'profile' }: { onClose: () =>
         }
     };
 
-    const handleGoogleSignOut = async () => {
+    const handleSignOut = async () => {
         try {
             await firebaseService.signOut();
             store.logout();
-            console.log('Signed out from Firebase');
+            console.log('Signed out from workspace');
         } catch (error) {
             console.error('Error signing out:', error);
         }
@@ -214,10 +214,10 @@ const SettingsPanel = ({ onClose, defaultSection = 'profile' }: { onClose: () =>
                                             </p>
                                             <div className="flex gap-3">
                                                 {store.user ? (
-                                                    <button onClick={handleGoogleSignOut} className="btn-vibrant-secondary px-6 no-drag-region">Terminate session</button>
+                                                    <button onClick={handleSignOut} className="btn-vibrant-secondary px-6 no-drag-region">Terminate session</button>
                                                 ) : (
                                                     <>
-                                                        <button onClick={handleGoogleLogin} className="btn-vibrant-primary px-8 no-drag-region">Authorize via Google</button>
+                                                        <button onClick={handleLogin} className="btn-vibrant-primary px-8 no-drag-region">Authorize Workspace</button>
                                                         <button
                                                             onClick={async () => {
                                                                 if (window.electronAPI) {
@@ -555,7 +555,7 @@ const SettingsPanel = ({ onClose, defaultSection = 'profile' }: { onClose: () =>
                                                             </div>
                                                         </div>
                                                         <button
-                                                            onClick={handleGoogleSignOut}
+                                                            onClick={handleSignOut}
                                                             className="flex items-center gap-2 px-4 py-2 bg-red-500/10 border border-red-500/30 text-red-400 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all"
                                                         >
                                                             <LogOut size={16} />
@@ -563,7 +563,7 @@ const SettingsPanel = ({ onClose, defaultSection = 'profile' }: { onClose: () =>
                                                         </button>
                                                     </div>
                                                 ) : (
-                                                    <LoginPrompt onLogin={handleGoogleLogin} />
+                                                    <LoginPrompt onLogin={handleLogin} />
                                                 )}
 
                                                 <div className="flex items-center justify-between">

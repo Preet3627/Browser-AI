@@ -12,9 +12,9 @@ import {
   Terminal, Code2, Image as ImageIcon, Maximize2, Minimize2, FileText, Download,
   Wifi, WifiOff, X, LogOut, User as UserIcon, ShieldAlert, ShieldCheck, SlidersHorizontal,
   ChevronLeft, ChevronRight, ChevronDown, Zap, Send, ShoppingBag, Globe, Plus, Bookmark,
-  RotateCw, AlertTriangle, DownloadCloud, ShoppingCart, Copy as CopyIcon,
+  RotateCw, AlertTriangle, DownloadCloud, ShoppingCart, Copy as CopyIcon, Check, Paperclip, Share2,
   FolderOpen, ScanLine, Search, Puzzle, Briefcase, RefreshCcw, Layout, MoreVertical,
-  CreditCard, ArrowRight, Languages, Share2, Lock, Shield, Volume2, Square, Music2, Waves, Sparkles
+  CreditCard, ArrowRight, Languages, Lock, Shield, Volume2, Square, Music2, Waves, Sparkles
 } from 'lucide-react';
 import MediaSuggestions from './MediaSuggestions';
 import { offlineChatbot } from '@/lib/OfflineChatbot';
@@ -138,9 +138,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = (props) => {
   const [currentCommandIndex, setCurrentCommandIndex] = useState(0);
   const processingQueueRef = useRef(false);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const [attachments, setAttachments] = useState<{ name: string; type: string; data: string }[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [ragContextItems, setRagContextItems] = useState<any[]>([]);
   const [showRagPanel, setShowRagPanel] = useState(false);
   const [isReadingPage, setIsReadingPage] = useState(false);
@@ -156,6 +154,29 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = (props) => {
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showActionsMenu, setShowActionsMenu] = useState(false);
 
+  // File attachments state
+  const [attachments, setAttachments] = useState<Array<{
+    type: 'image' | 'pdf';
+    data: string;
+    ocrText?: string;
+    filename: string;
+  }>>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Conversation history state
+  const [conversations, setConversations] = useState<Array<{
+    id: string;
+    title: string;
+    messages: ChatMessage[];
+    createdAt: number;
+    updatedAt: number;
+  }>>([]);
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  const [showConversationHistory, setShowConversationHistory] = useState(false);
+
+  // Copy state for messages
+  const [copiedMessageIndex, setCopiedMessageIndex] = useState<number | null>(null);
+
   useEffect(() => {
     // Dynamically load mermaid for diagrams
     const script = document.createElement('script');
@@ -163,8 +184,13 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = (props) => {
     script.async = true;
     script.onload = () => {
       if ((window as any).mermaid) {
-        (window as any).mermaid.initialize({ startOnLoad: false, theme: 'dark' });
+        (window as any).mermaid.initialize({
+          startOnLoad: false,
+          theme: 'dark',
+          securityLevel: 'loose'
+        });
         setIsMermaidLoaded(true);
+        console.log('[Mermaid] Loaded and initialized successfully');
       } else {
         console.error("Mermaid script loaded, but mermaid object not found.");
       }
@@ -186,13 +212,17 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = (props) => {
     // Initialize Tesseract worker
     const initializeTesseract = async () => {
       try {
+        // Fix for Electron/Next.js environment: provide explicit worker paths
         const worker = await Tesseract.createWorker('eng', 1, {
-          logger: m => console.log(m),
+          workerPath: 'https://cdn.jsdelivr.net/npm/tesseract.js@v5.0.0/dist/worker.min.js',
+          langPath: 'https://tessdata.projectnaptha.com/4.0.0',
+          corePath: 'https://cdn.jsdelivr.net/npm/tesseract.js-core@v5.0.0/tesseract-core.wasm.js',
+          logger: m => console.log('[Tesseract]', m),
         });
         tesseractWorkerRef.current = worker;
         console.log("Tesseract worker initialized successfully.");
       } catch (err) {
-        console.error("Failed to initialize Tesseract worker:", err);
+        console.error("Failed to initialize Tesseract worker (likely host error):", err);
       }
     };
     initializeTesseract();
@@ -306,69 +336,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = (props) => {
     initAI();
   }, [store.aiProvider, store.ollamaBaseUrl, store.ollamaModel, store.openaiApiKey, store.localLLMBaseUrl, store.localLLMModel, store.geminiApiKey, store.anthropicApiKey, store.groqApiKey]);
 
-  // Function to extract text from PDF file (using react-pdf's worker)
-  const extractPdfText = async (file: File): Promise<string> => {
-    return new Promise(async (resolve, reject) => {
-      const arrayBuffer = await file.arrayBuffer();
-      const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-      let fullText = '';
-      for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
-        const textContent = await page.getTextContent();
-        fullText += textContent.items.map((item: any) => item.str).join(' ') + '\n';
-      }
-      resolve(fullText);
-    });
-  };
 
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (files) {
-      Array.from(files).forEach(file => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          setAttachments(prev => [...prev, { name: file.name, type: file.type, data: e.target?.result as string }]);
-        };
-        reader.readAsDataURL(file);
-      });
-    }
-  };
-
-  const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragOver(false);
-
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      for (const file of Array.from(e.dataTransfer.files)) {
-        if (file.type.startsWith('image/')) {
-          try {
-            if (tesseractWorkerRef.current) {
-              const { data: { text: ocrText } } = await tesseractWorkerRef.current.recognize(file);
-              handleSendMessage(`Analyze image: ${ocrText}`);
-            } else {
-              setError("Tesseract worker not initialized for image analysis.");
-            }
-          } catch (err) {
-            console.error("OCR failed for dropped image:", err);
-            setError("Failed to analyze dropped image.");
-          }
-        } else if (file.type === 'application/pdf') {
-          try {
-            const pdfText = await extractPdfText(file);
-            handleSendMessage(`Analyze PDF: ${pdfText}`);
-          } catch (err) {
-            console.error("PDF text extraction failed for dropped PDF:", err);
-            setError("Failed to extract text from dropped PDF.");
-          }
-        } else {
-          setError("Unsupported file type dropped.");
-        }
-      }
-      e.dataTransfer.clearData();
-    }
-  };
 
   // Process command queue
   const processCommandQueue = async (commands: AICommand[]) => {
@@ -900,7 +868,13 @@ ${pageContext || "Content not loaded. Use [READ_PAGE_CONTENT] command to read fu
           // Trigger Mermaid re-render if diagrams found
           if (response.text.includes('mermaid') || response.text.includes('[GENERATE_DIAGRAM:')) {
             setTimeout(() => {
-              (window as any).mermaid?.contentLoaded();
+              if ((window as any).mermaid) {
+                console.log('[Mermaid] Triggering diagram render');
+                (window as any).mermaid.run({
+                  querySelector: '.mermaid',
+                  suppressErrors: false
+                }).catch((err: any) => console.error('[Mermaid] Render error:', err));
+              }
             }, 500);
           }
         }
@@ -925,6 +899,8 @@ ${pageContext || "Content not loaded. Use [READ_PAGE_CONTENT] command to read fu
     const success = await window.electronAPI.exportChatAsPdf(messages);
     if (success) alert('Exported as PDF');
   };
+
+
 
   const handleExportDiagram = async (mermaidCode: string, resolution: number = 1080) => {
     try {
@@ -1008,6 +984,295 @@ ${pageContext || "Content not loaded. Use [READ_PAGE_CONTENT] command to read fu
     }
   };
 
+  // --- Enhanced File Handling & Helpers (NEW) ---
+
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const performOCR = async (base64Image: string): Promise<string> => {
+    try {
+      if (!tesseractWorkerRef.current) {
+        if ((window as any).Tesseract) {
+          const worker = await (window as any).Tesseract.createWorker('eng');
+          tesseractWorkerRef.current = worker;
+        } else {
+          console.error("Tesseract not found");
+          return '';
+        }
+      }
+      const { data: { text } } = await tesseractWorkerRef.current!.recognize(base64Image);
+      return text;
+    } catch (error) {
+      console.error('[OCR] Error:', error);
+      return '';
+    }
+  };
+
+  const extractPDFTextNew = async (base64PDF: string): Promise<string> => {
+    try {
+      const pdfjsLib = await import('pdfjs-dist');
+      if (!(window as any).pdfjsLib) (window as any).pdfjsLib = pdfjsLib;
+
+      const pdfData = atob(base64PDF.split(',')[1]);
+      const pdf = await pdfjsLib.getDocument({ data: pdfData }).promise;
+
+      let fullText = '';
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const textContent = await page.getTextContent();
+        const pageText = textContent.items.map((item: any) => item.str).join(' ');
+        fullText += pageText + '\n';
+      }
+
+      return fullText;
+    } catch (error) {
+      console.error('[PDF] Error:', error);
+      return '';
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement> | File[]) => {
+    let files: File[] = [];
+    if ('target' in e) {
+      files = Array.from((e.target as HTMLInputElement).files || []);
+    } else {
+      files = e as File[];
+    }
+    if (!files || files.length === 0) return;
+
+    for (const file of files) {
+      try {
+        if (file.type.startsWith('image/')) {
+          const base64 = await fileToBase64(file);
+          const ocrText = await performOCR(base64);
+
+          setAttachments(prev => [...prev, {
+            type: 'image',
+            data: base64,
+            ocrText,
+            filename: file.name
+          }]);
+        } else if (file.type === 'application/pdf') {
+          const base64 = await fileToBase64(file);
+          const ocrText = await extractPDFTextNew(base64);
+
+          setAttachments(prev => [...prev, {
+            type: 'pdf',
+            data: base64,
+            ocrText,
+            filename: file.name
+          }]);
+        }
+      } catch (error) {
+        console.error('[File Upload] Error:', error);
+        setError(`Failed to process ${file.name}`);
+      }
+    }
+  };
+
+  const handleDropNew = async (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      await handleFileUpload(Array.from(e.dataTransfer.files));
+    }
+    e.dataTransfer.clearData();
+  };
+
+  const removeAttachment = (index: number) => {
+    setAttachments(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // --- Conversation History & Actions ---
+
+  const saveCurrentConversation = () => {
+    if (messages.length === 0) return;
+
+    const convId = activeConversationId || `conv_${Date.now()}`;
+    const conversation = {
+      id: convId,
+      title: messages[0]?.content.slice(0, 50) || 'New Chat',
+      messages: messages,
+      createdAt: activeConversationId ?
+        conversations.find(c => c.id === convId)?.createdAt || Date.now() :
+        Date.now(),
+      updatedAt: Date.now()
+    };
+
+    localStorage.setItem(`conversation_${convId}`, JSON.stringify(conversation));
+
+    const allConvs = getAllConversations();
+    const existingIndex = allConvs.findIndex((c: any) => c.id === convId);
+    if (existingIndex >= 0) {
+      allConvs[existingIndex] = conversation;
+    } else {
+      allConvs.unshift(conversation);
+    }
+    localStorage.setItem('conversations_list', JSON.stringify(allConvs));
+    setConversations(allConvs);
+    if (!activeConversationId) setActiveConversationId(convId);
+  };
+
+  const getAllConversations = () => {
+    const saved = localStorage.getItem('conversations_list');
+    return saved ? JSON.parse(saved) : [];
+  };
+
+  const loadConversation = (id: string) => {
+    const saved = localStorage.getItem(`conversation_${id}`);
+    if (saved) {
+      const conv = JSON.parse(saved);
+      setMessages(conv.messages);
+      setActiveConversationId(id);
+      setShowConversationHistory(false);
+    }
+  };
+
+  const deleteConversation = (id: string) => {
+    localStorage.removeItem(`conversation_${id}`);
+    const allConvs = getAllConversations().filter((c: any) => c.id !== id);
+    localStorage.setItem('conversations_list', JSON.stringify(allConvs));
+    setConversations(allConvs);
+    if (activeConversationId === id) {
+      setMessages([]);
+      setActiveConversationId(null);
+    }
+  };
+
+  const createNewConversation = () => {
+    setMessages([]);
+    setActiveConversationId(null);
+    setShowConversationHistory(false);
+  };
+
+  const handleCopyMessage = (content: string, index: number) => {
+    navigator.clipboard.writeText(content);
+    setCopiedMessageIndex(index);
+    setTimeout(() => setCopiedMessageIndex(null), 2000);
+  };
+
+  const handleShareMessage = async (content: string) => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Comet AI Response',
+          text: content
+        });
+      } catch (err) {
+        console.log('[Share] User cancelled or error:', err);
+      }
+    } else {
+      navigator.clipboard.writeText(content);
+      setError('Message copied to clipboard!');
+      setTimeout(() => setError(''), 2000);
+    }
+  };
+
+  const handleSendWithAttachments = async () => {
+    let messageContent = inputMessage || '';
+
+    if (attachments.length > 0) {
+      messageContent += '\n\n**Attached Files:**\n';
+      attachments.forEach(att => {
+        messageContent += `\n**${att.filename}** (${att.type}):\n${att.ocrText || 'No text extracted'}\n`;
+      });
+    }
+
+    setInputMessage('');
+    setAttachments([]);
+
+    await handleSendMessage(messageContent);
+  };
+
+  // --- UI Components ---
+
+  const MessageActions = ({ content, index }: { content: string; index: number }) => {
+    const isCopied = copiedMessageIndex === index;
+    return (
+      <div className="flex gap-1.5 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button
+          onClick={() => handleCopyMessage(content, index)}
+          className="p-1.5 rounded-lg hover:bg-white/10 transition-colors text-white/60 hover:text-white"
+          title={isCopied ? "Copied!" : "Copy message"}
+        >
+          {isCopied ? <Check size={14} /> : <CopyIcon size={14} />}
+        </button>
+        <button
+          onClick={() => handleShareMessage(content)}
+          className="p-1.5 rounded-lg hover:bg-white/10 transition-colors text-white/60 hover:text-white"
+          title="Share message"
+        >
+          <Share2 size={14} />
+        </button>
+      </div>
+    );
+  };
+
+  const ConversationHistoryPanel = () => (
+    <AnimatePresence>
+      {showConversationHistory && (
+        <motion.div
+          initial={{ x: -300, opacity: 0 }}
+          animate={{ x: 0, opacity: 1 }}
+          exit={{ x: -300, opacity: 0 }}
+          className="absolute left-0 top-0 bottom-0 w-64 bg-deep-space border-r border-white/10 z-50 overflow-y-auto modern-scrollbar backdrop-blur-xl"
+        >
+          <div className="p-4 border-b border-white/10 flex items-center justify-between">
+            <h3 className="text-sm font-bold text-white">Chat History</h3>
+            <button onClick={() => setShowConversationHistory(false)} className="text-white/60 hover:text-white">
+              <X size={16} />
+            </button>
+          </div>
+
+          <div className="p-2 space-y-1">
+            <button
+              onClick={createNewConversation}
+              className="w-full p-3 mb-2 rounded-lg bg-sky-500/20 hover:bg-sky-500/30 transition-colors text-sm font-medium flex items-center gap-2 text-sky-400"
+            >
+              <Plus size={16} />
+              New Chat
+            </button>
+
+            {conversations.map(conv => (
+              <div
+                key={conv.id}
+                className={`flex items-center rounded-lg p-2 transition-colors group ${activeConversationId === conv.id ? 'bg-white/10' : 'hover:bg-white/5'
+                  }`}
+              >
+                <div
+                  onClick={() => loadConversation(conv.id)}
+                  className="flex-1 cursor-pointer min-w-0"
+                >
+                  <div className="text-xs font-medium text-white truncate">{conv.title}</div>
+                  <div className="text-[10px] text-white/40 mt-1">
+                    {new Date(conv.updatedAt).toLocaleDateString()}
+                  </div>
+                </div>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    deleteConversation(conv.id);
+                  }}
+                  className="p-1.5 opacity-0 group-hover:opacity-100 hover:bg-red-500/20 rounded transition-all text-white/40 hover:text-red-400"
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+
   if (props.isCollapsed) {
     return (
       <div className="flex flex-col items-center h-full py-4 space-y-6">
@@ -1024,17 +1289,16 @@ ${pageContext || "Content not loaded. Use [READ_PAGE_CONTENT] command to read fu
           ${isDragOver ? 'border-accent/50 bg-accent/5' : ''}
         `}
       style={{
-        // GPU-accelerated background with reduced backdrop-filter to prevent compositing issues
         backdropFilter: isFullScreen ? 'none' : 'blur(20px)',
         WebkitBackdropFilter: isFullScreen ? 'none' : 'blur(20px)',
-        // Ensure hardware acceleration
         transform: 'translateZ(0)',
         willChange: 'transform'
       }}
       onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
       onDragLeave={() => setIsDragOver(false)}
-      onDrop={handleDrop}
+      onDrop={handleDropNew}
     >
+      <ConversationHistoryPanel />
       {/* Resize Handle */}
       {!isFullScreen && !props.isCollapsed && (
         <div
@@ -1132,7 +1396,7 @@ ${pageContext || "Content not loaded. Use [READ_PAGE_CONTENT] command to read fu
 
         {messages.map((msg, i) => (
           <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
-            <div className={`max-w-[85%] p-4 rounded-3xl text-sm leading-[1.6] ${msg.role === 'user' ? 'bg-sky-500/10 text-white border border-sky-500/20 shadow-[0_0_20px_rgba(56,189,248,0.1)]' : 'bg-white/[0.03] text-slate-200 border border-white/5'}`}>
+            <div className={`max-w-[85%] p-4 rounded-3xl text-sm leading-[1.6] relative group ${msg.role === 'user' ? 'bg-sky-500/10 text-white border border-sky-500/20 shadow-[0_0_20px_rgba(56,189,248,0.1)]' : 'bg-white/[0.03] text-slate-200 border border-white/5'}`}>
               <ReactMarkdown
                 remarkPlugins={[remarkGfm, remarkMath]}
                 rehypePlugins={[rehypeKatex]}
@@ -1179,6 +1443,7 @@ ${pageContext || "Content not loaded. Use [READ_PAGE_CONTENT] command to read fu
               >
                 {msg.content}
               </ReactMarkdown>
+              {msg.role === 'model' && <MessageActions content={msg.content} index={i} />}
             </div>
             {msg.role === 'model' && i === messages.length - 1 && groqSpeed && (
               <div className="mt-1 ml-2 flex items-center gap-1 text-[9px] font-bold text-deep-space-accent-neon opacity-60">
@@ -1202,21 +1467,50 @@ ${pageContext || "Content not loaded. Use [READ_PAGE_CONTENT] command to read fu
         setShowSettings={setShowLLMProviderSettings} // Pass new setter
       />
 
-      <footer className="space-y-4">
+      <footer className="space-y-4 mt-auto">
+        {/* Attachments Preview */}
+        {attachments.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-2 p-2 bg-white/5 rounded-xl border border-white/10 max-h-32 overflow-y-auto modern-scrollbar">
+            {attachments.map((att, idx) => (
+              <div key={idx} className="flex items-center gap-2 px-3 py-1.5 bg-white/10 rounded-lg text-[10px] text-white/80 group">
+                {att.type === 'image' ? <ImageIcon size={12} /> : <FileText size={12} />}
+                <span className="max-w-[100px] truncate">{att.filename}</span>
+                <button onClick={(e) => { e.preventDefault(); removeAttachment(idx); }} className="hover:text-red-400 transition-colors">
+                  <X size={10} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
         <textarea
           value={inputMessage}
           onChange={(e) => setInputMessage(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}
+          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendWithAttachments(); } }}
           placeholder="Neural prompt..."
-          className="w-full neural-prompt rounded-2xl p-4 text-xs text-white focus:outline-none h-24"
+          className="w-full neural-prompt rounded-2xl p-4 text-xs text-white focus:outline-none h-24 resize-none border border-white/5 focus:border-accent/30 transition-all"
         />
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="p-2.5 rounded-xl bg-white/5 text-white/40 hover:bg-white/10 hover:text-white transition-all shadow-lg border border-white/5"
+              title="Attach Files"
+            >
+              <Paperclip size={16} />
+            </button>
+            <button
+              onClick={() => setShowConversationHistory(true)}
+              className="p-2.5 rounded-xl bg-white/5 text-white/40 hover:bg-white/10 hover:text-white transition-all shadow-lg border border-white/5"
+              title="Conversation History"
+            >
+              <FolderOpen size={16} />
+            </button>
             <div className="relative">
               <button
                 onClick={() => setShowActionsMenu(!showActionsMenu)}
-                className="p-2 rounded-lg bg-white/5 text-white/40 hover:text-white text-[10px] font-bold uppercase tracking-widest transition-all"
-                title="Actions"
+                className="p-2.5 rounded-xl bg-white/5 text-white/40 hover:bg-white/10 hover:text-white text-[10px] font-bold transition-all shadow-lg border border-white/5"
+                title="AI Command Center"
               >
                 <MoreVertical size={14} />
               </button>
@@ -1319,11 +1613,11 @@ ${pageContext || "Content not loaded. Use [READ_PAGE_CONTENT] command to read fu
               )}
             </div>
           </div>
-          <input type="file" ref={fileInputRef} onChange={handleFileSelect} className="hidden" multiple />
+          <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" multiple />
           <button
             type="button"
-            onClick={(e) => { e.preventDefault(); handleSendMessage(); }}
-            disabled={!inputMessage.trim() || isLoading}
+            onClick={(e) => { e.preventDefault(); handleSendWithAttachments(); }}
+            disabled={(inputMessage.trim() === '' && attachments.length === 0) || isLoading}
             className="group relative px-5 py-2.5 rounded-full bg-gradient-to-r from-deep-space-accent-neon to-accent overflow-hidden transition-all hover:shadow-[0_0_30px_rgba(0,255,255,0.6)] disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent translate-x-[-200%] group-hover:translate-x-[200%] transition-transform duration-700" />

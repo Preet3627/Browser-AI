@@ -745,14 +745,20 @@ export default function Home() {
       return;
     }
 
-    if (/^[0-9+\-*/().\s]+$/.test(url)) {
+    // Enhanced Calculator
+    const mathChars = /^[0-9+\-*/().\s^%|&!~<>]+$/;
+    const mathFuncs = /(Math\.(abs|acos|asin|atan|atan2|ceil|cos|exp|floor|log|max|min|pow|random|round|sin|sqrt|tan|PI|E))/g;
+    if (mathChars.test(url) || mathFuncs.test(url)) {
       try {
-        const result = eval(url);
-        const searchUrl = `${searchEngines[store.selectedEngine as keyof typeof searchEngines].url}${encodeURIComponent(url + " = " + result)}`;
-        if (window.electronAPI) {
-          window.electronAPI.navigateBrowserView({ tabId: store.activeTabId, url: searchUrl });
+        // Safe evaluation context
+        const result = new Function(`return ${url.replace(/\^/g, '**')}`)();
+        if (typeof result === 'number' && !isNaN(result)) {
+          const searchUrl = `${searchEngines[store.selectedEngine as keyof typeof searchEngines].url}${encodeURIComponent(url + " = " + result)}`;
+          if (window.electronAPI) {
+            window.electronAPI.navigateBrowserView({ tabId: store.activeTabId, url: searchUrl });
+          }
+          return;
         }
-        return;
       } catch (e) { }
     }
 
@@ -1024,7 +1030,7 @@ export default function Home() {
   // Auto-trigger Google Login - Use Store Config
   useEffect(() => {
     // 1. Fetch App Config first
-    if (!store.googleClientId) {
+    if (!store.clientId) {
       store.fetchAppConfig();
     }
 
@@ -1046,7 +1052,7 @@ export default function Home() {
       store.setHasSeenWelcomePage(true);
     }
     */
-  }, [store.user, store.hasSeenWelcomePage, store.googleClientId]);
+  }, [store.user, store.hasSeenWelcomePage, store.clientId]);
 
   // Temporarily commented out for automatic Google login
   // if ((!store.user && !store.hasSeenWelcomePage) || store.activeView === 'landing-page') {
@@ -1062,7 +1068,10 @@ export default function Home() {
 
   return (
     <div className={`flex flex-col h-screen w-full bg-deep-space overflow-hidden relative font-sans text-primary-text transition-all duration-700`}>
-      <TitleBar onToggleSpotlightSearch={() => setShowSpotlightSearch(prev => !prev)} />
+      <TitleBar
+        onToggleSpotlightSearch={() => setShowSpotlightSearch(prev => !prev)}
+        onOpenSettings={() => setShowSettings(true)}
+      />
       <div className={`flex flex-1 overflow-hidden relative pt-10 bg-[#020205]`} onContextMenu={handleContextMenu}>
         {/* Navigation Sidebar (Rail) */}
         <AnimatePresence>
@@ -1083,18 +1092,6 @@ export default function Home() {
                   collapsed={true}
                 />
               ))}
-              <div className="mt-auto mb-4">
-                <SidebarIcon
-                  icon={<Puzzle size={20} />}
-                  label="Extensions"
-                  active={showSettings && settingsSection === 'extensions'}
-                  onClick={() => {
-                    setSettingsSection('extensions');
-                    setShowSettings(true);
-                  }}
-                  collapsed={true}
-                />
-              </div>
             </motion.div>
           )}
         </AnimatePresence>
