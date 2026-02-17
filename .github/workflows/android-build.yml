@@ -1,0 +1,83 @@
+name: Android Build Only
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'flutter_browser_app/**'
+      - '.github/workflows/android-build.yml'
+
+jobs:
+  build-flutter-android:
+    name: Build Flutter Android
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        working-directory: flutter_browser_app
+        run: flutter pub get
+
+      - name: Create google-services.json
+        run: |
+          if [ -n "${{ secrets.GOOGLE_SERVICES_JSON }}" ]; then
+            echo "${{ secrets.GOOGLE_SERVICES_JSON }}" > flutter_browser_app/android/app/google-services.json
+            echo "google-services.json created."
+          else
+            echo "::warning::GOOGLE_SERVICES_JSON secret is empty or not set!"
+          fi
+
+      - name: Verify google-services.json
+        working-directory: flutter_browser_app/android/app
+        run: |
+          if [ -f "google-services.json" ]; then
+             echo "File exists. Checking content (masked)..."
+             # Blindly checking valid JSON using python to avoid exposing secrets
+             python3 -c "import json, sys; json.load(open('google-services.json')); print('JSON is valid')" || echo "JSON is INVALID"
+          else
+             echo "File does not exist."
+          fi
+
+      - name: Decode Keystore
+        continue-on-error: true
+        run: |
+          if [ -n "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" ]; then
+            echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | sed 's/-----BEGIN CERTIFICATE-----//g' | sed 's/-----END CERTIFICATE-----//g' | tr -d '\n\r' | base64 -d > flutter_browser_app/android/app/upload-keystore.jks
+          else
+            echo "::warning::ANDROID_KEYSTORE_BASE64 secret is missing!"
+          fi
+
+      - name: Create key.properties
+        continue-on-error: true
+        run: |
+          if [ -n "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" ]; then
+            echo "storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" > flutter_browser_app/android/key.properties
+            echo "keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}" >> flutter_browser_app/android/key.properties
+            echo "keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}" >> flutter_browser_app/android/key.properties
+            echo "storeFile=upload-keystore.jks" >> flutter_browser_app/android/key.properties
+          fi
+
+      - name: Build APK (Release)
+        working-directory: flutter_browser_app
+        run: flutter build apk --release --verbose
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: flutter-browser-apk
+          path: flutter_browser_app/build/app/outputs/flutter-apk/app-release.apk
