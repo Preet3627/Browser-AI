@@ -18,18 +18,26 @@ subprojects { subproject ->
         }
     }
 
-    // Safely set namespace for plugins that don't have one
-    if (subproject.name != 'app' && !subproject.state.executed) {
-        subproject.afterEvaluate { p ->
-            if (p.hasProperty('android')) {
-                try {
-                    if (p.android.namespace == null) {
-                        p.android.namespace = p.group
-                    }
-                } catch (Exception e) {
-                    // Ignore if android extension is not accessible or namespace already set
+    // Fix JVM target mismatch for Kotlin/Java tasks
+    subproject.tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+        kotlinOptions {
+            jvmTarget = '1.8'
+        }
+    }
+    subproject.afterEvaluate { p ->
+        if (p.hasProperty('android')) {
+            p.android {
+                compileOptions {
+                    sourceCompatibility JavaVersion.VERSION_1_8
+                    targetCompatibility JavaVersion.VERSION_1_8
                 }
             }
+            // Safely set namespace for plugins that don't have one
+            try {
+                if (p.android.namespace == null) {
+                    p.android.namespace = p.group
+                }
+            } catch (Exception e) {}
         }
     }
 }
