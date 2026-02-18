@@ -9,20 +9,28 @@ rootProject.buildDir = '../build'
 subprojects { subproject ->
     subproject.buildDir = "${rootProject.buildDir}/${subproject.name}"
     
-    def configureNamespace = { p ->
-        if (p.hasProperty('android')) {
-            p.android {
-                if (namespace == null) {
-                    namespace p.group
-                }
+    // Force all subprojects to use the same AGP version
+    subproject.configurations.all {
+        resolutionStrategy.eachDependency { details ->
+            if (details.requested.group == 'com.android.tools.build' && details.requested.name == 'gradle') {
+                details.useVersion '8.6.0'
             }
         }
     }
 
-    if (subproject.state.executed) {
-        configureNamespace(subproject)
-    } else {
-        subproject.afterEvaluate { configureNamespace(it) }
+    // Safely set namespace for plugins that don't have one
+    if (subproject.name != 'app' && !subproject.state.executed) {
+        subproject.afterEvaluate { p ->
+            if (p.hasProperty('android')) {
+                try {
+                    if (p.android.namespace == null) {
+                        p.android.namespace = p.group
+                    }
+                } catch (Exception e) {
+                    // Ignore if android extension is not accessible or namespace already set
+                }
+            }
+        }
     }
 }
 
