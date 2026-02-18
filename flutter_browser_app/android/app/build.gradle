@@ -29,6 +29,7 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
+    namespace 'com.comet_ai_com.comet_ai'
     compileSdk 34
     ndkVersion flutter.ndkVersion
 
@@ -78,7 +79,6 @@ android {
             }
         }
     }
-    namespace 'com.comet_ai_com.comet_ai'
     lint {
         disable 'InvalidPackage'
     }

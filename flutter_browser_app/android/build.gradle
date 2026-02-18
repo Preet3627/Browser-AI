@@ -10,18 +10,19 @@ subprojects {
     project.buildDir = "${rootProject.buildDir}/${project.name}"
 }
 subprojects {
-    project.evaluationDependsOn(':app')
-}
-
-subprojects {
-    afterEvaluate { project ->
-        if (project.hasProperty('android')) {
-            project.android {
+    def configureNamespace = { p ->
+        if (p.hasProperty('android')) {
+            p.android {
                 if (namespace == null) {
-                    namespace project.group
+                    namespace p.group
                 }
             }
         }
+    }
+    if (project.state.executed) {
+        configureNamespace(project)
+    } else {
+        project.afterEvaluate { configureNamespace(it) }
     }
 }
 
