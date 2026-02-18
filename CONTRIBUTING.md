@@ -10,9 +10,7 @@ We are committed to providing a friendly, safe, and welcoming environment for al
 
 ## 🐛 Reporting Bugs
 
-A great way to contribute is to report bugs. If you encounter a problem, please check the [Issue Tracker](https://github.com/Preet3627/Browser-AI/issues) to see if it has already been reported.
-
-If not, please [open a new issue](https://github.com/Preet3627/Browser-AI/issues/new) and provide:
+A great way to contribute is to report bugs. If you encounter a problem, please visit our [Official Website](https://browser.ponsrischool.in) for support or reporting mechanisms.
 1.  **A clear title**: "Settings panel crashes on Windows 11"
 2.  **Description**: What were you doing? What happened? What did you expect?
 3.  **Steps to reproduce**: Numbered steps to make the bug happen.
@@ -27,8 +25,8 @@ If you have an idea for a feature or an improvement:
 
 ## 💻 Development Workflow
 
-1.  **Fork the repository** on GitHub.
-2.  **Clone your fork** locally:
+1.  **Fork the repository** on GitHub: [https://github.com/Preet3627/Browser-AI](https://github.com/Preet3627/Browser-AI)
+2.  **Clone the Repo** locally:
     ```bash
     git clone https://github.com/YOUR-USERNAME/Browser-AI.git
     cd Browser-AI
@@ -100,6 +98,6 @@ The mobile code is located in `CometBrowserMobile/comet_ai`.
 
 ## ❓ Need Help?
 
-If you have questions, feel free to ask in the [Discussions](https://github.com/Preet3627/Browser-AI/discussions) tab or comment on an issue.
+If you have questions, feel free to contact us via the official website at [https://browser.ponsrischool.in](https://browser.ponsrischool.in).
 
 Thank you for contributing! 🚀

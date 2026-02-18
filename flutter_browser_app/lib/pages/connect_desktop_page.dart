@@ -90,13 +90,7 @@ class _ConnectDesktopPageState extends State<ConnectDesktopPage> {
         ),
       ),
       body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF0A0E21), Color(0xFF1A1F3A), Color(0xFF0F1123)],
-          ),
-        ),
+        color: Colors.black,
         child: SafeArea(
           child: isConnected ? _buildConnectedView() : _buildScannerView(),
         ),
@@ -111,9 +105,13 @@ class _ConnectDesktopPageState extends State<ConnectDesktopPage> {
           padding: const EdgeInsets.all(20.0),
           child: Column(
             children: [
-              Icon(Icons.qr_code_scanner, size: 80, color: Color(0xFF29B6F6)),
-              SizedBox(height: 20),
-              Text(
+              const Icon(
+                Icons.qr_code_scanner,
+                size: 80,
+                color: Color(0xFF00E5FF),
+              ),
+              const SizedBox(height: 20),
+              const Text(
                 'Scan QR Code',
                 style: TextStyle(
                   fontSize: 28,
@@ -122,13 +120,13 @@ class _ConnectDesktopPageState extends State<ConnectDesktopPage> {
                   fontFamily: 'Outfit',
                 ),
               ),
-              SizedBox(height: 10),
+              const SizedBox(height: 10),
               Text(
                 'Open Comet-AI on your desktop and scan the QR code',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 16,
-                  color: Colors.white70,
+                  color: Colors.white.withOpacity(0.7),
                   fontFamily: 'Inter',
                 ),
               ),
@@ -146,7 +144,7 @@ class _ConnectDesktopPageState extends State<ConnectDesktopPage> {
                     key: qrKey,
                     onQRViewCreated: _onQRViewCreated,
                     overlay: QrScannerOverlayShape(
-                      borderColor: Color(0xFF29B6F6),
+                      borderColor: const Color(0xFF00E5FF),
                       borderRadius: 20,
                       borderLength: 40,
                       borderWidth: 10,
@@ -156,11 +154,11 @@ class _ConnectDesktopPageState extends State<ConnectDesktopPage> {
                   if (isConnecting)
                     Container(
                       color: Colors.black54,
-                      child: Center(
+                      child: const Center(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            CircularProgressIndicator(color: Color(0xFF29B6F6)),
+                            CircularProgressIndicator(color: Color(0xFF00E5FF)),
                             SizedBox(height: 20),
                             Text(
                               'Connecting...',

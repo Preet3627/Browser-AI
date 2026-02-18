@@ -29,12 +29,18 @@ class PopupMenuActions {
   static const String DEVELOPERS = "Developers";
   // ignore: constant_identifier_names
   static const String INAPPWEBVIEW_PROJECT = "InAppWebView Project";
+  // ignore: constant_identifier_names
+  static const String AI_ASSISTANT = "AI Assistant";
+  // ignore: constant_identifier_names
+  static const String SYNC_WITH_DESKTOP = "Sync with Desktop";
 
   static List<String> get choices {
     if (Util.isMobile()) {
       return [
         NEW_TAB,
         NEW_INCOGNITO_TAB,
+        AI_ASSISTANT,
+        SYNC_WITH_DESKTOP,
         FAVORITES,
         HISTORY,
         WEB_ARCHIVES,
@@ -42,7 +48,7 @@ class PopupMenuActions {
         FIND_ON_PAGE,
         SETTINGS,
         DEVELOPERS,
-        INAPPWEBVIEW_PROJECT
+        INAPPWEBVIEW_PROJECT,
       ];
     }
     return [
@@ -51,6 +57,8 @@ class PopupMenuActions {
       SAVED_WINDOWS,
       NEW_TAB,
       NEW_INCOGNITO_TAB,
+      AI_ASSISTANT,
+      SYNC_WITH_DESKTOP,
       FAVORITES,
       HISTORY,
       WEB_ARCHIVES,
@@ -58,7 +66,7 @@ class PopupMenuActions {
       FIND_ON_PAGE,
       SETTINGS,
       DEVELOPERS,
-      INAPPWEBVIEW_PROJECT
+      INAPPWEBVIEW_PROJECT,
     ];
-}
+  }
 }

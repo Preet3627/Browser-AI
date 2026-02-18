@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:provider/provider.dart';
+import '../models/window_model.dart';
+import '../models/webview_model.dart';
+import '../webview_tab.dart';
 import 'dart:ui';
 
 /// Custom Comet-AI Home Page with vibrant glassmorphism UI
@@ -40,24 +44,38 @@ class _CometHomePageState extends State<CometHomePage>
 
   void _handleSearch() {
     if (_searchController.text.isNotEmpty) {
-      widget.onSearch?.call(_searchController.text);
+      final query = _searchController.text;
+      final windowModel = Provider.of<WindowModel>(context, listen: false);
+
+      // Check if it's a URL or search query
+      String url = query;
+      if (!query.startsWith('http://') && !query.startsWith('https://')) {
+        if (query.contains('.') && !query.contains(' ')) {
+          url = 'https://$query';
+        } else {
+          url = 'https://www.google.com/search?q=${Uri.encodeComponent(query)}';
+        }
+      }
+
+      windowModel.addTab(
+        WebViewTab(
+          key: GlobalKey(),
+          webViewModel: WebViewModel(url: WebUri(url)),
+        ),
+      );
+
+      Navigator.pushNamed(context, '/browser');
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF0A0E21), Color(0xFF1A1F3A), Color(0xFF0F1123)],
-        ),
-      ),
+      decoration: const BoxDecoration(color: Colors.black),
       child: Stack(
         children: [
           // Animated background particles/stars
-          ...List.generate(50, (index) => _buildStar(index)),
+          ...List.generate(30, (index) => _buildStar(index)),
 
           // Main content
           SafeArea(
@@ -75,21 +93,21 @@ class _CometHomePageState extends State<CometHomePage>
 
                     // "Ask Comet-AI anything" text
                     ShaderMask(
-                      shaderCallback: (bounds) => LinearGradient(
+                      shaderCallback: (bounds) => const LinearGradient(
                         colors: [
-                          Color(0xFF29B6F6),
+                          Color(0xFF00E5FF),
                           Color(0xFFD500F9),
                           Color(0xFF00E5FF),
                         ],
                       ).createShader(bounds),
-                      child: Text(
-                        'Ask Comet-AI anything',
+                      child: const Text(
+                        'Comet-AI Browser',
                         style: TextStyle(
-                          fontSize: 28,
+                          fontSize: 32,
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
                           fontFamily: 'Outfit',
-                          letterSpacing: 1.2,
+                          letterSpacing: 1.5,
                         ),
                       ),
                     ),
@@ -141,8 +159,8 @@ class _CometHomePageState extends State<CometHomePage>
                 color: Colors.white,
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.blue.withOpacity(0.5),
-                    blurRadius: 4,
+                    color: const Color(0xFF00E5FF).withOpacity(0.4),
+                    blurRadius: 6,
                     spreadRadius: 1,
                   ),
                 ],
@@ -159,39 +177,37 @@ class _CometHomePageState extends State<CometHomePage>
       animation: _glowAnimation,
       builder: (context, child) {
         return Container(
-          width: 120,
-          height: 120,
+          width: 140,
+          height: 140,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            gradient: SweepGradient(
-              colors: [
-                Color(0xFF29B6F6),
-                Color(0xFFD500F9),
-                Color(0xFF00E5FF),
-                Color(0xFF29B6F6),
-              ],
-            ),
             boxShadow: [
               BoxShadow(
-                color: Color(
-                  0xFF29B6F6,
-                ).withOpacity(0.5 * _glowAnimation.value),
-                blurRadius: 30,
-                spreadRadius: 10,
+                color: const Color(
+                  0xFF00E5FF,
+                ).withOpacity(0.3 * _glowAnimation.value),
+                blurRadius: 40,
+                spreadRadius: 15,
               ),
             ],
           ),
           child: Padding(
-            padding: const EdgeInsets.all(3.0),
+            padding: const EdgeInsets.all(5.0),
             child: Container(
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 shape: BoxShape.circle,
-                color: Color(0xFF0A0E21),
+                color: Colors.black,
               ),
-              child: Icon(
-                Icons.rocket_launch,
-                size: 60,
-                color: Color(0xFF29B6F6),
+              child: ClipOval(
+                child: Image.asset(
+                  'assets/icon/icon.png',
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => const Icon(
+                    Icons.rocket_launch,
+                    size: 70,
+                    color: Color(0xFF00E5FF),
+                  ),
+                ),
               ),
             ),
           ),
@@ -204,38 +220,40 @@ class _CometHomePageState extends State<CometHomePage>
     return ClipRRect(
       borderRadius: BorderRadius.circular(30),
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 5),
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                Colors.white.withOpacity(0.15),
-                Colors.white.withOpacity(0.05),
-              ],
-            ),
+            color: Colors.white.withOpacity(0.05),
             borderRadius: BorderRadius.circular(30),
             border: Border.all(
-              color: Colors.white.withOpacity(0.2),
+              color: const Color(0xFF00E5FF).withOpacity(0.3),
               width: 1.5,
             ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF00E5FF).withOpacity(0.1),
+                blurRadius: 10,
+                spreadRadius: 2,
+              ),
+            ],
           ),
           child: Row(
             children: [
-              Icon(Icons.search, color: Color(0xFF29B6F6), size: 24),
+              const Icon(Icons.search, color: Color(0xFF00E5FF), size: 24),
               const SizedBox(width: 15),
               Expanded(
                 child: TextField(
                   controller: _searchController,
-                  style: TextStyle(
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 16,
                     fontFamily: 'Inter',
                   ),
                   decoration: InputDecoration(
-                    hintText: 'How can I assist you today?',
+                    hintText: 'Search or enter address',
                     hintStyle: TextStyle(
-                      color: Colors.white.withOpacity(0.5),
+                      color: Colors.white.withOpacity(0.4),
                       fontFamily: 'Inter',
                     ),
                     border: InputBorder.none,
@@ -244,13 +262,7 @@ class _CometHomePageState extends State<CometHomePage>
                 ),
               ),
               IconButton(
-                icon: Icon(Icons.mic, color: Color(0xFFD500F9)),
-                onPressed: () {
-                  // Voice input functionality
-                },
-              ),
-              IconButton(
-                icon: Icon(Icons.arrow_forward, color: Color(0xFF00E5FF)),
+                icon: const Icon(Icons.arrow_forward, color: Color(0xFF00E5FF)),
                 onPressed: _handleSearch,
               ),
             ],
@@ -403,9 +415,15 @@ class _CometHomePageState extends State<CometHomePage>
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
-        _buildFeatureIcon(Icons.settings, 'Settings', () {}),
-        _buildFeatureIcon(Icons.qr_code_scanner, 'Connect PC', () {}),
-        _buildFeatureIcon(Icons.history, 'History', () {}),
+        _buildFeatureIcon(Icons.settings, 'Settings', () {
+          Navigator.pushNamed(context, '/settings');
+        }),
+        _buildFeatureIcon(Icons.qr_code_scanner, 'Connect PC', () {
+          Navigator.pushNamed(context, '/connect-desktop');
+        }),
+        _buildFeatureIcon(Icons.bookmark, 'Bookmarks', () {
+          Navigator.pushNamed(context, '/bookmarks');
+        }),
       ],
     );
   }

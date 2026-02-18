@@ -80,7 +80,7 @@ Comet v0.2.0 brings significant user experience improvements, focusing on custom
 
 | Platform | Version | Status | Size |
 |----------|---------|--------|------|
-| 🪟 **Windows** | [v0.1.9 (.exe)](https://github.com/Preet3627/Browser-AI/releases/download/Comet-Browser/Comet.Browser.Setup.0.1.9.exe) | ✅ Stable | ~150 MB |
+| 🪟 **Windows** | [v0.1.9 (.exe)](https://browser.ponsrischool.in/download) | ✅ Stable | ~150 MB |
 | 🍎 **macOS** | Coming soon | 🧪 Beta | – |
 | 🐧 **Linux** | Coming soon | 🧪 Beta | – |
 
@@ -95,6 +95,7 @@ Comet v0.2.0 brings significant user experience improvements, focusing on custom
 
 ### 2. Installation
 ```bash
+# Clone the repository
 git clone https://github.com/Preet3627/Browser-AI.git
 cd Browser-AI/comet-browser
 npm install

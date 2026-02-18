@@ -121,11 +121,12 @@ Comet AI is designed as an autonomous browser-level agent.
 
 ---
 
-## 🛠️ Quick Start for Developers
+### 🛠️ Quick Start
 
-Clone the repository to get started:
+Visit [https://browser.ponsrischool.in](https://browser.ponsrischool.in) for documentation and official builds.
 
 ```bash
+# Clone the repository
 git clone https://github.com/Preet3627/Browser-AI.git
 cd Browser-AI
 npm install

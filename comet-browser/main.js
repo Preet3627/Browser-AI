@@ -2077,6 +2077,71 @@ app.whenReady().then(() => {
         } else {
           sendResponse({ success: false, error: 'robotjs not available' });
         }
+      } else if (command === 'click') {
+        if (robot) {
+          const { x, y } = args;
+          robot.moveMouse(x, y);
+          robot.mouseClick();
+          sendResponse({ success: true, output: `Clicked at (${x}, ${y})` });
+        } else {
+          sendResponse({ success: false, error: 'robotjs not available' });
+        }
+      } else if (command === 'find-and-click') {
+        const targetText = args.text;
+        // Reuse the find-and-click-text logic
+        ipcMain.emit('find-and-click-text', { sender: { send: () => { } } }, targetText).then(result => {
+          sendResponse(result);
+        }).catch(err => {
+          sendResponse({ success: false, error: err.message });
+        });
+      } else if (command === 'open-tab') {
+        if (mainWindow) {
+          mainWindow.webContents.send('add-new-tab', args.url);
+          sendResponse({ success: true, output: `Opening tab: ${args.url}` });
+        } else {
+          sendResponse({ success: false, error: 'Desktop window not available' });
+        }
+      } else if (command === 'get-tabs') {
+        ipcMain.handleOnce('get-open-tabs-internal', async () => {
+          const tabs = [];
+          for (const [tabId, view] of tabViews.entries()) {
+            if (view && view.webContents) {
+              tabs.push({
+                tabId,
+                url: view.webContents.getURL(),
+                title: view.webContents.getTitle(),
+                isActive: (tabId === activeTabId)
+              });
+            }
+          }
+          return tabs;
+        });
+        const tabs = [];
+        for (const [tabId, view] of tabViews.entries()) {
+          if (view && view.webContents) {
+            tabs.push({
+              tabId,
+              url: view.webContents.getURL(),
+              title: view.webContents.getTitle(),
+              isActive: (tabId === activeTabId)
+            });
+          }
+        }
+        sendResponse({ success: true, tabs });
+      } else if (command === 'type-text') {
+        if (robot) {
+          robot.typeString(args.text);
+          sendResponse({ success: true, output: `Typed: ${args.text}` });
+        } else {
+          sendResponse({ success: false, error: 'robotjs not available' });
+        }
+      } else if (command === 'switch-tab') {
+        if (mainWindow) {
+          mainWindow.webContents.send('switch-to-tab', args.tabId);
+          sendResponse({ success: true, output: `Switching to tab: ${args.tabId}` });
+        } else {
+          sendResponse({ success: false, error: 'Desktop window not available' });
+        }
       } else {
         sendResponse({ success: false, error: `Command ${command} not implemented` });
       }

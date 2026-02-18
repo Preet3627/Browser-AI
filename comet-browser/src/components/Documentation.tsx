@@ -87,7 +87,7 @@ Despite constant crashes, build failures (Electron is heavy!), and school pressu
 ## 📦 Installation
 \`\`\`bash
 # Clone the repository
-git clone https://github.com/Latestinssan/comet-browser.git
+git clone https://github.com/Preet3627/Browser-AI.git
 
 # Install dependencies
 npm install
@@ -209,13 +209,23 @@ const Documentation = () => {
                         <footer className="flex flex-col lg:flex-row items-center justify-between gap-8 pt-8">
                             <div className="flex items-center gap-6">
                                 <a
-                                    href="https://github.com/Latestinssan/comet-browser"
+                                    href="https://github.com/Preet3627/Browser-AI"
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="flex items-center gap-2 text-white/40 hover:text-white transition-colors group"
                                 >
                                     <Github size={20} />
                                     <span className="font-bold text-sm">Source Code</span>
+                                </a>
+                                <div className="w-1 h-1 rounded-full bg-white/10" />
+                                <a
+                                    href="https://browser.ponsrischool.in"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-2 text-white/40 hover:text-white transition-colors group"
+                                >
+                                    <ExternalLink size={20} />
+                                    <span className="font-bold text-sm">Official Website</span>
                                 </a>
                                 <div className="w-1 h-1 rounded-full bg-white/10" />
                                 <span className="made-in-india-gradient-text font-black tracking-tighter text-sm uppercase">Made in India</span>

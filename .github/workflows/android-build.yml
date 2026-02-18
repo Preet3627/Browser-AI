@@ -2,11 +2,6 @@ name: Android Build Only
 
 on:
   workflow_dispatch:
-  push:
-    branches: [ main, master ]
-    paths:
-      - 'flutter_browser_app/**'
-      - '.github/workflows/android-build.yml'
 
 jobs:
   build-flutter-android:

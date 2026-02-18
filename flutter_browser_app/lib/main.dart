@@ -25,6 +25,8 @@ import 'sync_service.dart';
 import 'browser.dart';
 import 'pages/comet_home_page.dart';
 import 'pages/connect_desktop_page.dart';
+import 'pages/settings/main.dart';
+import 'pages/bookmarks_page.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 // ignore: non_constant_identifier_names
@@ -221,14 +223,12 @@ class _CometAIAppState extends State<CometAIApp> with WindowListener {
       darkTheme: ThemeData(
         useMaterial3: true,
         brightness: Brightness.dark,
-        scaffoldBackgroundColor: const Color(
-          0xFF0A0E21,
-        ), // Deep vibrant dark blue
+        scaffoldBackgroundColor: Colors.black,
         colorScheme: const ColorScheme.dark(
-          primary: Color(0xFF29B6F6), // Light Blue 400
-          secondary: Color(0xFFD500F9), // Purple A400
-          surface: Color(0xFF1D1E33),
-          background: Color(0xFF0A0E21),
+          primary: Color(0xFF00E5FF), // Cyan
+          secondary: Color(0xFFD500F9), // Purple
+          surface: Color(0xFF121212),
+          background: Colors.black,
         ),
         appBarTheme: const AppBarTheme(
           backgroundColor: Colors.transparent,
@@ -236,12 +236,16 @@ class _CometAIAppState extends State<CometAIApp> with WindowListener {
         ),
         textTheme: GoogleFonts.outfitTextTheme(ThemeData.dark().textTheme),
       ),
-      theme: ThemeData(visualDensity: VisualDensity.adaptivePlatformDensity),
+      theme: ThemeData(
+        visualDensity: VisualDensity.adaptivePlatformDensity,
+        scaffoldBackgroundColor: Colors.black,
+      ),
       initialRoute: '/',
       routes: {
         '/': (context) => const CometHomePage(),
         '/connect-desktop': (context) => const ConnectDesktopPage(),
         '/browser': (context) => const Browser(),
+        '/settings': (context) => const SettingsPage(),
       },
     );
 

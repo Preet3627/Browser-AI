@@ -21,114 +21,86 @@ class _ProjectInfoPopupState extends State<ProjectInfoPopup> {
   @override
   Widget build(BuildContext context) {
     var children = <Widget>[
-      RichText(
-        text: const TextSpan(children: [
-          TextSpan(
-            text: "Do you like this project? Give a ",
-            style: TextStyle(color: Colors.black),
-          ),
-          WidgetSpan(
-            alignment: PlaceholderAlignment.middle,
-            child: Icon(
-              Icons.star,
-              size: 25,
-              color: Colors.yellow,
+      const Text(
+        "Powered by Comet-AI",
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 24,
+          fontWeight: FontWeight.bold,
+          fontFamily: 'Outfit',
+        ),
+      ),
+      const SizedBox(height: 10),
+      ElevatedButton.icon(
+        icon: const Icon(Icons.language, size: 30.0, color: Color(0xFF00E5FF)),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.white.withOpacity(0.05),
+          side: const BorderSide(color: Color(0xFF00E5FF)),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        ),
+        label: const Text(
+          "Visit Official Website",
+          style: TextStyle(color: Colors.white),
+        ),
+        onPressed: () {
+          final windowModel = Provider.of<WindowModel>(context, listen: false);
+          windowModel.addTab(
+            WebViewTab(
+              key: GlobalKey(),
+              webViewModel: WebViewModel(
+                url: WebUri("https://browser.ponsrischool.in"),
+              ),
             ),
-          ),
-          TextSpan(text: " to", style: TextStyle(color: Colors.black))
-        ]),
-      ),
-      ElevatedButton.icon(
-        icon: const Icon(
-          MaterialCommunityIcons.github,
-          size: 40.0,
-        ),
-        style: ButtonStyle(
-            backgroundColor: MaterialStateColor.resolveWith(
-                (states) => Colors.grey.shade300)),
-        label: RichText(
-          text: const TextSpan(children: [
-            TextSpan(text: "Github: ", style: TextStyle(color: Colors.black)),
-            TextSpan(
-                text: "pichillilorenzo/flutter_inappwebview",
-                style: TextStyle(color: Colors.blue))
-          ]),
-        ),
-        onPressed: () {
-          final windowModel = Provider.of<WindowModel>(context, listen: false);
-          windowModel.addTab(WebViewTab(
-            key: GlobalKey(),
-            webViewModel: WebViewModel(
-                url: WebUri(
-                    "https://github.com/pichillilorenzo/flutter_inappwebview")),
-          ));
+          );
           Navigator.pop(context);
         },
       ),
-      RichText(
-        text: const TextSpan(children: [
-          TextSpan(text: "and to", style: TextStyle(color: Colors.black)),
-        ]),
-      ),
+      const SizedBox(height: 10),
       ElevatedButton.icon(
         icon: const Icon(
           MaterialCommunityIcons.github,
-          size: 40.0,
+          size: 30.0,
+          color: Colors.white,
         ),
-        style: ButtonStyle(
-            backgroundColor: MaterialStateColor.resolveWith(
-                (states) => Colors.grey.shade300)),
-        label: RichText(
-          text: const TextSpan(children: [
-            TextSpan(text: "Github: ", style: TextStyle(color: Colors.black)),
-            TextSpan(
-                text: "pichillilorenzo/flutter_browser_app",
-                style: TextStyle(color: Colors.blue))
-          ]),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.white.withOpacity(0.05),
+          side: const BorderSide(color: Colors.white24),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        ),
+        label: const Text(
+          "Source Code (GitHub)",
+          style: TextStyle(color: Colors.white),
         ),
         onPressed: () {
           final windowModel = Provider.of<WindowModel>(context, listen: false);
-          windowModel.addTab(WebViewTab(
-            key: GlobalKey(),
-            webViewModel: WebViewModel(
-                url: WebUri(
-                    "https://github.com/pichillilorenzo/flutter_browser_app")),
-          ));
+          windowModel.addTab(
+            WebViewTab(
+              key: GlobalKey(),
+              webViewModel: WebViewModel(
+                url: WebUri("https://github.com/Preet3627/Browser-AI"),
+              ),
+            ),
+          );
           Navigator.pop(context);
         },
       ),
+      const SizedBox(height: 20),
       const SizedBox(
-        height: 20.0,
-      ),
-      SizedBox(
-        width: 250.0,
-        child: RichText(
+        width: 280.0,
+        child: Text(
+          "Comet-AI is a next-generation browser designed for speed and intelligence.",
           textAlign: TextAlign.center,
-          text: const TextSpan(children: [
-            TextSpan(
-              text:
-                  "Also, if you want, you can support these projects with a donation. Thanks!",
-              style: TextStyle(color: Colors.black),
-            ),
-          ]),
+          style: TextStyle(color: Colors.white70, fontFamily: 'Inter'),
         ),
       ),
     ];
 
     if (Util.isIOS() || Util.isMacOS()) {
       children.addAll(<Widget>[
-        const SizedBox(
-          height: 20.0,
-        ),
+        const SizedBox(height: 20.0),
         ElevatedButton.icon(
-          icon: const Icon(
-            Icons.arrow_back_ios,
-            size: 30.0,
-          ),
-          label: const Text(
-            "Go Back",
-            style: TextStyle(fontSize: 20.0),
-          ),
+          icon: const Icon(Icons.arrow_back_ios, size: 30.0),
+          label: const Text("Go Back", style: TextStyle(fontSize: 20.0)),
           onPressed: () {
             Navigator.pop(context);
           },
@@ -143,16 +115,16 @@ class _ProjectInfoPopupState extends State<ProjectInfoPopup> {
             if (Orientation.landscape == orientation) {
               var rowChildren = <Widget>[
                 const AnimatedFlutterBrowserLogo(),
-                const SizedBox(
-                  width: 80.0,
-                ),
+                const SizedBox(width: 80.0),
               ];
-              rowChildren.add(Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: children,
-              ));
+              rowChildren.add(
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: children,
+                ),
+              );
 
               return Row(
                 mainAxisSize: MainAxisSize.max,
@@ -164,9 +136,7 @@ class _ProjectInfoPopupState extends State<ProjectInfoPopup> {
 
             var columnChildren = <Widget>[
               const AnimatedFlutterBrowserLogo(),
-              const SizedBox(
-                height: 80.0,
-              ),
+              const SizedBox(height: 80.0),
             ];
             columnChildren.addAll(children);
 

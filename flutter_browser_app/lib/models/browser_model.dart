@@ -19,28 +19,55 @@ class BrowserSettings {
   bool homePageEnabled;
   String customUrlHomePage;
   bool debuggingEnabled;
+  String geminiApiKey;
+  String openaiApiKey;
+  String claudeApiKey;
+  String openRouterApiKey;
+  String ollamaBaseUrl;
+  String ollamaModel;
 
-  BrowserSettings(
-      {this.searchEngine = GoogleSearchEngine,
-      this.homePageEnabled = false,
-      this.customUrlHomePage = "",
-      this.debuggingEnabled = false});
+  BrowserSettings({
+    this.searchEngine = GoogleSearchEngine,
+    this.homePageEnabled = false,
+    this.customUrlHomePage = "",
+    this.debuggingEnabled = false,
+    this.geminiApiKey = "",
+    this.openaiApiKey = "",
+    this.claudeApiKey = "",
+    this.openRouterApiKey = "",
+    this.ollamaBaseUrl = "http://localhost:11434",
+    this.ollamaModel = "llama3.3",
+  });
 
   BrowserSettings copy() {
     return BrowserSettings(
-        searchEngine: searchEngine,
-        homePageEnabled: homePageEnabled,
-        customUrlHomePage: customUrlHomePage,
-        debuggingEnabled: debuggingEnabled);
+      searchEngine: searchEngine,
+      homePageEnabled: homePageEnabled,
+      customUrlHomePage: customUrlHomePage,
+      debuggingEnabled: debuggingEnabled,
+      geminiApiKey: geminiApiKey,
+      openaiApiKey: openaiApiKey,
+      claudeApiKey: claudeApiKey,
+      openRouterApiKey: openRouterApiKey,
+      ollamaBaseUrl: ollamaBaseUrl,
+      ollamaModel: ollamaModel,
+    );
   }
 
   static BrowserSettings? fromMap(Map<String, dynamic>? map) {
     return map != null
         ? BrowserSettings(
-            searchEngine: SearchEngines[map["searchEngineIndex"]],
-            homePageEnabled: map["homePageEnabled"],
-            customUrlHomePage: map["customUrlHomePage"],
-            debuggingEnabled: map["debuggingEnabled"])
+            searchEngine: SearchEngines[map["searchEngineIndex"] ?? 0],
+            homePageEnabled: map["homePageEnabled"] ?? false,
+            customUrlHomePage: map["customUrlHomePage"] ?? "",
+            debuggingEnabled: map["debuggingEnabled"] ?? false,
+            geminiApiKey: map["geminiApiKey"] ?? "",
+            openaiApiKey: map["openaiApiKey"] ?? "",
+            claudeApiKey: map["claudeApiKey"] ?? "",
+            openRouterApiKey: map["openRouterApiKey"] ?? "",
+            ollamaBaseUrl: map["ollamaBaseUrl"] ?? "http://localhost:11434",
+            ollamaModel: map["ollamaModel"] ?? "llama3.3",
+          )
         : null;
   }
 
@@ -49,7 +76,13 @@ class BrowserSettings {
       "searchEngineIndex": SearchEngines.indexOf(searchEngine),
       "homePageEnabled": homePageEnabled,
       "customUrlHomePage": customUrlHomePage,
-      "debuggingEnabled": debuggingEnabled
+      "debuggingEnabled": debuggingEnabled,
+      "geminiApiKey": geminiApiKey,
+      "openaiApiKey": openaiApiKey,
+      "claudeApiKey": claudeApiKey,
+      "openRouterApiKey": openRouterApiKey,
+      "ollamaBaseUrl": ollamaBaseUrl,
+      "ollamaModel": ollamaModel,
     };
   }
 
@@ -92,7 +125,9 @@ class BrowserModel extends ChangeNotifier {
       return;
     }
 
-    final window = await WindowManagerPlus.createWindow(windowModel != null ? [windowModel.id] : null);
+    final window = await WindowManagerPlus.createWindow(
+      windowModel != null ? [windowModel.id] : null,
+    );
     if (window != null) {
       if (kDebugMode) {
         print("Window created: $window}");
@@ -237,15 +272,20 @@ class BrowserModel extends ChangeNotifier {
   }
 
   Future<void> flush() async {
-    final browser =
-        await db?.rawQuery('SELECT * FROM browser WHERE id = ?', [1]);
+    final browser = await db?.rawQuery('SELECT * FROM browser WHERE id = ?', [
+      1,
+    ]);
     int? count;
     if (browser == null || browser.length == 0) {
-      count = await db?.rawInsert('INSERT INTO browser(id, json) VALUES(?, ?)',
-          [1, json.encode(toJson())]);
+      count = await db?.rawInsert(
+        'INSERT INTO browser(id, json) VALUES(?, ?)',
+        [1, json.encode(toJson())],
+      );
     } else {
-      count = await db?.rawUpdate('UPDATE browser SET json = ? WHERE id = ?',
-          [json.encode(toJson()), 1]);
+      count = await db?.rawUpdate('UPDATE browser SET json = ? WHERE id = ?', [
+        json.encode(toJson()),
+        1,
+      ]);
     }
 
     if ((count == null || count == 0) && kDebugMode) {
@@ -254,8 +294,9 @@ class BrowserModel extends ChangeNotifier {
   }
 
   Future<void> restore() async {
-    final browsers =
-        await db?.rawQuery('SELECT * FROM browser WHERE id = ?', [1]);
+    final browsers = await db?.rawQuery('SELECT * FROM browser WHERE id = ?', [
+      1,
+    ]);
     if (browsers == null || browsers.length == 0) {
       return;
     }
@@ -267,17 +308,23 @@ class BrowserModel extends ChangeNotifier {
 
       List<Map<String, dynamic>> favoritesList =
           browserData["favorites"]?.cast<Map<String, dynamic>>() ?? [];
-      List<FavoriteModel> favorites =
-          favoritesList.map((e) => FavoriteModel.fromMap(e)!).toList();
+      List<FavoriteModel> favorites = favoritesList
+          .map((e) => FavoriteModel.fromMap(e)!)
+          .toList();
 
       Map<String, dynamic> webArchivesMap =
           browserData["webArchives"]?.cast<String, dynamic>() ?? {};
       Map<String, WebArchiveModel> webArchives = webArchivesMap.map(
-          (key, value) => MapEntry(
-              key, WebArchiveModel.fromMap(value?.cast<String, dynamic>())!));
+        (key, value) => MapEntry(
+          key,
+          WebArchiveModel.fromMap(value?.cast<String, dynamic>())!,
+        ),
+      );
 
-      BrowserSettings settings = BrowserSettings.fromMap(
-              browserData["settings"]?.cast<String, dynamic>()) ??
+      BrowserSettings settings =
+          BrowserSettings.fromMap(
+            browserData["settings"]?.cast<String, dynamic>(),
+          ) ??
           BrowserSettings();
 
       addFavorites(favorites);
@@ -294,9 +341,10 @@ class BrowserModel extends ChangeNotifier {
   Map<String, dynamic> toMap() {
     return {
       "favorites": _favorites.map((e) => e.toMap()).toList(),
-      "webArchives":
-          _webArchives.map((key, value) => MapEntry(key, value.toMap())),
-      "settings": _settings.toMap()
+      "webArchives": _webArchives.map(
+        (key, value) => MapEntry(key, value.toMap()),
+      ),
+      "settings": _settings.toMap(),
     };
   }
 

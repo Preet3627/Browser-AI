@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/xml"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:padding="8dp"
+    android:background="@drawable/widget_background">
+
+    <LinearLayout
+        android:id="@+id/widget_container"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:background="@drawable/search_bar_background"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp">
+
+        <ImageView
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@drawable/ic_search"
+            app:tint="#00E5FF" />
+
+        <TextView
+            android:id="@+id/widget_search_text"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="12dp"
+            android:text="Search with Comet AI..."
+            android:textColor="#80FFFFFF"
+            android:textSize="16sp" />
+
+        <ImageView
+            android:id="@+id/widget_mic_icon"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@drawable/ic_mic"
+            android:layout_marginEnd="8dp"
+            app:tint="#FFFFFF" />
+
+        <ImageView
+            android:id="@+id/widget_ai_icon"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:src="@drawable/ic_ai_sparkle"
+            app:tint="#00E5FF" />
+
+    </LinearLayout>
+</RelativeLayout>
