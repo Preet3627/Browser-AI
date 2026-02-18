@@ -3,6 +3,9 @@ name: Android Build Only
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build-flutter-android:
     name: Build Flutter Android
@@ -92,9 +95,36 @@ jobs:
         working-directory: flutter_browser_app
         run: flutter build apk --release --verbose
 
-      - name: Upload APK
+      - name: Rename APK
+        run: cp flutter_browser_app/build/app/outputs/flutter-apk/app-release.apk comet-ai-android.apk
+
+      - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
-        if: success()
         with:
-          name: flutter-browser-apk
-          path: flutter_browser_app/build/app/outputs/flutter-apk/app-release.apk
+          name: comet-ai-android-apk
+          path: comet-ai-android.apk
+
+  create-release:
+    name: Create Draft Release
+    needs: build-flutter-android
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download APK
+        uses: actions/download-artifact@v4
+        with:
+          name: comet-ai-android-apk
+          path: release-artifacts
+
+      - name: Create Draft Release
+        uses: ncipollo/release-action@v1
+        with:
+          artifacts: "release-artifacts/*"
+          draft: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag: "v3.1.0-android-${{ github.run_number }}"
+          name: "Android Standalone v3.1.0 (#${{ github.run_number }})"
+          body: "Manual Android-only build triggered from workflow_dispatch."
+          allowUpdates: true

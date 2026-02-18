@@ -3,6 +3,9 @@ name: Build All Platforms
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   # ============================================================================
   # ANDROID BUILD
@@ -53,6 +56,24 @@ jobs:
             echo "::warning::GOOGLE_SERVICES_JSON secret is empty or not set!"
           fi
 
+      - name: Verify google-services.json
+        working-directory: flutter_browser_app/android/app
+        run: |
+          if [ -f "google-services.json" ]; then
+             echo "File exists. Size: $(wc -c < google-services.json) bytes"
+             echo "Checking for valid JSON..."
+             if python3 -c "import json, sys; json.load(open('google-services.json')); print('JSON is valid')"; then
+               echo "JSON Check Passed."
+             else
+               echo "::error::JSON is INVALID!"
+               echo "First 50 chars: $(head -c 50 google-services.json)..."
+               echo "Last 50 chars: ...$(tail -c 50 google-services.json)"
+               exit 1
+             fi
+          else
+             echo "::warning::google-services.json does NOT exist. Proceeding with caution."
+          fi
+
       - name: Decode Keystore
         continue-on-error: true
         run: |
@@ -78,7 +99,6 @@ jobs:
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
-        if: success()
         with:
           name: comet-ai-android-apk
           path: flutter_browser_app/build/app/outputs/flutter-apk/app-release.apk
@@ -186,29 +206,6 @@ jobs:
         working-directory: comet-browser
         run: npm install --legacy-peer-deps
 
-      - name: Create Firebase Admin Key
-        if: runner.os != 'Windows'
-        continue-on-error: true
-        env:
-          FIREBASE_ADMIN_SDK_JSON: ${{ secrets.FIREBASE_ADMIN_SDK_JSON }}
-        run: |
-          mkdir -p comet-browser/config
-          if [ -n "$FIREBASE_ADMIN_SDK_JSON" ]; then
-            echo "$FIREBASE_ADMIN_SDK_JSON" > comet-browser/config/firebase-admin.json
-          fi
-
-      - name: Create Firebase Admin Key (Windows)
-        if: runner.os == 'Windows'
-        continue-on-error: true
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path comet-browser/config
-          if ($env:FIREBASE_ADMIN_SDK_JSON) {
-            $env:FIREBASE_ADMIN_SDK_JSON | Out-File -FilePath comet-browser/config/firebase-admin.json -Encoding utf8
-          }
-        env:
-          FIREBASE_ADMIN_SDK_JSON: ${{ secrets.FIREBASE_ADMIN_SDK_JSON }}
-
       - name: Cache Next.js build
         uses: actions/cache@v4
         with:
@@ -229,3 +226,31 @@ jobs:
         with:
           name: comet-ai-desktop-${{ matrix.target }}
           path: ${{ matrix.artifact_path }}
+
+  # ============================================================================
+  # RELEASE JOB
+  # ============================================================================
+  create-release:
+    name: Create Draft Release
+    needs: [build-android, build-ios, build-desktop]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+          merge-multiple: true
+
+      - name: Create Draft Release
+        uses: ncipollo/release-action@v1
+        with:
+          artifacts: "release-artifacts/*"
+          draft: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag: "v3.1.0-manual-${{ github.run_number }}"
+          name: "Manual Release v3.1.0 (#${{ github.run_number }})"
+          body: "Manual cross-platform build triggered from workflow_dispatch."
+          allowUpdates: true

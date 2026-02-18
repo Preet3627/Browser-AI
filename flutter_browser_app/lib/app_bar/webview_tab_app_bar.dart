@@ -205,8 +205,7 @@ class _WebViewTabAppBarState extends State<WebViewTabAppBar>
           padding: EdgeInsets.zero,
           onPressed: () {
             if (webViewModel.webViewController != null) {
-              var url =
-                  settings.homePageEnabled &&
+              var url = settings.homePageEnabled &&
                       settings.customUrlHomePage.isNotEmpty
                   ? WebUri(settings.customUrlHomePage)
                   : WebUri(settings.searchEngine.url);
@@ -259,8 +258,7 @@ class _WebViewTabAppBarState extends State<WebViewTabAppBar>
             onTap: () {
               if (!shouldSelectText ||
                   _searchController == null ||
-                  _searchController!.text.isEmpty)
-                return;
+                  _searchController!.text.isEmpty) return;
               shouldSelectText = false;
               _searchController!.selection = TextSelection(
                 baseOffset: 0,
@@ -332,9 +330,8 @@ class _WebViewTabAppBarState extends State<WebViewTabAppBar>
           : InkWell(
               key: tabInkWellKey,
               onLongPress: () {
-                final RenderBox? box =
-                    tabInkWellKey.currentContext!.findRenderObject()
-                        as RenderBox?;
+                final RenderBox? box = tabInkWellKey.currentContext!
+                    .findRenderObject() as RenderBox?;
                 if (box == null) {
                   return;
                 }
@@ -565,9 +562,9 @@ class _WebViewTabAppBarState extends State<WebViewTabAppBar>
                             String? savedPath = (await webViewModel
                                 .webViewController
                                 ?.saveWebArchive(
-                                  filePath: webArchivePath,
-                                  autoname: false,
-                                ));
+                              filePath: webArchivePath,
+                              autoname: false,
+                            ));
 
                             var webArchiveModel = WebArchiveModel(
                               url: url,
@@ -1157,8 +1154,7 @@ class _WebViewTabAppBarState extends State<WebViewTabAppBar>
               return SizedBox(
                 width: double.maxFinite,
                 child: ListView(
-                  children:
-                      history.list?.reversed.map((historyItem) {
+                  children: history.list?.reversed.map((historyItem) {
                         var url = historyItem.url;
 
                         return ListTile(
@@ -1329,8 +1325,8 @@ class _WebViewTabAppBarState extends State<WebViewTabAppBar>
       if (currentSettings != null) {
         currentSettings.preferredContentMode =
             webViewModel?.isDesktopMode ?? false
-            ? UserPreferredContentMode.DESKTOP
-            : UserPreferredContentMode.RECOMMENDED;
+                ? UserPreferredContentMode.DESKTOP
+                : UserPreferredContentMode.RECOMMENDED;
         await webViewController.setSettings(settings: currentSettings);
       }
       await webViewController.reload();
@@ -1474,7 +1470,7 @@ class _WebViewTabAppBarState extends State<WebViewTabAppBar>
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.Translate, color: Colors.green),
+                leading: const Icon(Icons.translate, color: Colors.green),
                 title: const Text("Translate & Simplify"),
                 subtitle: const Text("Make the content easier to read"),
                 onTap: () {

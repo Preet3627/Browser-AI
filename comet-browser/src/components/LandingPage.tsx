@@ -20,6 +20,7 @@ import {
     Monitor,
     Search,
     RefreshCw,
+    ExternalLink,
     Copy as CopyIcon
 } from "lucide-react";
 import { firebaseConfigStorage, FirebaseConfig } from "@/lib/firebaseConfigStorage";
