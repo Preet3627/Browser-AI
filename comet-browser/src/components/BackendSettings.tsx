@@ -56,7 +56,7 @@ const BackendSettings: React.FC<BackendSettingsProps> = ({ backend, setBackend, 
               name={field}
               placeholder={`MySQL ${field.charAt(0).toUpperCase() + field.slice(1)}`}
               className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-xs text-white placeholder:text-white/10 focus:border-deep-space-accent-neon/30 outline-none"
-              value={mysqlConfig[field] || ''}
+              value={(mysqlConfig && mysqlConfig[field]) || ''}
               onChange={handleConfigChange}
             />
           ))}
@@ -65,7 +65,7 @@ const BackendSettings: React.FC<BackendSettingsProps> = ({ backend, setBackend, 
             name="password"
             placeholder="MySQL Password"
             className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-xs text-white placeholder:text-white/10 focus:border-deep-space-accent-neon/30 outline-none"
-            value={mysqlConfig.password || ''}
+            value={(mysqlConfig && mysqlConfig.password) || ''}
             onChange={handleConfigChange}
           />
         </div>

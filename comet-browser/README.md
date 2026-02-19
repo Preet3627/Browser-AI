@@ -80,7 +80,7 @@ Comet v0.2.0 brings significant user experience improvements, focusing on custom
 
 | Platform | Version | Status | Size |
 |----------|---------|--------|------|
-| 🪟 **Windows** | [v0.1.9 (.exe)](https://browser.ponsrischool.in/download) | ✅ Stable | ~150 MB |
+| 🪟 **Windows** | [v0.2.0 (.exe)](https://browser.ponsrischool.in/download) | ✅ Stable | ~150 MB |
 | 🍎 **macOS** | Coming soon | 🧪 Beta | – |
 | 🐧 **Linux** | Coming soon | 🧪 Beta | – |
 

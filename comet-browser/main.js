@@ -2168,6 +2168,10 @@ app.whenReady().then(() => {
     return wifiSyncService ? wifiSyncService.getConnectUri() : null;
   });
 
+  ipcMain.handle('get-wifi-sync-qr', () => {
+    return wifiSyncService ? wifiSyncService.getConnectUri() : null;
+  });
+
   // Handle file downloads
   session.defaultSession.on('will-download', (event, item, webContents) => {
     const fileName = item.getFilename();
