@@ -5,7 +5,7 @@
 A next-generation mobile browser created using Flutter.
 
 **Official Website**: [https://browser.ponsrischool.in](https://browser.ponsrischool.in)
-**Source Code**: [https://github.com/Preet3627/Browser-AI](https://github.com/Preet3627/Browser-AI)
+**Source Code**: [https://github.com/Preet3627/Comet-AI](https://github.com/Preet3627/Comet-AI)
 
 ## Features
 - **Modern UI**: Clean black interface with glowing cyan effects.

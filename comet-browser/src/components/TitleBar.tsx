@@ -83,13 +83,13 @@ const TitleBar = ({ onToggleSpotlightSearch, onOpenSettings }: TitleBarProps) =>
                 <button onClick={onToggleSpotlightSearch} className="p-1 text-white/60 hover:text-white transition-colors" title="Global Spotlight Search">
                     <Search size={18} />
                 </button>
-                {store.user?.photoURL ? (
+                {(store.user?.photoURL || store.localPhotoURL) ? (
                     <img
-                        src={store.user.photoURL}
+                        src={(store.user && store.user.photoURL) || store.localPhotoURL || ''}
                         alt="Profile"
-                        className="w-6 h-6 rounded-full border border-white/5 cursor-pointer"
-                        onClick={() => router.push('/settings?section=profile')} // Example: navigate to profile section in settings
-                        title={store.user.displayName || store.user.email || 'User Profile'}
+                        className="w-6 h-6 rounded-full border border-white/10 cursor-pointer object-cover shadow-sm hover:scale-105 transition-transform"
+                        onClick={() => router.push('/settings?section=profile')}
+                        title={store.user?.displayName || store.user?.email || 'User Profile'}
                     />
                 ) : (
                     <button

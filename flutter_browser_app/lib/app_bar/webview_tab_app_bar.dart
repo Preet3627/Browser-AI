@@ -1,6 +1,7 @@
 // import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:io';
 
+import 'dart:async';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -22,7 +23,7 @@ import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../pages/ai_chat_page.dart';
-import '../pages/comet_home_page.dart';
+
 import '../url_predictor.dart';
 import '../pages/connect_desktop_page.dart';
 import '../animated_flutter_browser_logo.dart';
@@ -49,6 +50,7 @@ class _WebViewTabAppBarState extends State<WebViewTabAppBar>
   List<String> _suggestions = [];
   OverlayEntry? _overlayEntry;
   final LayerLink _layerLink = LayerLink();
+  Timer? _debounceTimer;
 
   GlobalKey tabInkWellKey = GlobalKey();
 
@@ -94,6 +96,7 @@ class _WebViewTabAppBarState extends State<WebViewTabAppBar>
     _focusNode = null;
     _searchController?.dispose();
     _searchController = null;
+    _debounceTimer?.cancel();
     super.dispose();
   }
 
@@ -125,11 +128,10 @@ class _WebViewTabAppBarState extends State<WebViewTabAppBar>
         return Selector<WebViewModel, bool>(
           selector: (context, webViewModel) => webViewModel.isIncognitoMode,
           builder: (context, isIncognitoMode, child) {
+            final barColor = Colors.black;
             return leading != null
                 ? AppBar(
-                    backgroundColor: isIncognitoMode
-                        ? Colors.black38
-                        : Theme.of(context).colorScheme.primaryContainer,
+                    backgroundColor: barColor,
                     leading: leading,
                     leadingWidth: 130,
                     titleSpacing: 0.0,
@@ -137,9 +139,7 @@ class _WebViewTabAppBarState extends State<WebViewTabAppBar>
                     actions: _buildActionsMenu(),
                   )
                 : AppBar(
-                    backgroundColor: isIncognitoMode
-                        ? Colors.black38
-                        : Theme.of(context).colorScheme.primaryContainer,
+                    backgroundColor: barColor,
                     titleSpacing: 10.0,
                     title: _buildSearchTextField(),
                     actions: _buildActionsMenu(),
@@ -252,10 +252,15 @@ class _WebViewTabAppBarState extends State<WebViewTabAppBar>
           children: <Widget>[
             TextField(
               onChanged: (value) {
-                setState(() {
-                  _suggestions = URLPredictor.getPredictions(value);
+                _debounceTimer?.cancel();
+                _debounceTimer = Timer(const Duration(milliseconds: 400), () {
+                  if (mounted && _searchController?.text == value) {
+                    setState(() {
+                      _suggestions = URLPredictor.getPredictions(value);
+                    });
+                    _updateOverlay();
+                  }
                 });
-                _updateOverlay();
               },
               onSubmitted: (value) {
                 _onSubmitted(value);
@@ -263,7 +268,9 @@ class _WebViewTabAppBarState extends State<WebViewTabAppBar>
               onTap: () {
                 if (!shouldSelectText ||
                     _searchController == null ||
-                    _searchController!.text.isEmpty) return;
+                    _searchController!.text.isEmpty) {
+                  return;
+                }
                 shouldSelectText = false;
                 _searchController!.selection = TextSelection(
                   baseOffset: 0,
@@ -286,7 +293,7 @@ class _WebViewTabAppBarState extends State<WebViewTabAppBar>
                   bottom: 10.0,
                 ),
                 filled: true,
-                fillColor: const Color(0xFF1E1E1E),
+                fillColor: Colors.black,
                 border: outlineBorder,
                 focusedBorder: outlineBorder,
                 enabledBorder: outlineBorder,

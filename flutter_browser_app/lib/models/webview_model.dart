@@ -17,6 +17,7 @@ class WebViewModel extends ChangeNotifier {
   late List<String> _javaScriptConsoleHistory;
   late List<LoadedResource> _loadedResources;
   late bool _isSecure;
+  late bool _isAppBarVisible;
   int? windowId;
   InAppWebViewSettings? settings;
   InAppWebViewController? webViewController;
@@ -42,6 +43,7 @@ class WebViewModel extends ChangeNotifier {
       List<String>? javaScriptConsoleHistory,
       List<LoadedResource>? loadedResources,
       bool isSecure = false,
+      bool isAppBarVisible = true,
       DateTime? createdTime,
       DateTime? lastOpenedTime,
       this.windowId,
@@ -62,7 +64,8 @@ class WebViewModel extends ChangeNotifier {
         _javaScriptConsoleResults = javaScriptConsoleResults ?? <Widget>[],
         _javaScriptConsoleHistory = javaScriptConsoleHistory ?? <String>[],
         _loadedResources = loadedResources ?? <LoadedResource>[],
-        _isSecure = isSecure {
+        _isSecure = isSecure,
+        _isAppBarVisible = isAppBarVisible {
     settings = settings ?? InAppWebViewSettings();
   }
 
@@ -134,6 +137,15 @@ class WebViewModel extends ChangeNotifier {
   set isIncognitoMode(bool value) {
     if (value != _isIncognitoMode) {
       _isIncognitoMode = value;
+      notifyListeners();
+    }
+  }
+
+  bool get isAppBarVisible => _isAppBarVisible;
+
+  set isAppBarVisible(bool value) {
+    if (value != _isAppBarVisible) {
+      _isAppBarVisible = value;
       notifyListeners();
     }
   }
@@ -212,6 +224,7 @@ class WebViewModel extends ChangeNotifier {
     loaded = webViewModel.loaded;
     isDesktopMode = webViewModel.isDesktopMode;
     isIncognitoMode = webViewModel.isIncognitoMode;
+    isAppBarVisible = webViewModel.isAppBarVisible;
     setJavaScriptConsoleResults(
         webViewModel._javaScriptConsoleResults.toList());
     setJavaScriptConsoleHistory(
@@ -241,6 +254,7 @@ class WebViewModel extends ChangeNotifier {
             progress: map["progress"],
             isDesktopMode: map["isDesktopMode"],
             isIncognitoMode: map["isIncognitoMode"],
+            isAppBarVisible: map["isAppBarVisible"] ?? true,
             javaScriptConsoleHistory:
                 map["javaScriptConsoleHistory"]?.cast<String>(),
             isSecure: map["isSecure"],
@@ -264,6 +278,7 @@ class WebViewModel extends ChangeNotifier {
       "progress": _progress,
       "isDesktopMode": _isDesktopMode,
       "isIncognitoMode": _isIncognitoMode,
+      "isAppBarVisible": _isAppBarVisible,
       "javaScriptConsoleHistory": _javaScriptConsoleHistory,
       "isSecure": _isSecure,
       "settings": settings?.toMap(),

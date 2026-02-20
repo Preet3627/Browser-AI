@@ -553,7 +553,7 @@ class _CrossPlatformSettingsState extends State<CrossPlatformSettings> {
           ),
         ),
         title: const Text("Comet-AI GitHub Repository"),
-        subtitle: const Text("https://github.com/Preet3627/Browser-AI"),
+        subtitle: const Text("https://github.com/Preet3627/Comet-AI"),
         trailing: const Icon(Icons.open_in_new, color: Color(0xFF00E5FF)),
         onTap: () {
           final windowModel = Provider.of<WindowModel>(context, listen: false);
@@ -561,7 +561,7 @@ class _CrossPlatformSettingsState extends State<CrossPlatformSettings> {
             WebViewTab(
               key: GlobalKey(),
               webViewModel: WebViewModel(
-                url: WebUri("https://github.com/Preet3627/Browser-AI"),
+                url: WebUri("https://github.com/Preet3627/Comet-AI"),
               ),
             ),
           );

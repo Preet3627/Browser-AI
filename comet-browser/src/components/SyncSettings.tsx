@@ -8,6 +8,7 @@ interface SyncSettingsProps { }
 
 const SyncSettings: React.FC<SyncSettingsProps> = () => {
     const store = useAppStore();
+    const [wifiSyncInfo, setWifiSyncInfo] = useState<{ deviceName: string, pairingCode: string, ip: string, port: number } | null>(null);
     const [remoteDeviceId, setRemoteDeviceId] = useState('');
     const [localDeviceId, setLocalDeviceId] = useState('');
     const [p2pConnected, setP2PConnected] = useState(false);
@@ -59,6 +60,13 @@ const SyncSettings: React.FC<SyncSettingsProps> = () => {
         window.electronAPI.getWifiSyncQr().then(qr => {
             setWifiSyncQr(qr);
         });
+
+        // WiFi Info fetch
+        if (window.electronAPI.getWifiSyncInfo) {
+            window.electronAPI.getWifiSyncInfo().then(info => {
+                setWifiSyncInfo(info);
+            });
+        }
 
         // Fetch initial device ID
         window.electronAPI.getP2PLocalDeviceId().then((id: string) => {
@@ -188,20 +196,43 @@ const SyncSettings: React.FC<SyncSettingsProps> = () => {
                 </div>
 
                 {!wifiConnected && (
-                    <div className="flex flex-col items-center gap-6 py-8 border border-white/5 rounded-[2rem] bg-black/20">
-                        {wifiSyncQr ? (
-                            <div className="p-4 bg-white rounded-2xl shadow-[0_0_30px_rgba(255,255,255,0.1)]">
-                                <img src={wifiSyncQr} alt="WiFi Sync QR Code" className="w-48 h-48" />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center border border-white/5 rounded-[2rem] bg-black/20 p-8">
+                        <div className="flex flex-col items-center gap-4">
+                            {wifiSyncQr ? (
+                                <div className="p-4 bg-white rounded-2xl shadow-[0_0_30px_rgba(255,255,255,0.1)]">
+                                    <img src={wifiSyncQr} alt="WiFi Sync QR Code" className="w-48 h-48" />
+                                </div>
+                            ) : (
+                                <div className="w-48 h-48 flex items-center justify-center bg-white/5 rounded-2xl border border-white/10">
+                                    <RefreshCw className="animate-spin text-deep-space-accent-neon" />
+                                </div>
+                            )}
+                            <p className="text-[10px] font-black text-white/20 uppercase tracking-widest">Option A: Scan QR</p>
+                        </div>
+
+                        <div className="space-y-6">
+                            <div className="p-6 bg-white/5 rounded-2xl border border-white/10 space-y-4">
+                                <div>
+                                    <p className="text-[10px] font-black text-white/20 uppercase tracking-widest mb-1">Option B: Manual Scan</p>
+                                    <p className="text-sm font-bold text-white">Scan for devices on mobile</p>
+                                </div>
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between text-xs">
+                                        <span className="text-white/40">Device Name</span>
+                                        <span className="text-white font-mono">{wifiSyncInfo?.deviceName || 'Loading...'}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between text-xs">
+                                        <span className="text-white/40">Pairing Code</span>
+                                        <span className="text-deep-space-accent-neon font-black text-xl tracking-tighter">{wifiSyncInfo?.pairingCode || '------'}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between text-xs">
+                                        <span className="text-white/40">IP Address</span>
+                                        <span className="text-white/60 font-mono">{wifiSyncInfo?.ip || '0.0.0.0'}</span>
+                                    </div>
+                                </div>
                             </div>
-                        ) : (
-                            <div className="w-48 h-48 flex items-center justify-center bg-white/5 rounded-2xl border border-white/10">
-                                <RefreshCw className="animate-spin text-deep-space-accent-neon" />
-                            </div>
-                        )}
-                        <div className="text-center space-y-2">
-                            <p className="text-sm font-bold text-white">Scan to Connect</p>
-                            <p className="text-xs text-white/40 max-w-xs px-4">
-                                Open Comet-AI on your mobile, go to "Connect Desktop" and scan this code.
+                            <p className="text-[10px] text-white/20 leading-relaxed italic">
+                                * Ensure both devices are on the same Wi-Fi network. Discovery beacon is active.
                             </p>
                         </div>
                     </div>

@@ -60,7 +60,13 @@ const LLMProviderSettings: React.FC<LLMProviderSettingsProps> = (props) => {
       setProviders([
         { id: 'openai-compatible', name: 'OpenAI (Cloud)' },
         { id: 'local', name: 'Browser AI (Local TF.js)' },
-        { id: 'gemini-3-pro', name: 'Google Gemini 3 Pro' },
+        { id: 'gemini-3.1-pro', name: 'Google Gemini 3.1 Pro' },
+        { id: 'gemini-3.1-flash', name: 'Google Gemini 3.1 Flash' },
+        { id: 'gemini-2.0-pro', name: 'Google Gemini 2.0 Pro' },
+        { id: 'gemini-2.0-flash', name: 'Google Gemini 2.0 Flash' },
+        { id: 'gemini-1.5-pro', name: 'Google Gemini 1.5 Pro' },
+        { id: 'gemini-1.5-flash', name: 'Google Gemini 1.5 Flash' },
+        { id: 'claude-3-7-sonnet', name: 'Claude 3.7 Sonnet' },
         { id: 'claude-3-5-sonnet', name: 'Claude 3.5 Sonnet' },
         { id: 'groq', name: 'Groq (LPU Inference)' },
         { id: 'ollama', name: 'Ollama (Local)' }
@@ -127,21 +133,21 @@ const LLMProviderSettings: React.FC<LLMProviderSettingsProps> = (props) => {
               <SearchEngineSettings {...props} />
               <BackendSettings {...props} />
 
-                <div className="space-y-4 pt-4 border-t border-white/5">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Cloud size={12} className="text-deep-space-accent-neon" />
-                    <label htmlFor="ai-orchestration-select" className="block text-[10px] uppercase font-black tracking-widest text-white/40">AI Orchestration</label>
-                  </div>
+              <div className="space-y-4 pt-4 border-t border-white/5">
+                <div className="flex items-center gap-2 mb-2">
+                  <Cloud size={12} className="text-deep-space-accent-neon" />
+                  <label htmlFor="ai-orchestration-select" className="block text-[10px] uppercase font-black tracking-widest text-white/40">AI Orchestration</label>
+                </div>
 
-                  <select
-                    id="ai-orchestration-select"
-                    aria-label="AI Orchestration Provider Selection"
-                    className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-deep-space-accent-neon/50 transition-all font-bold"
-                    value={activeProviderId || ''}
-                    onChange={handleProviderChange}
-                  >
-                    {providers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                  </select>
+                <select
+                  id="ai-orchestration-select"
+                  aria-label="AI Orchestration Provider Selection"
+                  className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-deep-space-accent-neon/50 transition-all font-bold"
+                  value={activeProviderId || ''}
+                  onChange={handleProviderChange}
+                >
+                  {providers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
 
                 <div className="space-y-4">
                   <p className="text-[10px] uppercase font-black tracking-widest text-white/40 mb-2">MCP Server Settings</p>
@@ -407,7 +413,7 @@ const LLMProviderSettings: React.FC<LLMProviderSettingsProps> = (props) => {
                           <Check size={12} />
                           Test Gemini API
                         </button>
-                        <p className="text-[10px] text-white/30 italic">Targeting latest {activeProviderId === 'gemini-3-pro' ? 'Pro' : 'Flash'} v3 model.</p>
+                        <p className="text-[10px] text-white/30 italic">Targeting latest {activeProviderId?.includes('pro') ? 'Pro' : 'Flash'} v3.1 model.</p>
                       </div>
                     )}
 

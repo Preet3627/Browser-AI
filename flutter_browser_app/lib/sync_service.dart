@@ -137,16 +137,16 @@ class SyncService {
     if (signal['sdp'] != null) {
       _peerConnection!
           .setRemoteDescription(
-            RTCSessionDescription(signal['sdp']['sdp'], signal['sdp']['type']),
-          )
+        RTCSessionDescription(signal['sdp']['sdp'], signal['sdp']['type']),
+      )
           .then((_) {
-            if (signal['sdp']['type'] == 'offer') {
-              _peerConnection!.createAnswer().then((answer) {
-                _peerConnection!.setLocalDescription(answer);
-                _sendSignal({'sdp': answer.toMap()});
-              });
-            }
+        if (signal['sdp']['type'] == 'offer') {
+          _peerConnection!.createAnswer().then((answer) {
+            _peerConnection!.setLocalDescription(answer);
+            _sendSignal({'sdp': answer.toMap()});
           });
+        }
+      });
     } else if (signal['candidate'] != null) {
       _peerConnection!.addCandidate(
         RTCIceCandidate(
@@ -195,18 +195,98 @@ class SyncService {
   int? _desktopPort;
   bool isConnectedToDesktop = false;
 
+  // UDP Discovery
+  RawDatagramSocket? _discoverySocket;
+  final StreamController<Map<String, dynamic>> _discoveredDevicesController =
+      StreamController<Map<String, dynamic>>.broadcast();
+  Stream<Map<String, dynamic>> get onDeviceDiscovered =>
+      _discoveredDevicesController.stream;
+  final Set<String> _discoveredDeviceIds = {};
+
   final StreamController<Map> _commandResponseController =
       StreamController<Map>.broadcast();
   Stream<Map> get onCommandResponse => _commandResponseController.stream;
 
-  Future<void> connectToDesktop(String ip, int port, String deviceId) async {
+  Future<void> startDiscovery() async {
+    _discoveredDeviceIds.clear();
+    try {
+      _discoverySocket =
+          await RawDatagramSocket.bind(InternetAddress.anyIPv4, 3005);
+      _discoverySocket!.listen((RawSocketEvent event) {
+        if (event == RawSocketEvent.read) {
+          Datagram? dg = _discoverySocket!.receive();
+          if (dg != null) {
+            try {
+              String message = utf8.decode(dg.data);
+              Map<String, dynamic> data = jsonDecode(message);
+              if (data['type'] == 'comet-ai-beacon') {
+                String? deviceId = data['deviceId'];
+                if (deviceId != null &&
+                    !_discoveredDeviceIds.contains(deviceId)) {
+                  _discoveredDeviceIds.add(deviceId);
+                  _discoveredDevicesController.add({
+                    'deviceId': deviceId,
+                    'deviceName': data['deviceName'] ?? 'Unknown Desktop',
+                    'ip': dg.address.address,
+                    'port': data['port'] ?? 3004,
+                  });
+                }
+              }
+            } catch (e) {
+              print('[Sync] Error parsing discovery beacon: $e');
+            }
+          }
+        }
+      });
+      print('[Sync] UDP discovery started on port 3005');
+    } catch (e) {
+      print('[Sync] Failed to start UDP discovery: $e');
+    }
+  }
+
+  void stopDiscovery() {
+    _discoverySocket?.close();
+    _discoverySocket = null;
+    print('[Sync] UDP discovery stopped');
+  }
+
+  Future<void> connectToDesktop(String ip, int port, String deviceId,
+      {String? pairingCode}) async {
     try {
       _desktopIp = ip;
       _desktopPort = port;
       remoteDeviceId = deviceId;
 
       // Connect via WebSocket
-      _desktopSocket = await WebSocket.connect('ws://$ip:$port');
+      _desktopSocket = await WebSocket.connect('ws://$ip:$port')
+          .timeout(const Duration(seconds: 5));
+
+      final completer = Completer<void>();
+
+      // Listen for messages
+      _desktopSocket!.listen(
+        (data) {
+          try {
+            final msg = jsonDecode(data);
+            if (msg['type'] == 'handshake-ack' &&
+                msg['authenticated'] == true) {
+              if (!completer.isCompleted) completer.complete();
+            } else if (msg['type'] == 'error' && msg['code'] == 'AUTH_FAILED') {
+              if (!completer.isCompleted)
+                completer.completeError('AUTH_FAILED');
+            }
+          } catch (_) {}
+          _handleDesktopMessage(data);
+        },
+        onDone: () {
+          isConnectedToDesktop = false;
+          if (!completer.isCompleted) completer.completeError('Disconnected');
+        },
+        onError: (error) {
+          isConnectedToDesktop = false;
+          if (!completer.isCompleted) completer.completeError(error);
+        },
+      );
 
       // Send handshake
       _desktopSocket!.add(
@@ -214,27 +294,19 @@ class SyncService {
           'type': 'handshake',
           'deviceId': this.deviceId,
           'platform': 'mobile',
+          'pairingCode': pairingCode,
         }),
       );
 
-      // Listen for messages
-      _desktopSocket!.listen(
-        (data) {
-          _handleDesktopMessage(data);
-        },
-        onDone: () {
-          isConnectedToDesktop = false;
-          print('[Sync] Desktop connection closed');
-        },
-        onError: (error) {
-          isConnectedToDesktop = false;
-          print('[Sync] Desktop connection error: $error');
-        },
-      );
+      // Wait for authentication response
+      await completer.future.timeout(const Duration(seconds: 10));
 
       isConnectedToDesktop = true;
-      print('[Sync] Connected to desktop at $ip:$port');
+      print('[Sync] Connected and Authenticated to desktop at $ip:$port');
     } catch (e) {
+      _desktopSocket?.close();
+      _desktopSocket = null;
+      isConnectedToDesktop = false;
       print('[Sync] Failed to connect to desktop: $e');
       rethrow;
     }
@@ -251,6 +323,9 @@ class SyncService {
         _lastSentClipboard = msg['text'];
         Clipboard.setData(ClipboardData(text: msg['text']));
         _clipboardController.add(msg['text']);
+      } else if (msg['type'] == 'error' && msg['code'] == 'AUTH_FAILED') {
+        isConnectedToDesktop = false;
+        print('[Sync] Authentication failed: ${msg['message']}');
       }
     } catch (e) {
       print('[Sync] Error handling desktop message: $e');
@@ -306,6 +381,7 @@ class SyncService {
     isConnectedToDesktop = false;
     _desktopIp = null;
     _desktopPort = null;
+    stopDiscovery();
     print('[Sync] Disconnected from desktop');
   }
 

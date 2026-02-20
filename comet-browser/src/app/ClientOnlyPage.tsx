@@ -10,7 +10,7 @@ import {
   RotateCw, AlertTriangle, ShieldCheck, DownloadCloud, ShoppingCart, Copy as CopyIcon,
   Terminal, Settings as GhostSettings, FolderOpen, Sparkles, ScanLine, Search, X,
   Puzzle, Code2, Briefcase, Image as ImageIcon, User as UserIcon, Maximize2, Minimize2, RefreshCcw, Download as DownloadIcon,
-  Layout, MoreVertical, CreditCard, ArrowRight, Languages, Share2, Lock, Shield, Volume2, Square, Music2, Waves, Presentation
+  Layout, MoreVertical, CreditCard, ArrowRight, Languages, Share2, Lock, Shield, Volume2, Square, Music2, Waves, Presentation, Package
 } from 'lucide-react';
 import AIChatSidebar from '@/components/AIChatSidebar';
 import LandingPage from '@/components/LandingPage';
@@ -134,6 +134,7 @@ export default function Home() {
   const [inputValue, setInputValue] = useState(store.currentUrl); // New state for input field's raw value
   const [showSpotlightSearch, setShowSpotlightSearch] = useState(false); // New state for global spotlight search
   const [isPopupWindow, setIsPopupWindow] = useState(false);
+  const [activeExtensions, setActiveExtensions] = useState<any[]>([]);
 
   const handleSettingsClose = useCallback(() => {
     if (isPopupWindow && window.electronAPI) {
@@ -713,6 +714,15 @@ export default function Home() {
     }
   }, [store.addTab, store.removeTab, store.activeTabId, store.nextTab, store.prevTab, store.toggleSidebar]);
 
+  // Fetch extensions when popup is opened
+  useEffect(() => {
+    if (showExtensionsPopup && window.electronAPI) {
+      window.electronAPI.getExtensions().then((exts: any) => {
+        setActiveExtensions(exts);
+      });
+    }
+  }, [showExtensionsPopup]);
+
   // Dynamic Ollama Model Fetch
   useEffect(() => {
     if (window.electronAPI && store.aiProvider === 'ollama') {
@@ -1262,9 +1272,9 @@ export default function Home() {
                 </button>
 
                 <button onClick={() => setShowSettings(true)} className="p-1 rounded-2xl hover:scale-110 transition-all outline-none border border-white/10 bg-white/5 overflow-hidden">
-                  {store.user?.photoURL ? (
+                  {(store.user?.photoURL || store.localPhotoURL) ? (
                     <img
-                      src={store.user.photoURL}
+                      src={store.user?.photoURL || store.localPhotoURL || ''}
                       alt="Profile"
                       className="w-6 h-6 rounded-full object-cover shadow-[0_0_10px_rgba(56,189,248,0.3)]"
                       onError={(e) => {
@@ -1402,21 +1412,52 @@ export default function Home() {
               )}
 
               {showExtensionsPopup && (
-                <div className={`absolute top-20 ${store.sidebarSide === 'right' && store.sidebarOpen ? 'right-[290px]' : 'right-4'} z-[90] w-80 h-[30rem] bg-[#020205]/95 backdrop-blur-3xl border border-white/5 rounded-2xl shadow-2xl flex flex-col overflow-hidden`}>
-                  <div className="p-4 border-b border-white/5 flex items-center justify-between">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-white/60">Quick Extensions</span>
-                    <button onClick={() => setShowExtensionsPopup(false)} className="text-white/20 hover:text-white"><X size={14} /></button>
+                <div className={`absolute top-20 ${store.sidebarSide === 'right' && store.sidebarOpen ? 'right-[290px]' : 'right-4'} z-[90] w-80 h-[32rem] bg-[#0a0a0f]/90 backdrop-blur-3xl border border-white/10 rounded-3xl shadow-[0_30px_60px_-12px_rgba(0,0,0,0.7)] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-300`}>
+                  <div className="p-5 border-b border-white/5 flex items-center justify-between bg-white/[0.03]">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-xl bg-deep-space-accent-neon/10 flex items-center justify-center border border-deep-space-accent-neon/20">
+                        <Puzzle size={16} className="text-deep-space-accent-neon" />
+                      </div>
+                      <span className="text-[11px] font-black uppercase tracking-[0.2em] text-white/80">Neural Modules</span>
+                    </div>
+                    <button onClick={() => setShowExtensionsPopup(false)} className="p-2 rounded-full hover:bg-white/5 text-white/30 hover:text-white transition-all"><X size={16} /></button>
                   </div>
-                  <div className="flex-1 overflow-y-auto p-4 flex flex-col items-center justify-center opacity-20">
-                    <Puzzle size={32} className="mb-2" />
-                    <p className="text-[10px] uppercase font-bold tracking-tighter text-center">Manage all extensions in <br /> sidebar dashboard</p>
+                  <div className="flex-1 overflow-y-auto p-5 custom-scrollbar space-y-4">
+                    {activeExtensions.length === 0 ? (
+                      <div className="h-full flex flex-col items-center justify-center text-center gap-6 px-6">
+                        <div className="p-5 rounded-3xl bg-white/[0.02] border border-dashed border-white/10">
+                          <Package size={48} className="text-white/10" />
+                        </div>
+                        <div className="space-y-2">
+                          <p className="text-[10px] uppercase font-black tracking-widest text-white/40 leading-relaxed">System scan complete <br /><span className="text-white/10">No modules found</span></p>
+                          <p className="text-[8px] uppercase font-black text-deep-space-accent-neon/30 tracking-[0.2em]">Ready for instantiation</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 gap-3">
+                        {activeExtensions.map((ext, i) => (
+                          <div key={i} className="p-4 rounded-[1.5rem] bg-white/[0.03] border border-white/5 flex items-center gap-4 group hover:bg-white/[0.08] hover:border-white/10 transition-all cursor-default">
+                            <div className="w-11 h-11 rounded-2xl bg-black/40 flex items-center justify-center text-deep-space-accent-neon border border-white/5 shadow-xl group-hover:scale-105 transition-transform">
+                              <Package size={22} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[11px] text-white font-bold truncate tracking-tight">{ext.name}</p>
+                              <div className="flex items-center gap-3 mt-1">
+                                <span className={`w-1.5 h-1.5 rounded-full ${ext.enabled ? 'bg-deep-space-accent-neon shadow-[0_0_10px_#00ffff]' : 'bg-white/10'}`} />
+                                <span className="text-[9px] font-black text-white/30 uppercase tracking-widest">v{ext.version}</span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  <div className="p-3 border-t border-white/5 bg-white/5">
+                  <div className="p-5 border-t border-white/5 bg-white/[0.03]">
                     <button
                       onClick={() => { setShowExtensionsPopup(false); setSettingsSection('extensions'); setShowSettings(true); }}
-                      className="w-full py-2 bg-deep-space-accent-neon text-deep-space-bg rounded-lg text-[10px] font-black uppercase tracking-widest"
+                      className="w-full py-3.5 bg-deep-space-accent-neon/10 hover:bg-deep-space-accent-neon text-deep-space-accent-neon hover:text-deep-space-bg border border-deep-space-accent-neon/20 rounded-2xl text-[10px] font-black uppercase tracking-[0.3em] transition-all duration-300 shadow-lg hover:shadow-deep-space-accent-neon/20"
                     >
-                      Manage Extensions
+                      ORCHESTRATION PANEL
                     </button>
                   </div>
                 </div>

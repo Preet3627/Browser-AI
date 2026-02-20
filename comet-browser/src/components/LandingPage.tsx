@@ -199,7 +199,7 @@ const LandingPage = () => {
                                 <ExternalLink size={16} />
                             </button>
                             <button
-                                onClick={() => window.open('https://github.com/Preet3627/Browser-AI', '_blank')}
+                                onClick={() => window.open('https://github.com/Preet3627/Comet-AI', '_blank')}
                                 className="p-2 text-white/40 hover:text-sky-400 transition-colors flex items-center gap-2"
                             >
                                 <Github size={20} />

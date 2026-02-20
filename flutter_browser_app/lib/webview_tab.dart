@@ -32,6 +32,7 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
   FindInteractionController? _findInteractionController;
   bool _isWindowClosed = false;
   final FocusNode _focusNode = FocusNode();
+  int _lastScrollY = 0;
 
   final TextEditingController _httpAuthUsernameController =
       TextEditingController();
@@ -295,6 +296,22 @@ class _WebViewTabState extends State<WebViewTab> with WidgetsBindingObserver {
 
         if (isCurrentTab(currentWebViewModel)) {
           currentWebViewModel.updateWithValue(widget.webViewModel);
+        }
+      },
+      onScrollChanged: (controller, x, y) {
+        if (isCurrentTab(currentWebViewModel)) {
+          if (y > _lastScrollY && y > 100) {
+            // Scrolling down
+            if (currentWebViewModel.isAppBarVisible) {
+              currentWebViewModel.isAppBarVisible = false;
+            }
+          } else if (y < _lastScrollY || y < 10) {
+            // Scrolling up or at top
+            if (!currentWebViewModel.isAppBarVisible) {
+              currentWebViewModel.isAppBarVisible = true;
+            }
+          }
+          _lastScrollY = y;
         }
       },
       onUpdateVisitedHistory: (controller, url, androidIsReload) async {

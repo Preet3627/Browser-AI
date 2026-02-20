@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Comet AI Browser](https://raw.githubusercontent.com/Preet3627/Browser-AI/refs/heads/main/comet-browser/icon.ico)
+![Comet AI Browser](https://raw.githubusercontent.com/Preet3627/Comet-AI/refs/heads/main/comet-browser/icon.ico)
 
 **The World's Most Advanced Privacy-First AI Browser**
 
@@ -96,7 +96,7 @@ Comet v0.2.0 brings significant user experience improvements, focusing on custom
 ### 2. Installation
 ```bash
 # Clone the repository
-git clone https://github.com/Preet3627/Browser-AI.git
+git clone https://github.com/Preet3627/Comet-AI.git
 cd Browser-AI/comet-browser
 npm install
 npm run build

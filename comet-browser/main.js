@@ -1,4 +1,5 @@
 const { app, BrowserWindow, ipcMain, BrowserView, session, shell, clipboard, dialog, globalShortcut, Menu, protocol, desktopCapturer, screen, nativeImage } = require('electron');
+const QRCode = require('qrcode');
 const contextMenuRaw = require('electron-context-menu');
 const contextMenu = contextMenuRaw.default || contextMenuRaw;
 const fs = require('fs');
@@ -191,31 +192,40 @@ const llmGenerateHandler = async (messages, options = {}) => {
 
       const genAI = new GoogleGenerativeAI(gKey);
 
-      let modelName = 'gemini-1.5-flash';
+      let modelName = 'gemini-2.0-flash';
       let generationConfigOverrides = {};
 
-      if (providerId.includes('3-pro')) {
-        modelName = 'gemini-3-pro';
-      } else if (providerId.includes('3-flash')) {
-        modelName = 'gemini-3-flash';
+      // Gemini 3.1 series (latest as of Feb 2026)
+      if (providerId.includes('3.1-pro')) {
+        modelName = 'gemini-3.1-pro-preview';
+      } else if (providerId.includes('3.1-flash')) {
+        modelName = 'gemini-3.1-flash-preview';
+        // Gemini 3.0 series - use correct v1beta names (3-pro-preview does NOT exist)
       } else if (providerId.includes('3-deep-think')) {
-        modelName = 'gemini-3-deep-think';
+        modelName = 'gemini-exp-1206'; // deepthink/reasoning model available as exp
+      } else if (providerId.includes('3-pro')) {
+        modelName = 'gemini-2.5-pro-preview-05-06'; // fallback: closest available pro
+      } else if (providerId.includes('3-flash')) {
+        modelName = 'gemini-2.5-flash-preview-04-17'; // fallback: closest available flash
+        // Gemini 2.5 series
       } else if (providerId.includes('2.5-pro')) {
-        modelName = 'gemini-2.5-pro';
+        modelName = 'gemini-2.5-pro-preview-05-06';
       } else if (providerId.includes('2.5-flash')) {
-        modelName = 'gemini-2.5-flash';
+        modelName = 'gemini-2.5-flash-preview-04-17';
+        // Gemini 2.0 series
       } else if (providerId.includes('2.0-pro')) {
         modelName = 'gemini-2.0-pro-exp-02-05';
       } else if (providerId.includes('2.0-flash-lite')) {
-        modelName = 'gemini-2.0-flash-lite-preview-02-05';
+        modelName = 'gemini-2.0-flash-lite';
       } else if (providerId.includes('2.0-flash')) {
         modelName = 'gemini-2.0-flash';
+        // Gemini 1.5 series
       } else if (providerId.includes('1.5-pro')) {
         modelName = 'gemini-1.5-pro';
       } else if (providerId.includes('1.5-flash')) {
         modelName = 'gemini-1.5-flash';
       } else {
-        modelName = 'gemini-1.5-pro'; // Default
+        modelName = 'gemini-2.0-flash'; // Default: fast and reliable
       }
 
       const systemMessage = messages.find(m => m.role === 'system');
@@ -674,7 +684,7 @@ async function createWindow() {
 ipcMain.handle('test-gemini-api', async (event, apiKey) => {
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
     const result = await model.generateContent("test");
     await result.response; // Ensure the call completes
     return { success: true };
@@ -1575,23 +1585,19 @@ ipcMain.handle('load-vector-store', async () => {
   return [];
 });
 
-const llmProviders = [
-  { id: 'gemini-3-pro', name: 'Gemini 3 Pro' },
-  { id: 'gemini-3-flash', name: 'Gemini 3 Flash' },
-  { id: 'gemini-3-deep-think', name: 'Gemini 3 Deep Think' },
-  { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro' },
-  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
-  { id: 'gemini-2.0-pro', name: 'Gemini 2.0 Pro' },
-  { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash' },
-  { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro' },
-  { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash' },
-  { id: 'gpt-4o', name: 'GPT-4o' },
-  { id: 'o1', name: 'OpenAI o1' },
-  { id: 'claude-3-7-sonnet', name: 'Claude 3.7 Sonnet' },
-  { id: 'claude-3-5-sonnet', name: 'Claude 3.5 Sonnet' },
-  { id: 'ollama', name: 'Ollama (Local AI)' },
-  { id: 'groq-mixtral', name: 'Groq LPU' },
-  { id: 'openai-compatible', name: 'OpenAI Compatible' }
+{ id: 'gemini-3.1-pro', name: 'Gemini 3.1 Pro (Latest)' },
+{ id: 'gemini-3.1-flash', name: 'Gemini 3.1 Flash (Latest)' },
+{ id: 'gemini-2.0-pro', name: 'Gemini 2.0 Pro (Experimental)' },
+{ id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash' },
+{ id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro' },
+{ id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash' },
+{ id: 'gpt-4o', name: 'GPT-4o' },
+{ id: 'o1', name: 'OpenAI o1' },
+{ id: 'claude-3-7-sonnet', name: 'Claude 3.7 Sonnet' },
+{ id: 'claude-3-5-sonnet', name: 'Claude 3.5 Sonnet' },
+{ id: 'ollama', name: 'Ollama (Local AI)' },
+{ id: 'groq-mixtral', name: 'Groq LPU' },
+{ id: 'openai-compatible', name: 'OpenAI Compatible' }
 ];
 let activeLlmProvider = 'gemini-1.5-flash';
 const llmConfigs = {};
@@ -1604,6 +1610,47 @@ ipcMain.handle('llm-set-active-provider', (event, providerId) => {
 ipcMain.handle('llm-configure-provider', (event, providerId, options) => {
   llmConfigs[providerId] = options;
   return true;
+});
+
+ipcMain.handle('search-applications', async (event, query) => {
+  const results = [];
+  const normalizedQuery = query.toLowerCase();
+
+  try {
+    if (process.platform === 'win32') {
+      const searchDirs = [
+        path.join(process.env.ProgramData, 'Microsoft', 'Windows', 'Start Menu', 'Programs'),
+        path.join(process.env.AppData, 'Microsoft', 'Windows', 'Start Menu', 'Programs')
+      ];
+
+      for (const dir of searchDirs) {
+        if (!fs.existsSync(dir)) continue;
+
+        const files = fs.readdirSync(dir, { recursive: true });
+        for (const file of files) {
+          if (file.toLowerCase().endsWith('.lnk') && file.toLowerCase().includes(normalizedQuery)) {
+            const name = path.basename(file, '.lnk');
+            results.push({ name, path: path.join(dir, file) });
+          }
+        }
+      }
+    } else if (process.platform === 'darwin') {
+      const { execSync } = require('child_process');
+      try {
+        const output = execSync(`mdfind "kMDItemContentType == 'com.apple.application-bundle' && kMDItemFSName == '*${query}*'"`).toString();
+        const paths = output.split('\n').filter(p => p.trim());
+        for (const p of paths) {
+          results.push({ name: path.basename(p, '.app'), path: p });
+        }
+      } catch (e) {
+        console.error('macOS mdfind failed:', e);
+      }
+    }
+    return { success: true, results: results.slice(0, 10) };
+  } catch (err) {
+    console.error('App Search Error:', err);
+    return { success: false, error: err.message };
+  }
 });
 
 // IPC handler to set MCP server port dynamically
@@ -2168,8 +2215,25 @@ app.whenReady().then(() => {
     return wifiSyncService ? wifiSyncService.getConnectUri() : null;
   });
 
-  ipcMain.handle('get-wifi-sync-qr', () => {
-    return wifiSyncService ? wifiSyncService.getConnectUri() : null;
+  ipcMain.handle('get-wifi-sync-qr', async () => {
+    if (!wifiSyncService) return null;
+    const uri = wifiSyncService.getConnectUri();
+    try {
+      return await QRCode.toDataURL(uri);
+    } catch (err) {
+      console.error('[Main] Failed to generate QR code:', err);
+      return null;
+    }
+  });
+
+  ipcMain.handle('get-wifi-sync-info', () => {
+    if (!wifiSyncService) return null;
+    return {
+      deviceName: os.hostname(),
+      pairingCode: wifiSyncService.getPairingCode(),
+      ip: wifiSyncService.getLocalIp(),
+      port: 3004
+    };
   });
 
   // Handle file downloads
@@ -3010,26 +3074,41 @@ app.whenReady().then(() => {
 
     try {
       if (platform === 'win32') {
-        // Windows: Search in Start Menu and Program Files
+        // Windows: Search only in Start Menu for performance. Program Files is too slow for recursive readdir.
         const searchPaths = [
           path.join(process.env.ProgramData, 'Microsoft/Windows/Start Menu/Programs'),
           path.join(process.env.APPDATA, 'Microsoft/Windows/Start Menu/Programs'),
-          'C:\\Program Files',
-          'C:\\Program Files (x86)'
+          'C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs',
+          path.join(process.env.USERPROFILE, 'AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs')
         ];
 
         for (const searchPath of searchPaths) {
           if (fs.existsSync(searchPath)) {
-            const files = fs.readdirSync(searchPath, { recursive: true });
-            files.forEach(file => {
-              if (file.toLowerCase().includes(query.toLowerCase()) &&
-                (file.endsWith('.lnk') || file.endsWith('.exe'))) {
-                results.push({
-                  name: path.basename(file, path.extname(file)),
-                  path: path.join(searchPath, file)
-                });
-              }
-            });
+            // Limited depth search (max 3 levels)
+            const getFiles = (dir, depth = 0) => {
+              if (depth > 3) return [];
+              try {
+                let results = [];
+                const list = fs.readdirSync(dir, { withFileTypes: true });
+                for (const file of list) {
+                  const res = path.resolve(dir, file.name);
+                  if (file.isDirectory()) {
+                    results = results.concat(getFiles(res, depth + 1));
+                  } else {
+                    if (file.name.toLowerCase().includes(query.toLowerCase()) &&
+                      (file.name.endsWith('.lnk') || file.name.endsWith('.exe'))) {
+                      results.push({
+                        name: path.basename(file.name, path.extname(file.name)),
+                        path: res
+                      });
+                    }
+                  }
+                }
+                return results;
+              } catch (e) { return []; }
+            };
+
+            results.push(...getFiles(searchPath));
           }
         }
       } else if (platform === 'darwin') {
@@ -3287,8 +3366,9 @@ app.whenReady().then(() => {
   // GLOBAL HOTKEY - Register global shortcuts
   // ============================================================================
   app.whenReady().then(() => {
-    // Register CMD/Windows + Shift + Space for spotlight search
-    const spotlightShortcut = process.platform === 'darwin' ? 'Command+Shift+Space' : 'Windows+Shift+Space';
+    // Alt+Space avoids conflict with Windows input switcher (Ctrl+Shift+Space)
+    // and macOS Spotlight (Cmd+Space). Alt+Space is rarely bound by the OS.
+    const spotlightShortcut = process.platform === 'darwin' ? 'Option+Space' : 'Alt+Space';
 
     try {
       globalShortcut.register(spotlightShortcut, () => {

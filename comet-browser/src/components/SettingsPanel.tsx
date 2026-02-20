@@ -148,16 +148,26 @@ const SettingsPanel = ({ onClose, defaultSection = 'profile' }: { onClose: () =>
                         <span className="text-xl font-black tracking-tighter uppercase text-white">COMET</span>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto no-scrollbar space-y-1">
+                    <div className="flex-1 overflow-y-auto no-scrollbar space-y-2 pr-2">
                         {sections.map((s) => (
                             <button
                                 key={s.id}
                                 onClick={() => setActiveSection(s.id)}
-                                className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all font-bold text-sm ${activeSection === s.id ? 'bg-deep-space-accent-neon/10 text-deep-space-accent-neon' : 'text-white/40 hover:bg-white/5 hover:text-white'}`}
+                                className={`w-full flex items-center gap-4 px-5 py-3.5 rounded-2xl transition-all font-bold text-xs relative group ${activeSection === s.id
+                                    ? 'bg-deep-space-accent-neon/10 text-deep-space-accent-neon shadow-[0_0_20px_rgba(0,255,255,0.1)] border border-deep-space-accent-neon/20'
+                                    : 'text-white/30 hover:bg-white/[0.03] hover:text-white border border-transparent hover:border-white/5'
+                                    }`}
                             >
-                                {s.icon}
-                                <span className="flex-1 text-left">{s.label}</span>
-                                {activeSection === s.id && <ChevronRight size={14} />}
+                                <div className={`transition-transform duration-300 ${activeSection === s.id ? 'scale-110' : 'group-hover:scale-110'}`}>
+                                    {s.icon}
+                                </div>
+                                <span className="flex-1 text-left uppercase tracking-widest">{s.label}</span>
+                                {activeSection === s.id && (
+                                    <motion.div
+                                        layoutId="active-pill"
+                                        className="absolute left-0 w-1 h-6 bg-deep-space-accent-neon rounded-r-full"
+                                    />
+                                )}
                             </button>
                         ))}
                     </div>
@@ -195,7 +205,7 @@ const SettingsPanel = ({ onClose, defaultSection = 'profile' }: { onClose: () =>
                                     <div className="flex items-center gap-8 relative z-10">
                                         <div className="relative">
                                             {store.user?.photoURL || store.localPhotoURL ? (
-                                                <Image src={store.user?.photoURL || store.localPhotoURL || ''} alt="Profile" width={64} height={64} className="rounded-full border-2 border-deep-space-accent-neon/20 shadow-2xl object-cover h-16 w-16" />
+                                                <img src={store.user?.photoURL || store.localPhotoURL || ''} alt="Profile" className="rounded-full border-2 border-deep-space-accent-neon/20 shadow-2xl object-cover h-16 w-16" />
                                             ) : (
                                                 <div className="w-[64px] h-[64px] rounded-full bg-white/5 border-2 border-white/10 flex items-center justify-center text-white/20">
                                                     <UserIcon size={24} />

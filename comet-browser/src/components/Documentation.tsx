@@ -11,17 +11,18 @@ import { motion } from 'framer-motion';
 import { FileText, Cpu, Zap, Shield, Bookmark, ChevronRight, Github, ExternalLink } from 'lucide-react';
 
 const README_CONTENT = `
-# ☄️ Comet Browser (v0.1.7)
+# ☄️ Comet Browser (v0.2.0)
 Made in India 🇮🇳
 ### The Intelligent Workspace for the Future
 
 **Built by a solo high school developer (Latestinssan)**, running on extreme constraints (i3 4th Gen, 4GB RAM), yet designed to outperform modern browsers in productivity and intelligence.
 
 **Comet** is not just a fork; it's a **custom-hardened Chromium environment** designed for:
-1.  **Native AI Orchestration**: Seamlessly switch between Google Gemini 3, GPT-4o, Claude 3.5, Groq, and **Local Ollama (Deepseek R1)**.
+1.  **Native AI Orchestration**: Seamlessly switch between **Google Gemini 3.1 (Pro & Flash)**, GPT-4o, Claude 3.7, Groq, and **Local Ollama (Deepseek R1)**.
 2.  **RAG-Powered Memory**: Your browser remembers your context. It builds a local vector database of your sessions to provide "Perplexity-style" answers offline.
 3.  **Hardware Isolation**: Every tab is sandboxed for maximum security and crash resistance.
 4.  **Decentralized Sync**: Sync your data (tabs, clipboard, history) across devices using P2P direct connections or Firebase with end-to-end encryption.
+5.  **Gemini 3.1 Integration**: Leveraging the latest multimodal capabilities for autonomous browsing and PDF generation.
 
 ---
 
@@ -87,7 +88,7 @@ Despite constant crashes, build failures (Electron is heavy!), and school pressu
 ## 📦 Installation
 \`\`\`bash
 # Clone the repository
-git clone https://github.com/Preet3627/Browser-AI.git
+git clone https://github.com/Preet3627/Comet-AI.git
 
 # Install dependencies
 npm install
@@ -209,7 +210,7 @@ const Documentation = () => {
                         <footer className="flex flex-col lg:flex-row items-center justify-between gap-8 pt-8">
                             <div className="flex items-center gap-6">
                                 <a
-                                    href="https://github.com/Preet3627/Browser-AI"
+                                    href="https://github.com/Preet3627/Comet-AI"
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="flex items-center gap-2 text-white/40 hover:text-white transition-colors group"

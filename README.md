@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Comet AI Browser](https://raw.githubusercontent.com/Preet3627/Browser-AI/main/icon.ico)
+![Comet AI Browser](https://raw.githubusercontent.com/Preet3627/Comet-AI/main/icon.ico)
 
 **The World's Most Advanced Autonomous AI Browser**
 
@@ -28,7 +28,45 @@ Modern browsers are built for scale, monetization, and cloud-first users. Comet 
 
 ---
 
-## 📊 Performance Snapshot
+## �️ Full Feature List
+
+### 🤖 Autonomous AI Agency (Comet Agent)
+*   **Multimodal Perception**: The agent perceives the web like a human using direct Screen Capture, Tesseract.js OCR, and Shadow DOM analysis.
+*   **Self-Correction Loop**: Validates its own actions (e.g., checking if a click actually navigated) to ensure reliability in complex tasks.
+*   **Action Engine**:
+    *   `[NAVIGATE: url]` - Direct navigation.
+    *   `[CLICK: text/selector]` - Human-like interaction.
+    *   `[TYPE: text | selector]` - Input handling.
+    *   `[SCROLL: direction]` - Page exploration.
+    *   `[EXTRACT_DATA: query]` - Targeted scraping.
+*   **Thinking Blocks**: Live visibility into the agent's reasoning process and current "vision" frame.
+
+### 🧠 LLM Orchestration
+*   **Latest Model Support**: Support for **Google Gemini 3.1 (Pro/Flash)**, **Claude 3.7 Sonnet**, GPT-4o, and Groq.
+*   **Local AI (Ollama)**: Direct integration with Ollama for running models like **Deepseek R1** or Llama 3 locally for maximum privacy.
+*   **RAG-Powered Memory**: Local vector database (using `vectorstore`) that indexes your browsing history for semantically accurate, privacy-preserving session recall.
+
+### 🍱 Productivity & Workspace
+*   **PDF Workspace**: Autonomous generation of PDF reports and documents from research queries.
+*   **Presenton Studio**: Integrated AI presentation generator to turn web research into slide decks instantly.
+*   **Spotlight Search (Alt+Space)**: System-wide shortcut for quick app launching, calculations, currency conversion, and AI prompts.
+*   **Neural Modules (Extensions)**: A modular extension system with a glassmorphic UI for managing browser capabilities.
+*   **Sidebar Multi-Tasking**: A persistent AI companion that stays with you across all tabs for summarization and action.
+
+### ⚡ Performance & Core
+*   **Speedometer 3 Optimized**: Consistently achieves ultra-low latency (~14ms) outperforming mainstream browsers.
+*   **Hardware Isolation**: Sandboxed tabs and resource-heavy process management for crash resistance.
+*   **Ad-Blocking & Privacy**: Integrated **Ghostery Adblocker** and tracking prevention.
+*   **Premium UI**: Custom-built with **Framer Motion**, featuring vibrant dark modes, glassmorphism, and smooth micro-animations.
+
+### 🔄 Multi-Device Ecosystem
+*   **WiFi Desktop Sync**: Securely connect mobile and desktop via local network QR scans.
+*   **P2P Clipboard Sharing**: Copy text on your phone and paste it on your laptop without the cloud.
+*   **Sync Session Recovery**: Seamlessly pick up your open tabs and AI conversations across devices.
+
+---
+
+## �📊 Performance Snapshot
 
 Measured on real hardware, not marketing slides.
 
@@ -38,7 +76,7 @@ Measured on real hardware, not marketing slides.
 | UI Load Time | < 2 seconds | Cold start observed |
 | Electron RAM (AI + 1 tab) | ~700–800 MB | Expected Electron overhead |
 | System RAM | 8 GB (6.9 GB used) | Still smooth, no visible lag |
-| Agent Reaction Time | ~3-5s | Claude 3.5 Sonnet processing latency |
+| Agent Reaction Time | ~3-5s | Claude 3.7 Sonnet processing latency |
 
 ---
 
@@ -46,11 +84,11 @@ Measured on real hardware, not marketing slides.
 
 We've introduced groundbreaking autonomous capabilities:
 
-- **Comet Agent (Mobile)**: A fully autonomous browser agent on Android. Trigger it by typing `>>` in the search bar. It uses **Multimodal Perception** (Screenshots + OCR + DOM) to navigate websites and complete tasks.
-- **Autonomous PDF Generation**: The browser can now generate and download PDF documents autonomously via AI commands.
-- **Presenton AI Integration**: Directly launch AI presentation generation from the chat sidebar.
-- **Advanced Agent UI**: A dedicated "Step-by-Step" agency view with thinking blocks and live screenshot previews.
+- **Comet Agent (Mobile)**: A fully autonomous browser agent on Android. Trigger it by typing `>>` in the search bar.
+- **Gemini 3.1 & Claude 3.7**: Integration of the latest multimodal reasoning models.
 - **WiFi Desktop Sync**: Connect mobile to desktop via WiFi & QR scan to execute commands remotely.
+- **Autonomous PDF Generation**: The browser can now generate and download PDF documents autonomously via AI commands.
+- **Premium Black UI**: New high-contrast "Pure Black" aesthetic for OLED mobile screens.
 
 ---
 
@@ -123,7 +161,7 @@ Visit [https://browser.ponsrischool.in](https://browser.ponsrischool.in) for doc
 
 ```bash
 # Clone the repository
-git clone https://github.com/Preet3627/Browser-AI.git
+git clone https://github.com/Preet3627/Comet-AI.git
 cd Browser-AI
 npm install
 ```

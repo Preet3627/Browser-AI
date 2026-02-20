@@ -13,7 +13,7 @@ To provide a private, intelligent, and performance-optimized browsing experience
 
 ## Useful Resources
 - **Live Demo/Landing**: [https://browser.ponsrischool.in](https://browser.ponsrischool.in)
-- **Source Code**: [https://github.com/Preet3627/Browser-AI](https://github.com/Preet3627/Browser-AI)
+- **Source Code**: [https://github.com/Preet3627/Comet-AI](https://github.com/Preet3627/Comet-AI)
 - **Technical License**: GPL-3.0
 
 ## AI Crawler Access

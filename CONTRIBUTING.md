@@ -25,7 +25,7 @@ If you have an idea for a feature or an improvement:
 
 ## 💻 Development Workflow
 
-1.  **Fork the repository** on GitHub: [https://github.com/Preet3627/Browser-AI](https://github.com/Preet3627/Browser-AI)
+1.  **Fork the repository** on GitHub: [https://github.com/Preet3627/Comet-AI](https://github.com/Preet3627/Comet-AI)
 2.  **Clone the Repo** locally:
     ```bash
     git clone https://github.com/YOUR-USERNAME/Browser-AI.git

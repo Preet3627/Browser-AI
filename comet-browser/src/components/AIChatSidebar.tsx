@@ -252,10 +252,20 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = (props) => {
     if (window.electronAPI && typeof window.electronAPI.on === 'function') {
       const cleanup = window.electronAPI.on('ai-chat-input-text', (text: string) => {
         setInputMessage(text);
-        // Optionally, focus the input field
-        // inputRef.current?.focus();
       });
-      return cleanup;
+
+      const cleanupRemote = window.electronAPI.onRemoteAiPrompt((data: any) => {
+        if (data && data.prompt) {
+          setInputMessage(data.prompt);
+          // Optionally auto-send if you want
+          // handleSendMessage(data.prompt);
+        }
+      });
+
+      return () => {
+        cleanup();
+        cleanupRemote();
+      };
     }
   }, []);
 

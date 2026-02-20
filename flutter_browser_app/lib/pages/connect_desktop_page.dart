@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 import 'package:qr_code_scanner/qr_code_scanner.dart';
 import 'dart:ui';
 import 'dart:io';
+import 'dart:async';
 import '../sync_service.dart';
 
 class ConnectDesktopPage extends StatefulWidget {
@@ -19,21 +19,136 @@ class _ConnectDesktopPageState extends State<ConnectDesktopPage> {
   bool isConnected = false;
   String? desktopIp;
   String? errorMessage;
+  final List<Map<String, dynamic>> _discoveredDevices = [];
+  StreamSubscription? _discoverySubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _startDiscovery();
+  }
+
+  void _startDiscovery() {
+    SyncService().startDiscovery();
+    _discoverySubscription = SyncService().onDeviceDiscovered.listen((device) {
+      if (mounted) {
+        setState(() {
+          if (!_discoveredDevices
+              .any((d) => d['deviceId'] == device['deviceId'])) {
+            _discoveredDevices.add(device);
+          }
+        });
+      }
+    });
+  }
 
   @override
   void dispose() {
+    _discoverySubscription?.cancel();
+    SyncService().stopDiscovery();
     controller?.dispose();
     super.dispose();
   }
 
-  Future<void> _scanQRCode(String qrData) async {
+  Future<void> _showPairingCodeDialog(
+      String ip, int port, String deviceId) async {
+    String pairingCode = "";
+    return showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: Color(0xFF121212),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text('Enter Pairing Code',
+            style: TextStyle(color: Colors.white, fontFamily: 'Outfit')),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Enter the 6-digit code shown on your desktop screen.',
+                style: TextStyle(color: Colors.white70, fontSize: 13)),
+            SizedBox(height: 20),
+            TextField(
+              autofocus: true,
+              keyboardType: TextInputType.number,
+              maxLength: 6,
+              style: TextStyle(
+                  color: Colors.white,
+                  letterSpacing: 10,
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+              decoration: InputDecoration(
+                counterText: "",
+                filled: true,
+                fillColor: Colors.white.withOpacity(0.05),
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(15),
+                    borderSide: BorderSide.none),
+              ),
+              onChanged: (value) => pairingCode = value,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel', style: TextStyle(color: Colors.white38)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+                backgroundColor: Color(0xFF00E5FF),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12))),
+            onPressed: () async {
+              Navigator.pop(context);
+              await _connect(ip, port, deviceId, pairingCode);
+            },
+            child: Text('Connect', style: TextStyle(color: Colors.black)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _connect(String ip, int port, String deviceId,
+      [String? pairingCode]) async {
     setState(() {
       isConnecting = true;
       errorMessage = null;
     });
 
     try {
-      // Parse QR code data (format: "comet-ai://connect?ip=xxx&port=xxx&device=xxx")
+      await SyncService()
+          .connectToDesktop(ip, port, deviceId, pairingCode: pairingCode);
+
+      if (mounted) {
+        setState(() {
+          isConnected = true;
+          desktopIp = ip;
+          isConnecting = false;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Connected to desktop at $ip'),
+            backgroundColor: Color(0xFF00E676),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          isConnecting = false;
+          errorMessage = e.toString().contains('AUTH_FAILED')
+              ? 'Invalid pairing code'
+              : 'Connection failed: $e';
+        });
+      }
+    }
+  }
+
+  Future<void> _scanQRCode(String qrData) async {
+    try {
       final uri = Uri.parse(qrData);
       if (uri.scheme == 'comet-ai' && uri.host == 'connect') {
         final ip = uri.queryParameters['ip'];
@@ -41,24 +156,7 @@ class _ConnectDesktopPageState extends State<ConnectDesktopPage> {
         final deviceId = uri.queryParameters['device'];
 
         if (ip != null && port != null && deviceId != null) {
-          // Connect to desktop
-          await SyncService().connectToDesktop(ip, int.parse(port), deviceId);
-
-          setState(() {
-            isConnected = true;
-            desktopIp = ip;
-            isConnecting = false;
-          });
-
-          // Show success message
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Connected to desktop at $ip'),
-                backgroundColor: Color(0xFF00E676),
-              ),
-            );
-          }
+          _showPairingCodeDialog(ip, int.parse(port), deviceId);
         } else {
           throw Exception('Invalid QR code data');
         }
@@ -67,7 +165,6 @@ class _ConnectDesktopPageState extends State<ConnectDesktopPage> {
       }
     } catch (e) {
       setState(() {
-        isConnecting = false;
         errorMessage = e.toString();
       });
     }
@@ -99,122 +196,166 @@ class _ConnectDesktopPageState extends State<ConnectDesktopPage> {
   }
 
   Widget _buildScannerView() {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            children: [
-              const Icon(
-                Icons.qr_code_scanner,
-                size: 80,
-                color: Color(0xFF00E5FF),
-              ),
-              const SizedBox(height: 20),
-              const Text(
-                'Scan QR Code',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                  fontFamily: 'Outfit',
-                ),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                'Open Comet-AI on your desktop and scan the QR code',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.white.withOpacity(0.7),
-                  fontFamily: 'Inter',
-                ),
-              ),
-            ],
-          ),
-        ),
-        Expanded(
-          child: Padding(
+    return SingleChildScrollView(
+      child: Column(
+        children: [
+          Padding(
             padding: const EdgeInsets.all(20.0),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(20),
-              child: Stack(
-                children: [
-                  QRView(
-                    key: qrKey,
-                    onQRViewCreated: _onQRViewCreated,
-                    overlay: QrScannerOverlayShape(
-                      borderColor: const Color(0xFF00E5FF),
-                      borderRadius: 20,
-                      borderLength: 40,
-                      borderWidth: 10,
-                      cutOutSize: MediaQuery.of(context).size.width * 0.7,
-                    ),
+            child: Column(
+              children: [
+                const Icon(
+                  Icons.qr_code_scanner,
+                  size: 60,
+                  color: Color(0xFF00E5FF),
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  'Scan QR Code',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    fontFamily: 'Outfit',
                   ),
-                  if (isConnecting)
-                    Container(
-                      color: Colors.black54,
-                      child: const Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            CircularProgressIndicator(color: Color(0xFF00E5FF)),
-                            SizedBox(height: 20),
-                            Text(
-                              'Connecting...',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 18,
-                                fontFamily: 'Inter',
-                              ),
-                            ),
-                          ],
-                        ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(
+            height: 250,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 40.0),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: Stack(
+                  children: [
+                    QRView(
+                      key: qrKey,
+                      onQRViewCreated: _onQRViewCreated,
+                      overlay: QrScannerOverlayShape(
+                        borderColor: const Color(0xFF00E5FF),
+                        borderRadius: 20,
+                        borderLength: 30,
+                        borderWidth: 8,
+                        cutOutSize: 200,
                       ),
                     ),
+                    if (isConnecting)
+                      Container(
+                        color: Colors.black54,
+                        child: const Center(
+                          child: CircularProgressIndicator(
+                              color: Color(0xFF00E5FF)),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          if (_discoveredDevices.isNotEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 30, 20, 10),
+              child: Row(
+                children: [
+                  Icon(Icons.devices, color: Colors.white38, size: 16),
+                  SizedBox(width: 8),
+                  Text(
+                    'DISCOVERED DEVICES',
+                    style: TextStyle(
+                      color: Colors.white38,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.5,
+                    ),
+                  ),
                 ],
               ),
             ),
-          ),
-        ),
-        if (errorMessage != null)
-          Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(15),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                child: Container(
-                  padding: EdgeInsets.all(15),
-                  decoration: BoxDecoration(
-                    color: Colors.red.withOpacity(0.2),
+            ListView.builder(
+              shrinkWrap: true,
+              physics: NeverScrollableScrollPhysics(),
+              itemCount: _discoveredDevices.length,
+              itemBuilder: (context, index) {
+                final device = _discoveredDevices[index];
+                return Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                  child: ClipRRect(
                     borderRadius: BorderRadius.circular(15),
-                    border: Border.all(color: Colors.red.withOpacity(0.5)),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.error_outline, color: Colors.red),
-                      SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          errorMessage!,
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontFamily: 'Inter',
+                    child: Material(
+                      color: Colors.white.withOpacity(0.05),
+                      child: ListTile(
+                        onTap: () => _showPairingCodeDialog(
+                            device['ip'], device['port'], device['deviceId']),
+                        leading: Container(
+                          padding: EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: Color(0xFF00E5FF).withOpacity(0.1),
+                            shape: BoxShape.circle,
                           ),
+                          child: Icon(Icons.desktop_windows,
+                              color: Color(0xFF00E5FF)),
                         ),
+                        title: Text(device['deviceName'],
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold)),
+                        subtitle: Text(device['ip'],
+                            style: TextStyle(color: Colors.white38)),
+                        trailing:
+                            Icon(Icons.chevron_right, color: Colors.white24),
                       ),
-                    ],
+                    ),
                   ),
+                );
+              },
+            ),
+          ] else
+            Padding(
+              padding: const EdgeInsets.all(40.0),
+              child: Column(
+                children: [
+                  SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white24),
+                  ),
+                  SizedBox(height: 10),
+                  Text('Searching for local devices...',
+                      style: TextStyle(color: Colors.white24, fontSize: 12)),
+                ],
+              ),
+            ),
+          if (errorMessage != null)
+            Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Container(
+                padding: EdgeInsets.all(15),
+                decoration: BoxDecoration(
+                  color: Colors.red.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(15),
+                  border: Border.all(color: Colors.red.withOpacity(0.2)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.error_outline, color: Colors.red),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text(errorMessage!,
+                          style: TextStyle(color: Colors.white70)),
+                    ),
+                  ],
                 ),
               ),
             ),
+          Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: _buildInstructionCard(),
           ),
-        Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: _buildInstructionCard(),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -226,8 +367,8 @@ class _ConnectDesktopPageState extends State<ConnectDesktopPage> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              width: 120,
-              height: 120,
+              width: 100,
+              height: 100,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: LinearGradient(
@@ -235,19 +376,19 @@ class _ConnectDesktopPageState extends State<ConnectDesktopPage> {
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Color(0xFF00E676).withOpacity(0.5),
-                    blurRadius: 30,
-                    spreadRadius: 10,
+                    color: Color(0xFF00E676).withOpacity(0.3),
+                    blurRadius: 20,
+                    spreadRadius: 5,
                   ),
                 ],
               ),
-              child: Icon(Icons.check, size: 60, color: Colors.white),
+              child: Icon(Icons.check, size: 50, color: Colors.white),
             ),
             SizedBox(height: 30),
             Text(
               'Connected!',
               style: TextStyle(
-                fontSize: 32,
+                fontSize: 28,
                 fontWeight: FontWeight.bold,
                 color: Colors.white,
                 fontFamily: 'Outfit',
@@ -257,12 +398,12 @@ class _ConnectDesktopPageState extends State<ConnectDesktopPage> {
             Text(
               'Desktop: $desktopIp',
               style: TextStyle(
-                fontSize: 18,
+                fontSize: 16,
                 color: Colors.white70,
                 fontFamily: 'Inter',
               ),
             ),
-            SizedBox(height: 40),
+            SizedBox(height: 30),
             ClipRRect(
               borderRadius: BorderRadius.circular(20),
               child: BackdropFilter(
@@ -270,37 +411,34 @@ class _ConnectDesktopPageState extends State<ConnectDesktopPage> {
                 child: Container(
                   padding: EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        Colors.white.withOpacity(0.15),
-                        Colors.white.withOpacity(0.05),
-                      ],
-                    ),
+                    color: Colors.white.withOpacity(0.05),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.white.withOpacity(0.2)),
+                    border: Border.all(color: Colors.white.withOpacity(0.1)),
                   ),
                   child: Column(
                     children: [
-                      Icon(Icons.touch_app, size: 40, color: Color(0xFF29B6F6)),
+                      Icon(Icons.touch_app, size: 30, color: Color(0xFF00E5FF)),
                       SizedBox(height: 15),
                       Text(
-                        'You can now control your desktop from this device!',
+                        'Premium Synchronisation Active',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 16,
+                          fontWeight: FontWeight.bold,
                           color: Colors.white,
                           fontFamily: 'Inter',
                         ),
                       ),
-                      SizedBox(height: 20),
+                      SizedBox(height: 15),
                       Text(
-                        '• Send voice commands\n'
-                        '• Execute prompts remotely\n'
-                        '• Sync clipboard & history',
+                        '• Instant Clipboard Sync\n'
+                        '• Remote Command Execution\n'
+                        '• Secure End-to-End Handshake',
                         style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.white70,
+                          fontSize: 13,
+                          color: Colors.white60,
                           fontFamily: 'Inter',
+                          height: 1.6,
                         ),
                       ),
                     ],
@@ -308,27 +446,22 @@ class _ConnectDesktopPageState extends State<ConnectDesktopPage> {
                 ),
               ),
             ),
-            SizedBox(height: 30),
-            ElevatedButton(
+            SizedBox(height: 40),
+            TextButton(
               onPressed: () {
+                SyncService().disconnectFromDesktop();
                 setState(() {
                   isConnected = false;
                   desktopIp = null;
                 });
+                _startDiscovery(); // Restart discovery
               },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red.withOpacity(0.8),
-                padding: EdgeInsets.symmetric(horizontal: 40, vertical: 15),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(30),
-                ),
-              ),
               child: Text(
-                'Disconnect',
+                'DISCONNECT SESSION',
                 style: TextStyle(
-                  fontSize: 16,
-                  fontFamily: 'Inter',
-                  color: Colors.white,
+                  color: Colors.redAccent,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 2,
                 ),
               ),
             ),
@@ -339,45 +472,38 @@ class _ConnectDesktopPageState extends State<ConnectDesktopPage> {
   }
 
   Widget _buildInstructionCard() {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(15),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          padding: EdgeInsets.all(15),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                Colors.white.withOpacity(0.1),
-                Colors.white.withOpacity(0.05),
-              ],
-            ),
-            borderRadius: BorderRadius.circular(15),
-            border: Border.all(color: Colors.white.withOpacity(0.2)),
-          ),
-          child: Row(
-            children: [
-              Icon(Icons.info_outline, color: Color(0xFF29B6F6)),
-              SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'Make sure both devices are on the same WiFi network',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 13,
-                    fontFamily: 'Inter',
-                  ),
-                ),
+    return Container(
+      padding: EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.03),
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: Colors.white.withOpacity(0.05)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.security, color: Colors.white24, size: 20),
+          SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'Connections are secured via local handshake and encrypted with your pairing code.',
+              style: TextStyle(
+                color: Colors.white24,
+                fontSize: 11,
+                fontFamily: 'Inter',
               ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
 
   void _onQRViewCreated(QRViewController controller) {
     this.controller = controller;
+    if (Platform.isAndroid) {
+      controller.pauseCamera();
+    }
+    controller.resumeCamera();
     controller.scannedDataStream.listen((scanData) {
       if (scanData.code != null && !isConnecting && !isConnected) {
         _scanQRCode(scanData.code!);

@@ -148,28 +148,29 @@ const ExtensionSettings = () => {
                                     initial={{ opacity: 0, y: 10 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     exit={{ opacity: 0, scale: 0.95 }}
-                                    className="p-5 rounded-3xl bg-white/[0.03] border border-white/5 flex items-start gap-4 group"
+                                    className="p-6 rounded-[2.5rem] bg-white/[0.02] border border-white/5 flex items-start gap-6 group hover:bg-white/[0.04] transition-all relative overflow-hidden"
                                 >
-                                    <div className="w-12 h-12 rounded-2xl bg-black/40 flex items-center justify-center text-deep-space-accent-neon shadow-2xl">
-                                        <Package size={24} />
+                                    <div className="absolute inset-0 bg-gradient-to-br from-deep-space-accent-neon/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                                    <div className="w-16 h-16 rounded-2xl bg-black/40 flex items-center justify-center text-deep-space-accent-neon border border-white/5 shadow-[0_10px_30px_rgba(0,0,0,0.5)] relative z-10">
+                                        <Package size={32} />
                                     </div>
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2 mb-1">
-                                            <h5 className="font-bold text-white text-sm truncate">{ext.name}</h5>
-                                            <span className="text-[9px] font-black bg-white/10 px-1.5 py-0.5 rounded text-white/40 uppercase">v{ext.version}</span>
+                                    <div className="flex-1 min-w-0 relative z-10">
+                                        <div className="flex items-center gap-3 mb-2">
+                                            <h5 className="font-black text-white text-base tracking-tight truncate">{ext.name}</h5>
+                                            <span className="text-[9px] font-black bg-deep-space-accent-neon/10 border border-deep-space-accent-neon/20 px-2 py-0.5 rounded-full text-deep-space-accent-neon uppercase">v{ext.version}</span>
                                         </div>
-                                        <p className="text-[11px] text-white/40 line-clamp-2 leading-relaxed">{ext.description || 'No description provided.'}</p>
-                                        <div className="mt-3 flex items-center gap-4">
-                                            <p className="text-[9px] font-mono text-white/20 truncate max-w-[200px]">{ext.id}</p>
+                                        <p className="text-xs text-white/40 line-clamp-2 leading-relaxed font-medium mb-4">{ext.description || 'No description provided.'}</p>
+                                        <div className="flex items-center gap-4">
+                                            <p className="text-[9px] font-black text-white/10 uppercase tracking-widest bg-white/5 px-2 py-1 rounded">ID: {ext.id.substring(0, 12)}...</p>
                                         </div>
                                     </div>
-                                    <div className="flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <div className="flex flex-col gap-2 relative z-10 opacity-0 group-hover:opacity-100 transition-all translate-x-4 group-hover:translate-x-0">
                                         <button
                                             onClick={() => handleUninstall(ext.id)}
-                                            className="p-2.5 rounded-xl bg-red-500/10 text-red-500/60 hover:bg-red-500 hover:text-white transition-all shadow-lg"
-                                            title="Uninstall Extension"
+                                            className="p-3 rounded-2xl bg-red-500/10 text-red-500/60 hover:bg-red-500 hover:text-white transition-all shadow-xl border border-red-500/20"
+                                            title="Uninstall Module"
                                         >
-                                            <Trash2 size={16} />
+                                            <Trash2 size={18} />
                                         </button>
                                     </div>
                                 </motion.div>

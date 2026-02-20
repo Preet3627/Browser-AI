@@ -353,6 +353,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // WiFi Sync (Mobile to Desktop)
   getWifiSyncQr: () => ipcRenderer.invoke('get-wifi-sync-qr'),
+  getWifiSyncInfo: () => ipcRenderer.invoke('get-wifi-sync-info'),
   onWifiSyncStatus: (callback) => {
     const subscription = (event, data) => callback(data);
     ipcRenderer.on('wifi-sync-status', subscription);
@@ -362,5 +363,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
     const subscription = (event, data) => callback(data);
     ipcRenderer.on('remote-ai-prompt', subscription);
     return () => ipcRenderer.removeListener('remote-ai-prompt', subscription);
+  },
+  // Generic listener support
+  on: (channel, callback) => {
+    const subscription = (event, ...args) => callback(...args);
+    ipcRenderer.on(channel, subscription);
+    return () => ipcRenderer.removeListener(channel, subscription);
+  },
+  onAiChatInputText: (callback) => {
+    const subscription = (event, text) => callback(text);
+    ipcRenderer.on('ai-chat-input-text', subscription);
+    return () => ipcRenderer.removeListener('ai-chat-input-text', subscription);
   },
 });
