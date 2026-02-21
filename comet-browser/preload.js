@@ -384,4 +384,100 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('ai-chat-input-text', subscription);
     return () => ipcRenderer.removeListener('ai-chat-input-text', subscription);
   },
+
+  // ============================================================================
+  // Desktop Automation v2 — Permission, Robot, OCR, Vision APIs
+  // ============================================================================
+
+  // Permission Store
+  permGrant: (key, level, description, sessionOnly) =>
+    ipcRenderer.invoke('perm-grant', { key, level, description, sessionOnly }),
+  permRevoke: (key) => ipcRenderer.invoke('perm-revoke', key),
+  permRevokeAll: () => ipcRenderer.invoke('perm-revoke-all'),
+  permCheck: (key) => ipcRenderer.invoke('perm-check', key),
+  permList: () => ipcRenderer.invoke('perm-list'),
+  permAuditLog: (limit) => ipcRenderer.invoke('perm-audit-log', limit),
+
+  // Robot Service (gated desktop automation)
+  robotExecute: (action) => ipcRenderer.invoke('robot-execute', action),
+  robotExecuteSequence: (actions, options) =>
+    ipcRenderer.invoke('robot-execute-sequence', { actions, options }),
+  robotKill: () => ipcRenderer.invoke('robot-kill'),
+  robotResetKill: () => ipcRenderer.invoke('robot-reset-kill'),
+  robotStatus: () => ipcRenderer.invoke('robot-status'),
+  onRobotKilled: (callback) => {
+    const subscription = () => callback();
+    ipcRenderer.on('robot-killed', subscription);
+    return () => ipcRenderer.removeListener('robot-killed', subscription);
+  },
+
+  // Tesseract OCR v2 (with sharp preprocessing + AI resolution)
+  ocrCaptureWords: (displayId) => ipcRenderer.invoke('ocr-capture-words', displayId),
+  ocrClick: (target, useAi) => ipcRenderer.invoke('ocr-click', { target, useAi }),
+  ocrScreenText: (displayId) => ipcRenderer.invoke('ocr-screen-text', displayId),
+
+  // Screen Vision AI
+  visionDescribe: (question) => ipcRenderer.invoke('vision-describe', question),
+  visionAnalyze: (question) => ipcRenderer.invoke('vision-analyze', question),
+  visionCaptureBase64: () => ipcRenderer.invoke('vision-capture-base64'),
+
+  // AI Engine (direct multi-provider chat for automation)
+  aiEngineChat: (opts) => ipcRenderer.invoke('ai-engine-chat', opts),
+  aiEngineConfigure: (keys) => ipcRenderer.invoke('ai-engine-configure', keys),
+
+  // Flutter Bridge
+  bridgeGetPairingCode: () => ipcRenderer.invoke('bridge-get-pairing-code'),
+  bridgeGetStatus: () => ipcRenderer.invoke('bridge-get-status'),
+  bridgeRotateSecret: () => ipcRenderer.invoke('bridge-rotate-secret'),
+  bridgeBroadcast: (message) => ipcRenderer.invoke('bridge-broadcast', message),
+
+  // MCP Desktop — FileSystem (sandboxed)
+  mcpFsRead: (filePath) => ipcRenderer.invoke('mcp-fs-read', filePath),
+  mcpFsWrite: (filePath, content) => ipcRenderer.invoke('mcp-fs-write', { path: filePath, content }),
+  mcpFsList: (dirPath) => ipcRenderer.invoke('mcp-fs-list', dirPath),
+  mcpFsApprovedDirs: () => ipcRenderer.invoke('mcp-fs-approved-dirs'),
+
+  // MCP Desktop — NativeApp (AppleScript/PowerShell)
+  mcpNativeApplescript: (script) => ipcRenderer.invoke('mcp-native-applescript', script),
+  mcpNativePowershell: (script) => ipcRenderer.invoke('mcp-native-powershell', script),
+  mcpNativeActiveWindow: () => ipcRenderer.invoke('mcp-native-active-window'),
+
+  // Web Search v2 (Brave / Tavily / SerpAPI)
+  webSearch: (query, provider, count) => ipcRenderer.invoke('web-search', { query, provider, count }),
+  webSearchContext: (query, provider) => ipcRenderer.invoke('web-search-context', { query, provider }),
+  webSearchProviders: () => ipcRenderer.invoke('web-search-providers'),
+  webSearchConfigure: (keys) => ipcRenderer.invoke('web-search-configure', keys),
+
+  // RAG — Local Vector Store
+  ragIngest: (text, source) => ipcRenderer.invoke('rag-ingest', { text, source }),
+  ragRetrieve: (query, k) => ipcRenderer.invoke('rag-retrieve', { query, k }),
+  ragContext: (query, k) => ipcRenderer.invoke('rag-context', { query, k }),
+  ragStats: () => ipcRenderer.invoke('rag-stats'),
+  ragDeleteSource: (source) => ipcRenderer.invoke('rag-delete-source', source),
+  ragClear: () => ipcRenderer.invoke('rag-clear'),
+
+  // Voice Control (Whisper)
+  voiceTranscribe: (audioBase64, format) => ipcRenderer.invoke('voice-transcribe', { audioBase64, format }),
+  voiceMicPermission: () => ipcRenderer.invoke('voice-mic-permission'),
+
+  // Workflow Recorder
+  workflowStart: () => ipcRenderer.invoke('workflow-start'),
+  workflowRecord: (type, action) => ipcRenderer.invoke('workflow-record', { type, action }),
+  workflowStop: () => ipcRenderer.invoke('workflow-stop'),
+  workflowSave: (name, description) => ipcRenderer.invoke('workflow-save', { name, description }),
+  workflowList: () => ipcRenderer.invoke('workflow-list'),
+  workflowReplay: (name) => ipcRenderer.invoke('workflow-replay', name),
+  workflowDelete: (name) => ipcRenderer.invoke('workflow-delete', name),
+  workflowStatus: () => ipcRenderer.invoke('workflow-status'),
+
+  // PopSearch - Instant Search Popup
+  popSearchShow: (text, x, y) => ipcRenderer.invoke('pop-search-show', { text, x, y }),
+  popSearchShowAtCursor: (text) => ipcRenderer.invoke('pop-search-show-at-cursor', text),
+  popSearchGetConfig: () => ipcRenderer.invoke('pop-search-get-config'),
+  popSearchUpdateConfig: (config) => ipcRenderer.invoke('pop-search-update-config', config),
+  popSearchSaveConfig: (data) => ipcRenderer.invoke('pop-search-save-config', data),
+  popSearchLoadConfig: () => ipcRenderer.invoke('pop-search-load-config'),
+
+  // Window utilities
+  bringWindowToTop: () => ipcRenderer.invoke('bring-window-to-top'),
 });

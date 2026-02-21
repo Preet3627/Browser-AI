@@ -9,7 +9,7 @@ export class GeminiProvider implements LLMProvider {
 
     init(options: LLMProviderOptions): void {
         this.apiKey = options.apiKey;
-        this.model = options.model || 'gemini-1.5-pro';
+        this.model = options.model || 'gemini-2.5-flash-preview';
     }
 
     async generateContent(prompt: string, options?: any): Promise<GenerateContentResult> {

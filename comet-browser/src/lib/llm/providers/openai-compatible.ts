@@ -17,7 +17,7 @@ export class OpenAICompatibleProvider implements LLMProvider {
   init(options: LLMProviderOptions): void {
     this.apiKey = options.apiKey;
     this.baseUrl = options.baseUrl || 'https://api.openai.com/v1'; // Default to OpenAI API
-    this.model = options.model || 'gpt-3.5-turbo';
+    this.model = options.model || 'gpt-5.2';
   }
 
   async generateContent(prompt: string, options?: any): Promise<GenerateContentResult> {

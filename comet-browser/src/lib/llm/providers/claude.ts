@@ -9,7 +9,7 @@ export class ClaudeProvider implements LLMProvider {
 
     init(options: LLMProviderOptions): void {
         this.apiKey = options.apiKey;
-        this.model = options.model || 'claude-3-5-sonnet-20240620';
+        this.model = options.model || 'claude-sonnet-4-6';
     }
 
     async generateContent(prompt: string, options?: any): Promise<GenerateContentResult> {

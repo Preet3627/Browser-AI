@@ -92,6 +92,33 @@ We've introduced groundbreaking autonomous capabilities:
 
 ---
 
+## 🆕 Latest Updates (v0.3.0) - The Desktop Agent Update
+
+### Desktop Automation
+- **PopSearch Integration**: Quick search popup (Ctrl+Shift+S) with 10+ search providers
+- **RobotJS Automation**: Screen automation with permission-gated execution
+- **Tesseract OCR**: Screen text recognition with AI-assisted click targeting
+- **Screen Vision**: AI-powered screen description using Claude/Gemini Vision
+
+### Enhanced AI Models
+- **Gemini 2.5 Flash/Pro**: Latest Google models
+- **GPT-5.2**: OpenAI's latest model
+- **Claude Sonnet 4.6**: Anthropic's latest model
+- **Llama 3.3**: Meta's latest open model
+
+### Desktop Features
+- **Keyboard Shortcuts**: 
+  - `Shift+Enter`: New line in address bar (multi-line queries)
+  - `Ctrl+Enter`: Search in new tab
+  - `Alt+Enter`: Open in background tab
+- **Raycast Extension**: Full macOS Raycast integration for tab search, AI commands, and quick actions
+- **MCP Desktop Servers**: FileSystem and NativeApp MCP servers for advanced automation
+- **Flutter Bridge**: WebSocket server for mobile-desktop communication
+- **Voice Control**: Whisper transcription for voice commands
+- **Workflow Recorder**: Record and replay AI action sequences
+
+---
+
 ## 🚀 Development Status
 
 Comet AI Browser is a multi-platform, open-source project in active development.

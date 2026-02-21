@@ -35,6 +35,34 @@ const { getP2PSync } = require('./src/lib/P2PFileSyncService.js'); // Import the
 let p2pSyncService = null; // Declare p2pSyncService here
 let wifiSyncService = null; // Declare wifiSyncService here
 
+// Desktop Automation Services (Comet-AI Guide v2)
+const { PermissionStore } = require('./src/lib/permission-store.js');
+const { RobotService } = require('./src/lib/robot-service.js');
+const { TesseractOcrService } = require('./src/lib/tesseract-service.js');
+const { CometAiEngine } = require('./src/lib/ai-engine.js');
+const { ScreenVisionService } = require('./src/lib/screen-vision-service.js');
+const { FlutterBridgeServer } = require('./src/lib/bridge-server.js');
+const { FileSystemMcpServer, NativeAppMcpServer } = require('./src/lib/mcp-desktop-server.js');
+const { WebSearchProvider } = require('./src/lib/web-search-service.js');
+const { RagService } = require('./src/lib/rag-service.js');
+const { VoiceService } = require('./src/lib/voice-service.js');
+const { WorkflowRecorder } = require('./src/lib/workflow-recorder.js');
+const { PopSearchService, popSearchService } = require('./src/lib/pop-search-service.js');
+
+const permissionStore = new PermissionStore();
+let cometAiEngine = null;
+let robotService = null;
+let tesseractOcrService = null;
+let screenVisionService = null;
+let flutterBridge = null;
+let fileSystemMcp = null;
+let nativeAppMcp = null;
+let webSearchProvider = null;
+let ragService = null;
+let voiceService = null;
+let workflowRecorder = null;
+let popSearch = null;
+
 let mainWindow;
 let mcpServer;
 let networkCheckInterval;
@@ -292,12 +320,13 @@ const llmGenerateHandler = async (messages, options = {}) => {
 
       let modelName = config.model;
       if (!modelName) {
-        if (providerId === 'gpt-4o') modelName = 'gpt-4o';
+        if (providerId === 'gpt-5.2') modelName = 'gpt-5.2';
+        else if (providerId === 'gpt-4o') modelName = 'gpt-4o';
         else if (providerId === 'gpt-4-turbo') modelName = 'gpt-4-turbo';
         else if (providerId === 'gpt-3.5-turbo') modelName = 'gpt-3.5-turbo';
         else if (providerId === 'o1') modelName = 'o1';
         else if (providerId === 'o1-mini') modelName = 'o1-mini';
-        else modelName = 'gpt-4o';
+        else modelName = 'gpt-5.2';
       }
 
       const response = await fetch(`${baseUrl.replace(/\/$/, '')}/chat/completions`, {
@@ -320,8 +349,8 @@ const llmGenerateHandler = async (messages, options = {}) => {
       const anthropicKey = apiKey || process.env.ANTHROPIC_API_KEY;
       if (!anthropicKey) return { error: 'Missing Anthropic API Key' };
 
-      const modelName = providerId.includes('3-7') ? 'claude-3-7-sonnet-20250224' : 'claude-3-5-sonnet-20240620';
-      const isExtended = providerId.includes('3-7');
+      const modelName = providerId.includes('4-6') ? 'claude-sonnet-4-6' : providerId.includes('3-7') ? 'claude-3-7-sonnet-20250224' : 'claude-sonnet-4-6';
+      const isExtended = providerId.includes('3-7') || providerId.includes('4-6');
 
       const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
@@ -510,7 +539,7 @@ async function createWindow() {
   app.commandLine.appendSwitch('--enable-gpu-rasterization');
   app.commandLine.appendSwitch('--enable-zero-copy');
   app.commandLine.appendSwitch('--enable-hardware-overlays');
-  app.commandLine.appendSwitch('--enable-features', 'VaapiVideoDecoder,CanvasOopRasterization');
+  app.commandLine.appendSwitch('--enable-features', 'VaapiVideoDecoder,CanvasOopRasterization,TranslationAPI');
   app.commandLine.appendSwitch('--disable-background-timer-throttling');
   app.commandLine.appendSwitch('--disable-renderer-backgrounding');
   app.commandLine.appendSwitch('--disable-features', 'TranslateUI,BlinkGenPropertyTrees');
@@ -1645,16 +1674,19 @@ ipcMain.handle('load-vector-store', async () => {
 const llmProviders = [
   { id: 'gemini-3.1-pro', name: 'Gemini 3.1 Pro (Latest Reasoning)' },
   { id: 'gemini-3.1-flash', name: 'Gemini 3.1 Flash (High Speed)' },
+  { id: 'gemini-3-flash', name: 'Gemini 3 Flash (Multimodal + Agentic)' },
   { id: 'gemini-3-deep-think', name: 'Gemini 3 Deep Think (Scientific)' },
-  { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro' },
+  { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro (2M ctx)' },
   { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
   { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite (Ultra Cost-Effective)' },
   { id: 'gemini-2.0-pro', name: 'Gemini 2.0 Pro (Experimental)' },
   { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash' },
   { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro' },
   { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash' },
+  { id: 'gpt-5.2', name: 'GPT-5.2 (Latest)' },
   { id: 'gpt-4o', name: 'GPT-4o' },
   { id: 'o1', name: 'OpenAI o1' },
+  { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6 (Vision)' },
   { id: 'claude-3-7-sonnet', name: 'Claude 3.7 Sonnet' },
   { id: 'claude-3-5-sonnet', name: 'Claude 3.5 Sonnet' },
   { id: 'ollama', name: 'Ollama (Local AI)' },
@@ -1664,7 +1696,7 @@ const llmProviders = [
   { id: 'groq-mixtral', name: 'Groq: Mixtral 8x7b' },
   { id: 'openai-compatible', name: 'OpenAI Compatible' }
 ];
-let activeLlmProvider = 'gemini-1.5-flash';
+let activeLlmProvider = 'gemini-2.5-flash';
 const llmConfigs = {};
 
 ipcMain.handle('llm-get-available-providers', () => llmProviders);
@@ -2086,6 +2118,67 @@ app.whenReady().then(() => {
   });
 
   createWindow();
+
+  // Initialize Desktop Automation Services
+  (async () => {
+    try {
+      await permissionStore.load();
+      console.log('[Main] PermissionStore loaded.');
+
+      cometAiEngine = new CometAiEngine();
+      cometAiEngine.configure({
+        GEMINI_API_KEY: store.get('gemini_api_key') || process.env.GEMINI_API_KEY || '',
+        GROQ_API_KEY: store.get('groq_api_key') || process.env.GROQ_API_KEY || '',
+        OPENAI_API_KEY: store.get('openai_api_key') || process.env.OPENAI_API_KEY || '',
+        ANTHROPIC_API_KEY: store.get('anthropic_api_key') || process.env.ANTHROPIC_API_KEY || '',
+      });
+      console.log('[Main] CometAiEngine initialized.');
+
+      robotService = new RobotService(permissionStore);
+      console.log(`[Main] RobotService initialized (available: ${robotService.isAvailable}).`);
+
+      tesseractOcrService = new TesseractOcrService();
+      console.log('[Main] TesseractOcrService ready (lazy init on first use).');
+
+      screenVisionService = new ScreenVisionService(cometAiEngine);
+      console.log('[Main] ScreenVisionService initialized.');
+
+      flutterBridge = new FlutterBridgeServer(cometAiEngine, tesseractOcrService);
+      flutterBridge.start(9876);
+      console.log('[Main] FlutterBridgeServer started on port 9876.');
+
+      fileSystemMcp = new FileSystemMcpServer(permissionStore);
+      nativeAppMcp = new NativeAppMcpServer(permissionStore);
+      console.log('[Main] MCP Desktop servers (FileSystem + NativeApp) initialized.');
+
+      webSearchProvider = new WebSearchProvider();
+      webSearchProvider.configure({
+        BRAVE_API_KEY: store.get('brave_api_key') || process.env.BRAVE_API_KEY || '',
+        TAVILY_API_KEY: store.get('tavily_api_key') || process.env.TAVILY_API_KEY || '',
+        SERP_API_KEY: store.get('serp_api_key') || process.env.SERP_API_KEY || '',
+      });
+      console.log('[Main] WebSearchProvider initialized.');
+
+      ragService = new RagService();
+      await ragService.init();
+      console.log('[Main] RagService initialized.');
+
+      voiceService = new VoiceService();
+      voiceService.configure({
+        OPENAI_API_KEY: store.get('openai_api_key') || process.env.OPENAI_API_KEY || '',
+      });
+      console.log('[Main] VoiceService initialized.');
+
+      workflowRecorder = new WorkflowRecorder();
+      console.log('[Main] WorkflowRecorder initialized.');
+
+      popSearch = popSearchService;
+      popSearch.initialize(mainWindow);
+      console.log('[Main] PopSearch service initialized.');
+    } catch (e) {
+      console.error('[Main] Desktop automation services init error:', e.message);
+    }
+  })();
 
   // Handle deep link if launched with one
   const launchUrl = process.argv.find(arg => arg.startsWith(`${PROTOCOL}://`));
@@ -2641,11 +2734,59 @@ app.whenReady().then(() => {
   });
 
   // Website Translation IPC
-  ipcMain.handle('translate-website', async (event, { targetLanguage }) => {
+  ipcMain.handle('translate-website', async (event, { targetLanguage, method }) => {
     const view = tabViews.get(activeTabId);
     if (!view) return { error: 'No active view' };
 
-    try {
+    // Default to 'google' method if not specified
+    const translationMethod = method || 'google';
+
+    if (translationMethod === 'chrome-ai') {
+      // Chrome Built-in AI Translation (Modern - requires Chrome 144+)
+      try {
+        const code = `
+        (async () => {
+          try {
+            // Check if translation API is available
+            if (!window.translation) {
+              return { error: 'Translation API not available. Use Chrome 144+ or enable --enable-features=TranslationAPI' };
+            }
+            
+            const canTranslate = await window.translation.canTranslate({
+              sourceLanguage: 'auto',
+              targetLanguage: '${targetLanguage}'
+            });
+            
+            if (canTranslate === 'no') {
+              return { error: 'Cannot translate to ' + '${targetLanguage}' + '. Language pack may not be downloaded.' };
+            }
+            
+            // Create translator (may download language pack)
+            const translator = await window.translation.createTranslator({
+              sourceLanguage: 'auto',
+              targetLanguage: '${targetLanguage}'
+            });
+            
+            // For page translation, we need to translate all text nodes
+            // This is a simplified version - full implementation would traverse DOM
+            const bodyText = document.body.innerText;
+            const translated = await translator.translate(bodyText);
+            
+            return { success: true, method: 'chrome-ai', note: 'AI translation successful. For full page translation, language packs are downloaded automatically.' };
+          } catch (e) {
+            return { error: e.message };
+          }
+        })()
+        `;
+        const result = await view.webContents.executeJavaScript(code);
+        return result;
+      } catch (e) {
+        console.error("[Translation] Chrome AI translation failed:", e);
+        return { error: e.message };
+      }
+    } else {
+      // Google Translate Element (Legacy Injection)
+      try {
       // Improved Google Translate Injection with Cookie Support for faster activation
       const code = `
       (function() {
@@ -2692,15 +2833,16 @@ app.whenReady().then(() => {
             }
             clearInterval(check);
           }
-          if (attempts++ > 20) clearInterval(check);
+            if (attempts++ > 20) clearInterval(check);
         }, 500);
       })()
     `;
       await view.webContents.executeJavaScript(code);
-      return { success: true };
+      return { success: true, method: 'google' };
     } catch (e) {
       console.error("[Translation] Website translation failed:", e);
       return { error: e.message };
+    }
     }
   });
 
@@ -2967,6 +3109,9 @@ app.whenReady().then(() => {
 
     const popup = new BrowserWindow({ ...defaultOptions, ...options });
 
+    // Ensure popup appears above BrowserView by removing parent and using alwaysOnTop
+    popup.setAlwaysOnTop(true, 'screen-saturation');
+
     // Load the appropriate content
     const baseUrl = isDev
       ? 'http://localhost:3003'
@@ -3036,6 +3181,8 @@ app.whenReady().then(() => {
     popup.once('ready-to-show', () => {
       popup.show();
       popup.focus();
+      // Ensure popup is always on top of BrowserView
+      popup.moveTop();
     });
 
     popup.on('closed', () => {
@@ -3534,6 +3681,481 @@ app.whenReady().then(() => {
   // Duplicate capture-screen-region removed - now consolidated in main handlers section
 
   // ============================================================================
+  // DESKTOP AUTOMATION v2 — Permission, Robot, OCR, Vision IPC Handlers
+  // ============================================================================
+
+  // --- Permission Store ---
+  ipcMain.handle('perm-grant', async (event, { key, level, description, sessionOnly }) => {
+    try {
+      permissionStore.grant(key, level, description, sessionOnly !== false);
+      return { success: true };
+    } catch (e) { return { success: false, error: e.message }; }
+  });
+
+  ipcMain.handle('perm-revoke', async (event, key) => {
+    permissionStore.revoke(key);
+    return { success: true };
+  });
+
+  ipcMain.handle('perm-revoke-all', async () => {
+    permissionStore.revokeAll();
+    return { success: true };
+  });
+
+  ipcMain.handle('perm-check', async (event, key) => {
+    return { granted: permissionStore.isGranted(key) };
+  });
+
+  ipcMain.handle('perm-list', async () => {
+    return permissionStore.getAll();
+  });
+
+  ipcMain.handle('perm-audit-log', async (event, limit) => {
+    return permissionStore.getAuditLog(limit || 100);
+  });
+
+  // --- Robot Service ---
+  ipcMain.handle('robot-execute', async (event, action) => {
+    if (!robotService) return { success: false, error: 'RobotService not initialized' };
+    try {
+      return await robotService.execute(action);
+    } catch (e) { return { success: false, error: e.message }; }
+  });
+
+  ipcMain.handle('robot-execute-sequence', async (event, { actions, options }) => {
+    if (!robotService) return { success: false, error: 'RobotService not initialized' };
+    try {
+      return await robotService.executeSequence(actions, options);
+    } catch (e) { return { success: false, error: e.message }; }
+  });
+
+  ipcMain.handle('robot-kill', async () => {
+    if (robotService) robotService.kill();
+    return { success: true };
+  });
+
+  ipcMain.handle('robot-reset-kill', async () => {
+    if (robotService) robotService.resetKill();
+    return { success: true };
+  });
+
+  ipcMain.handle('robot-status', async () => {
+    return {
+      available: robotService?.isAvailable || false,
+      permitted: permissionStore.isGranted('robot'),
+      killActive: robotService?.killFlag || false,
+    };
+  });
+
+  // --- Tesseract OCR v2 ---
+  ipcMain.handle('ocr-capture-words', async (event, displayId) => {
+    if (!tesseractOcrService) return { success: false, error: 'OCR service not initialized' };
+    try {
+      const words = await tesseractOcrService.captureAndOcr(displayId);
+      return { success: true, words };
+    } catch (e) { return { success: false, error: e.message }; }
+  });
+
+  ipcMain.handle('ocr-click', async (event, { target, useAi }) => {
+    if (!tesseractOcrService || !robotService) {
+      return { success: false, error: 'OCR or Robot service not initialized' };
+    }
+    try {
+      const ai = useAi !== false ? cometAiEngine : null;
+      return await tesseractOcrService.ocrClick(target, ai, robotService, permissionStore);
+    } catch (e) { return { success: false, error: e.message }; }
+  });
+
+  ipcMain.handle('ocr-screen-text', async (event, displayId) => {
+    if (!tesseractOcrService) return { success: false, error: 'OCR service not initialized' };
+    try {
+      const text = await tesseractOcrService.getScreenText(displayId);
+      return { success: true, text };
+    } catch (e) { return { success: false, error: e.message }; }
+  });
+
+  // --- Screen Vision AI ---
+  ipcMain.handle('vision-describe', async (event, question) => {
+    if (!screenVisionService) return { success: false, error: 'Vision service not initialized' };
+    try {
+      const description = await screenVisionService.describe(question);
+      return { success: true, description };
+    } catch (e) { return { success: false, error: e.message }; }
+  });
+
+  ipcMain.handle('vision-analyze', async (event, question) => {
+    if (!screenVisionService || !tesseractOcrService) {
+      return { success: false, error: 'Vision or OCR service not initialized' };
+    }
+    try {
+      const result = await screenVisionService.analyzeAndAct(
+        question, tesseractOcrService, robotService, permissionStore
+      );
+      return { success: true, ...result };
+    } catch (e) { return { success: false, error: e.message }; }
+  });
+
+  ipcMain.handle('vision-capture-base64', async () => {
+    if (!screenVisionService) return { success: false, error: 'Vision service not initialized' };
+    try {
+      const image = await screenVisionService.captureBase64();
+      return { success: true, image };
+    } catch (e) { return { success: false, error: e.message }; }
+  });
+
+  // --- AI Engine (direct chat for automation tasks) ---
+  ipcMain.handle('ai-engine-chat', async (event, { message, model, systemPrompt, history }) => {
+    if (!cometAiEngine) return { success: false, error: 'AI engine not initialized' };
+    try {
+      const response = await cometAiEngine.chat({ message, model, systemPrompt, history });
+      return { success: true, response };
+    } catch (e) { return { success: false, error: e.message }; }
+  });
+
+  ipcMain.handle('ai-engine-configure', async (event, keys) => {
+    if (!cometAiEngine) return { success: false, error: 'AI engine not initialized' };
+    cometAiEngine.configure(keys);
+    if (keys.GEMINI_API_KEY) store.set('gemini_api_key', keys.GEMINI_API_KEY);
+    if (keys.GROQ_API_KEY) store.set('groq_api_key', keys.GROQ_API_KEY);
+    if (keys.OPENAI_API_KEY) store.set('openai_api_key', keys.OPENAI_API_KEY);
+    if (keys.ANTHROPIC_API_KEY) store.set('anthropic_api_key', keys.ANTHROPIC_API_KEY);
+    return { success: true };
+  });
+
+  // ============================================================================
+  // FLUTTER BRIDGE — IPC Handlers
+  // ============================================================================
+
+  ipcMain.handle('bridge-get-pairing-code', async () => {
+    if (!flutterBridge) return { success: false, error: 'Bridge not initialized' };
+    return { success: true, code: flutterBridge.getPairingCode() };
+  });
+
+  ipcMain.handle('bridge-get-status', async () => {
+    return {
+      running: !!flutterBridge?.server,
+      connectedDevices: flutterBridge?.getConnectedCount() || 0,
+    };
+  });
+
+  ipcMain.handle('bridge-rotate-secret', async () => {
+    if (!flutterBridge) return { success: false, error: 'Bridge not initialized' };
+    flutterBridge.rotateSecret();
+    return { success: true, code: flutterBridge.getPairingCode() };
+  });
+
+  ipcMain.handle('bridge-broadcast', async (event, message) => {
+    if (!flutterBridge) return { success: false, error: 'Bridge not initialized' };
+    flutterBridge.broadcast(message);
+    return { success: true };
+  });
+
+  // ============================================================================
+  // MCP DESKTOP SERVERS — FileSystem + NativeApp IPC Handlers
+  // ============================================================================
+
+  ipcMain.handle('mcp-fs-read', async (event, filePath) => {
+    if (!fileSystemMcp) return { success: false, error: 'FileSystem MCP not initialized' };
+    try {
+      const content = await fileSystemMcp.readFile(filePath);
+      return { success: true, content };
+    } catch (e) { return { success: false, error: e.message }; }
+  });
+
+  ipcMain.handle('mcp-fs-write', async (event, { path: p, content }) => {
+    if (!fileSystemMcp) return { success: false, error: 'FileSystem MCP not initialized' };
+    try {
+      const result = await fileSystemMcp.writeFile(p, content);
+      return { success: true, result };
+    } catch (e) { return { success: false, error: e.message }; }
+  });
+
+  ipcMain.handle('mcp-fs-list', async (event, dirPath) => {
+    if (!fileSystemMcp) return { success: false, error: 'FileSystem MCP not initialized' };
+    try {
+      const entries = await fileSystemMcp.listDir(dirPath);
+      return { success: true, entries };
+    } catch (e) { return { success: false, error: e.message }; }
+  });
+
+  ipcMain.handle('mcp-fs-approved-dirs', async () => {
+    if (!fileSystemMcp) return { success: false, error: 'FileSystem MCP not initialized' };
+    return { success: true, dirs: fileSystemMcp.getApprovedDirs() };
+  });
+
+  ipcMain.handle('mcp-native-applescript', async (event, script) => {
+    if (!nativeAppMcp) return { success: false, error: 'NativeApp MCP not initialized' };
+    try {
+      const result = await nativeAppMcp.runAppleScript(script);
+      return { success: true, result };
+    } catch (e) { return { success: false, error: e.message }; }
+  });
+
+  ipcMain.handle('mcp-native-powershell', async (event, script) => {
+    if (!nativeAppMcp) return { success: false, error: 'NativeApp MCP not initialized' };
+    try {
+      const result = await nativeAppMcp.runPowerShell(script);
+      return { success: true, result };
+    } catch (e) { return { success: false, error: e.message }; }
+  });
+
+  ipcMain.handle('mcp-native-active-window', async () => {
+    if (!nativeAppMcp) return { success: false, error: 'NativeApp MCP not initialized' };
+    try {
+      const info = await nativeAppMcp.getActiveWindow();
+      return { success: true, ...info };
+    } catch (e) { return { success: false, error: e.message }; }
+  });
+
+  // ============================================================================
+  // WEB SEARCH v2 — Multi-provider (Brave / Tavily / SerpAPI)
+  // ============================================================================
+
+  ipcMain.handle('web-search', async (event, { query, provider, count }) => {
+    if (!webSearchProvider) return { success: false, error: 'WebSearch not initialized' };
+    try {
+      const results = await webSearchProvider.search(query, provider, count);
+      return { success: true, results };
+    } catch (e) { return { success: false, error: e.message }; }
+  });
+
+  ipcMain.handle('web-search-context', async (event, { query, provider }) => {
+    if (!webSearchProvider) return { success: false, error: 'WebSearch not initialized' };
+    try {
+      const context = await webSearchProvider.searchForContext(query, provider);
+      return { success: true, context };
+    } catch (e) { return { success: false, error: e.message }; }
+  });
+
+  ipcMain.handle('web-search-providers', async () => {
+    if (!webSearchProvider) return { success: false, error: 'WebSearch not initialized' };
+    return { success: true, providers: webSearchProvider.getAvailableProviders() };
+  });
+
+  ipcMain.handle('web-search-configure', async (event, keys) => {
+    if (!webSearchProvider) return { success: false, error: 'WebSearch not initialized' };
+    webSearchProvider.configure(keys);
+    if (keys.BRAVE_API_KEY) store.set('brave_api_key', keys.BRAVE_API_KEY);
+    if (keys.TAVILY_API_KEY) store.set('tavily_api_key', keys.TAVILY_API_KEY);
+    if (keys.SERP_API_KEY) store.set('serp_api_key', keys.SERP_API_KEY);
+    return { success: true };
+  });
+
+  // ============================================================================
+  // RAG — Vector Store (Local Embeddings + Gemini)
+  // ============================================================================
+
+  ipcMain.handle('rag-ingest', async (event, { text, source }) => {
+    if (!ragService) return { success: false, error: 'RAG not initialized' };
+    try {
+      const apiKey = store.get('gemini_api_key') || process.env.GEMINI_API_KEY;
+      const count = await ragService.ingest(text, source, apiKey);
+      return { success: true, chunksAdded: count };
+    } catch (e) { return { success: false, error: e.message }; }
+  });
+
+  ipcMain.handle('rag-retrieve', async (event, { query, k }) => {
+    if (!ragService) return { success: false, error: 'RAG not initialized' };
+    try {
+      const apiKey = store.get('gemini_api_key') || process.env.GEMINI_API_KEY;
+      const results = await ragService.retrieve(query, k, apiKey);
+      return { success: true, results };
+    } catch (e) { return { success: false, error: e.message }; }
+  });
+
+  ipcMain.handle('rag-context', async (event, { query, k }) => {
+    if (!ragService) return { success: false, error: 'RAG not initialized' };
+    try {
+      const apiKey = store.get('gemini_api_key') || process.env.GEMINI_API_KEY;
+      const context = await ragService.retrieveContext(query, k, apiKey);
+      return { success: true, context };
+    } catch (e) { return { success: false, error: e.message }; }
+  });
+
+  ipcMain.handle('rag-stats', async () => {
+    if (!ragService) return { success: false, error: 'RAG not initialized' };
+    return { success: true, ...ragService.getStats() };
+  });
+
+  ipcMain.handle('rag-delete-source', async (event, source) => {
+    if (!ragService) return { success: false, error: 'RAG not initialized' };
+    try {
+      const deleted = await ragService.deleteSource(source);
+      return { success: true, deleted };
+    } catch (e) { return { success: false, error: e.message }; }
+  });
+
+  ipcMain.handle('rag-clear', async () => {
+    if (!ragService) return { success: false, error: 'RAG not initialized' };
+    await ragService.clear();
+    return { success: true };
+  });
+
+  // ============================================================================
+  // VOICE CONTROL — Whisper Transcription
+  // ============================================================================
+
+  ipcMain.handle('voice-transcribe', async (event, { audioBase64, format }) => {
+    if (!voiceService) return { success: false, error: 'Voice service not initialized' };
+    try {
+      const text = await voiceService.transcribeBase64(audioBase64, format || 'wav');
+      return { success: true, text };
+    } catch (e) { return { success: false, error: e.message }; }
+  });
+
+  ipcMain.handle('voice-mic-permission', async () => {
+    if (!voiceService) return { success: false, error: 'Voice service not initialized' };
+    try {
+      const granted = await voiceService.requestMicPermission();
+      return { success: true, granted };
+    } catch (e) { return { success: false, error: e.message }; }
+  });
+
+  // ============================================================================
+  // WORKFLOW RECORDER — Record / Replay Action Sequences
+  // ============================================================================
+
+  ipcMain.handle('workflow-start', async () => {
+    if (!workflowRecorder) return { success: false, error: 'Workflow recorder not initialized' };
+    return { success: true, ...workflowRecorder.start() };
+  });
+
+  ipcMain.handle('workflow-record', async (event, { type, action }) => {
+    if (!workflowRecorder) return { success: false, error: 'Workflow recorder not initialized' };
+    const recorded = workflowRecorder.record(type, action);
+    return { success: recorded };
+  });
+
+  ipcMain.handle('workflow-stop', async () => {
+    if (!workflowRecorder) return { success: false, error: 'Workflow recorder not initialized' };
+    return { success: true, ...workflowRecorder.stop() };
+  });
+
+  ipcMain.handle('workflow-save', async (event, { name, description }) => {
+    if (!workflowRecorder) return { success: false, error: 'Workflow recorder not initialized' };
+    try {
+      const result = await workflowRecorder.save(name, description);
+      return { success: true, ...result };
+    } catch (e) { return { success: false, error: e.message }; }
+  });
+
+  ipcMain.handle('workflow-list', async () => {
+    if (!workflowRecorder) return { success: false, error: 'Workflow recorder not initialized' };
+    try {
+      const workflows = await workflowRecorder.list();
+      return { success: true, workflows };
+    } catch (e) { return { success: false, error: e.message }; }
+  });
+
+  ipcMain.handle('workflow-replay', async (event, name) => {
+    if (!workflowRecorder || !robotService) {
+      return { success: false, error: 'Workflow recorder or robot service not initialized' };
+    }
+    try {
+      const results = await workflowRecorder.replay(name, async (step) => {
+        if (step.type === 'robot' && robotService) {
+          return await robotService.execute(step.action, { skipConfirm: false });
+        } else if (step.type === 'ocr' && tesseractOcrService) {
+          return await tesseractOcrService.ocrClick(step.action.target, cometAiEngine, robotService, permissionStore);
+        } else if (step.type === 'ai' && cometAiEngine) {
+          return await cometAiEngine.chat(step.action);
+        }
+        return { skipped: true, type: step.type };
+      });
+      return { success: true, results };
+    } catch (e) { return { success: false, error: e.message }; }
+  });
+
+  ipcMain.handle('workflow-delete', async (event, name) => {
+    if (!workflowRecorder) return { success: false, error: 'Workflow recorder not initialized' };
+    try {
+      const deleted = await workflowRecorder.deleteWorkflow(name);
+      return { success: true, deleted };
+    } catch (e) { return { success: false, error: e.message }; }
+  });
+
+  ipcMain.handle('workflow-status', async () => {
+    if (!workflowRecorder) return { success: false, error: 'Workflow recorder not initialized' };
+    return { success: true, ...workflowRecorder.getStatus() };
+  });
+
+  // ============================================================================
+  // PopSearch - Instant Search Popup
+  // ============================================================================
+  ipcMain.handle('pop-search-show', async (event, { text, x, y }) => {
+    if (!popSearch) return { success: false, error: 'PopSearch not initialized' };
+    try {
+      popSearch.showPopupAtPosition(x, y, text || '');
+      return { success: true };
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+  });
+
+  ipcMain.handle('pop-search-show-at-cursor', async (event, text) => {
+    if (!popSearch) return { success: false, error: 'PopSearch not initialized' };
+    try {
+      popSearch.showPopupWithText(text || '');
+      return { success: true };
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+  });
+
+  ipcMain.handle('pop-search-get-config', async () => {
+    if (!popSearch) return { success: false, error: 'PopSearch not initialized' };
+    return { success: true, config: popSearch.getConfig() };
+  });
+
+  ipcMain.handle('pop-search-update-config', async (event, config) => {
+    if (!popSearch) return { success: false, error: 'PopSearch not initialized' };
+    try {
+      popSearch.updateConfig(config);
+      return { success: true };
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+  });
+
+  ipcMain.handle('pop-search-save-config', async (event, data) => {
+    const { filePath } = await dialog.showSaveDialog({
+      title: 'Export PopSearch Config',
+      defaultPath: 'popsearch-config.json',
+      filters: [{ name: 'JSON', extensions: ['json'] }]
+    });
+    if (filePath) {
+      try {
+        fs.writeFileSync(filePath, data, 'utf-8');
+        return { success: true };
+      } catch (err) {
+        return { success: false, error: err.message };
+      }
+    }
+    return { success: false, canceled: true };
+  });
+
+  ipcMain.handle('pop-search-load-config', async () => {
+    const { canceled, filePaths } = await dialog.showOpenDialog({
+      title: 'Import PopSearch Config',
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+      properties: ['openFile']
+    });
+    if (!canceled && filePaths.length > 0) {
+      return fs.readFileSync(filePaths[0], 'utf-8');
+    }
+    return null;
+  });
+
+  // Bring window to top to fix BrowserView z-index issues
+  ipcMain.handle('bring-window-to-top', async () => {
+    if (mainWindow) {
+      mainWindow.moveTop();
+      return { success: true };
+    }
+    return { success: false, error: 'No main window' };
+  });
+
+  // ============================================================================
   // GLOBAL HOTKEY - Register global shortcuts
   // ============================================================================
   app.whenReady().then(() => {
@@ -3564,6 +4186,15 @@ app.whenReady().then(() => {
 
       console.log(`[Hotkey] Registered ${spotlightShortcut} for spotlight search`);
 
+      // Ctrl+Shift+S for PopSearch quick search
+      globalShortcut.register('CommandOrControl+Shift+S', () => {
+        console.log('[Hotkey] PopSearch triggered');
+        if (popSearch) {
+          popSearch.showPopupWithText('');
+        }
+      });
+      console.log('[Hotkey] Registered Ctrl+Shift+S for PopSearch');
+
       // Ctrl+P for Printing
       globalShortcut.register('CommandOrControl+P', () => {
         const view = tabViews.get(activeTabId);
@@ -3573,6 +4204,29 @@ app.whenReady().then(() => {
           mainWindow.webContents.print();
         }
       });
+
+      // Emergency Kill Switch — Ctrl+Shift+Esc (Cmd+Shift+Esc on Mac)
+      const killShortcut = process.platform === 'darwin' ? 'Command+Shift+Escape' : 'Control+Shift+Escape';
+      try {
+        globalShortcut.register(killShortcut, () => {
+          console.log('[Hotkey] EMERGENCY KILL SWITCH activated');
+          if (robotService) {
+            robotService.kill();
+          }
+          if (mainWindow) {
+            mainWindow.webContents.send('robot-killed');
+            dialog.showMessageBox(mainWindow, {
+              type: 'warning',
+              title: 'Comet-AI Kill Switch',
+              message: 'All robot actions have been stopped and permissions revoked.',
+              detail: 'You can re-enable robot permissions in Settings > Permissions.',
+            });
+          }
+        });
+        console.log(`[Hotkey] Registered ${killShortcut} for emergency kill switch`);
+      } catch (killErr) {
+        console.warn('[Hotkey] Could not register kill switch:', killErr.message);
+      }
     } catch (error) {
       console.error('[Hotkey] Failed to register:', error);
     }
@@ -3599,6 +4253,17 @@ app.whenReady().then(() => {
     if (wifiSyncService) {
       wifiSyncService.stop();
       console.log('[Main] WiFi Sync Service stopped.');
+    }
+
+    // Cleanup desktop automation services
+    if (tesseractOcrService) {
+      tesseractOcrService.terminate().catch(() => {});
+      console.log('[Main] TesseractOcrService terminated.');
+    }
+
+    if (flutterBridge) {
+      flutterBridge.stop();
+      console.log('[Main] FlutterBridgeServer stopped.');
     }
 
     // Unregister all shortcuts

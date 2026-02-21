@@ -307,7 +307,7 @@ export const useAppStore = create<BrowserState>()(
             theme: 'system',
             ambientMusicUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
             enableAmbientMusic: true,
-            ambientMusicMode: 'off',
+            ambientMusicMode: 'always',
             ambientMusicVolume: 0.5,
             setAmbientMusicUrl: (url: string) => set({ ambientMusicUrl: url }),
             setEnableAmbientMusic: (enable: boolean) => set({ enableAmbientMusic: enable }),

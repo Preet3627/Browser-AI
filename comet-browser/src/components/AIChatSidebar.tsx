@@ -336,11 +336,11 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = (props) => {
         } else if (store.aiProvider === 'openai-compatible') {
           config = { apiKey: store.openaiApiKey, baseUrl: store.localLLMBaseUrl, model: store.localLLMModel };
         } else if (store.aiProvider.startsWith('gemini')) {
-          config = { apiKey: store.geminiApiKey, model: store.localLLMModel || (store.aiProvider === 'gemini-3-pro' ? 'gemini-1.5-pro' : 'gemini-1.5-flash') };
-        } else if (store.aiProvider === 'claude' || store.aiProvider === 'anthropic') {
-          config = { apiKey: store.anthropicApiKey, model: store.localLLMModel || 'claude-3-5-sonnet-20240620' };
+          config = { apiKey: store.geminiApiKey, model: store.localLLMModel || 'gemini-2.5-flash-preview' };
+        } else if (store.aiProvider === 'claude' || store.aiProvider === 'anthropic' || store.aiProvider.startsWith('claude')) {
+          config = { apiKey: store.anthropicApiKey, model: store.localLLMModel || 'claude-sonnet-4-6' };
         } else if (store.aiProvider === 'groq') {
-          config = { apiKey: store.groqApiKey, model: store.localLLMModel || 'llama3-8b-8192' };
+          config = { apiKey: store.groqApiKey, model: store.localLLMModel || 'llama-3.3-70b-versatile' };
         }
 
         await window.electronAPI.configureLLMProvider(store.aiProvider, config);

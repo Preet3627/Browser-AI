@@ -129,6 +129,7 @@ export default function Home() {
   const [isReadingAloud, setIsReadingAloud] = useState(false);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const [showTranslateDialog, setShowTranslateDialog] = useState(false);
+  const [translateMethod, setTranslateMethod] = useState<'google' | 'chrome-ai'>('google');
   const ambientAudioRef = useRef<HTMLAudioElement | null>(null);
   const [isAmbientPlaying, setIsAmbientPlaying] = useState(false);
   const [inputValue, setInputValue] = useState(store.currentUrl); // New state for input field's raw value
@@ -212,6 +213,7 @@ export default function Home() {
           setShowCart(true);
         } else if (panel === 'translate') {
           setShowTranslateDialog(true);
+          window.electronAPI?.bringWindowToTop();
         } else if (panel === 'search' || panel === 'apps') {
           setShowSpotlightSearch(true);
         }
@@ -254,6 +256,7 @@ export default function Home() {
 
       const cleanTranslation = window.electronAPI.on('trigger-translation-dialog', () => {
         setShowTranslateDialog(true);
+        window.electronAPI?.bringWindowToTop();
       });
 
       return () => {
@@ -338,6 +341,13 @@ export default function Home() {
     }
   };
 
+  const handlePopSearch = async () => {
+    if (window.electronAPI) {
+      const selectedText = await window.electronAPI.getSelectedText();
+      await window.electronAPI.popSearchShowAtCursor(selectedText || '');
+    }
+  };
+
   // Ambient Music Control
   useEffect(() => {
     const shouldPlay = () => {
@@ -381,6 +391,7 @@ export default function Home() {
     if (window.electronAPI) {
       const clean = window.electronAPI.onTriggerTranslationDialog(() => {
         setShowTranslateDialog(true);
+        window.electronAPI?.bringWindowToTop();
       });
       return clean;
     }
@@ -750,9 +761,16 @@ export default function Home() {
     }
   }, [store.aiProvider]);
 
-  const handleGo = (urlToNavigate?: string) => { // Accept optional URL
+  const handleGo = (urlToNavigate?: string, options?: { newTab?: boolean; active?: boolean }) => { // Accept optional URL and options
+    const { newTab = false, active = true } = options || {};
     let url = urlToNavigate || inputValue.trim(); // Use inputValue if no specific URL provided
     if (!url) return;
+
+    // If newTab is requested, create a new tab first
+    if (newTab && window.electronAPI) {
+      window.electronAPI.createView({ url: '' }); // Create empty new tab
+      // The URL will be set after navigation
+    }
 
     store.setCurrentUrl(url); // Ensure global state is updated
 
@@ -799,7 +817,17 @@ export default function Home() {
     }
 
     if (window.electronAPI) {
-      window.electronAPI.navigateBrowserView({ tabId: store.activeTabId, url });
+      if (newTab) {
+        // For new tabs, we need to create the tab first then navigate
+        window.electronAPI.createView({ url }).then(() => {
+          if (active) {
+            // Focus the new tab
+            window.electronAPI.activateView({ tabId: store.tabs.length });
+          }
+        });
+      } else {
+        window.electronAPI.navigateBrowserView({ tabId: store.activeTabId, url });
+      }
     }
   };
 
@@ -1258,7 +1286,33 @@ export default function Home() {
                     onBlur={() => setIsTyping(false)}
                     onClick={(e) => (e.target as HTMLInputElement).select()}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleGo(inputValue); // Pass inputValue to handleGo
+                      // Shift+Enter: Insert new line (for multi-line queries)
+                      if (e.key === 'Enter' && e.shiftKey) {
+                        e.preventDefault();
+                        const input = e.target as HTMLInputElement;
+                        const start = input.selectionStart || inputValue.length;
+                        const newValue = inputValue.slice(0, start) + '\n' + inputValue.slice(start);
+                        setInputValue(newValue);
+                        // Set cursor position after the newline
+                        setTimeout(() => {
+                          input.setSelection(start + 1, start + 1);
+                        }, 0);
+                        return;
+                      }
+                      // Ctrl+Enter or Cmd+Enter: Search in new tab
+                      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                        e.preventDefault();
+                        handleGo(inputValue, { newTab: true, active: true });
+                        return;
+                      }
+                      // Alt+Enter: Open in background tab
+                      if (e.key === 'Enter' && e.altKey) {
+                        e.preventDefault();
+                        handleGo(inputValue, { newTab: true, active: false });
+                        return;
+                      }
+                      // Regular Enter: Navigate
+                      if (e.key === 'Enter') handleGo(inputValue);
                       if (e.key === 'Tab' && urlPrediction && isTyping) {
                         e.preventDefault();
                         setInputValue(urlPrediction); // Update input value with prediction
@@ -1283,8 +1337,11 @@ export default function Home() {
                     <button onClick={handleMusicUpload} className="p-1.5 rounded-lg hover:bg-white/10 text-white/20 hover:text-white/60 transition-all" title="Upload Ambient Music">
                       <Music2 size={12} />
                     </button>
-                    <button onClick={() => store.setEnableAmbientMusic(!store.setEnableAmbientMusic)} className={`p-1.5 rounded-lg hover:bg-white/10 transition-all ${store.enableAmbientMusic ? 'text-accent' : 'text-white/20'}`} title="Ambient Mode">
+                    <button onClick={() => store.setEnableAmbientMusic(!store.enableAmbientMusic)} className={`p-1.5 rounded-lg hover:bg-white/10 transition-all ${store.enableAmbientMusic ? 'text-accent' : 'text-white/20'}`} title="Ambient Mode">
                       <Waves size={12} />
+                    </button>
+                    <button onClick={handlePopSearch} className="p-1.5 rounded-lg hover:bg-white/10 text-white/20 hover:text-white/60 transition-all" title="Quick Search (Ctrl+Shift+S)">
+                      <Search size={12} />
                     </button>
                   </div>
                   {isTyping && suggestions.length > 0 && (
@@ -1623,10 +1680,32 @@ export default function Home() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[2000] bg-black/60 backdrop-blur-md flex items-center justify-center p-4"
+            className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-md flex items-center justify-center p-4"
           >
             <div className="w-full max-w-sm bg-[#0a0a0f] border border-white/10 rounded-2xl shadow-3xl overflow-hidden p-6">
               <h3 className="text-sm font-black uppercase tracking-widest text-white mb-4 text-center">TRANSLATE SITE</h3>
+              
+              {/* Method Selection */}
+              <div className="flex gap-2 mb-4">
+                <button
+                  onClick={() => setTranslateMethod('google')}
+                  className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold border transition-all ${translateMethod === 'google' ? 'bg-accent/20 border-accent/40 text-white' : 'bg-white/5 border-white/10 text-white/60 hover:text-white'}`}
+                >
+                  Google
+                </button>
+                <button
+                  onClick={() => setTranslateMethod('chrome-ai')}
+                  className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold border transition-all ${translateMethod === 'chrome-ai' ? 'bg-accent/20 border-accent/40 text-white' : 'bg-white/5 border-white/10 text-white/60 hover:text-white'}`}
+                >
+                  Chrome AI
+                </button>
+              </div>
+              <p className="text-[10px] text-white/30 text-center mb-4">
+                {translateMethod === 'google' 
+                  ? 'Google: Fast, relies on Google servers'
+                  : 'Chrome AI: On-device, private, requires Chrome 144+'}
+              </p>
+              
               <div className="grid grid-cols-2 gap-2">
                 {store.availableLanguages.map(langCode => {
                   const names: Record<string, string> = {
@@ -1645,7 +1724,7 @@ export default function Home() {
                       key={langCode}
                       onClick={async () => {
                         if (window.electronAPI) {
-                          await window.electronAPI.translateWebsite({ targetLanguage: langCode });
+                          await window.electronAPI.translateWebsite({ targetLanguage: langCode, method: translateMethod });
                         }
                         setShowTranslateDialog(false);
                       }}

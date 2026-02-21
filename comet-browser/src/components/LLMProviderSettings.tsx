@@ -62,10 +62,15 @@ const LLMProviderSettings: React.FC<LLMProviderSettingsProps> = (props) => {
         { id: 'local', name: 'Browser AI (Local TF.js)' },
         { id: 'gemini-3.1-pro', name: 'Google Gemini 3.1 Pro' },
         { id: 'gemini-3.1-flash', name: 'Google Gemini 3.1 Flash' },
+        { id: 'gemini-3-flash', name: 'Google Gemini 3 Flash (Multimodal + Agentic)' },
+        { id: 'gemini-2.5-pro', name: 'Google Gemini 2.5 Pro (2M ctx)' },
+        { id: 'gemini-2.5-flash', name: 'Google Gemini 2.5 Flash' },
         { id: 'gemini-2.0-pro', name: 'Google Gemini 2.0 Pro' },
         { id: 'gemini-2.0-flash', name: 'Google Gemini 2.0 Flash' },
         { id: 'gemini-1.5-pro', name: 'Google Gemini 1.5 Pro' },
         { id: 'gemini-1.5-flash', name: 'Google Gemini 1.5 Flash' },
+        { id: 'gpt-5.2', name: 'GPT-5.2 (Latest)' },
+        { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6 (Vision)' },
         { id: 'claude-3-7-sonnet', name: 'Claude 3.7 Sonnet' },
         { id: 'claude-3-5-sonnet', name: 'Claude 3.5 Sonnet' },
         { id: 'groq', name: 'Groq (LPU Inference)' },
@@ -100,7 +105,7 @@ const LLMProviderSettings: React.FC<LLMProviderSettingsProps> = (props) => {
       config = { apiKey: store.openaiApiKey, baseUrl: store.localLLMBaseUrl, model: store.localLLMModel };
     } else if (activeProviderId.startsWith('gemini')) {
       config = { apiKey: store.geminiApiKey };
-    } else if (activeProviderId === 'claude' || activeProviderId === 'anthropic' || activeProviderId === 'claude-3-5-sonnet') {
+    } else if (activeProviderId === 'claude' || activeProviderId === 'anthropic' || activeProviderId.startsWith('claude')) {
       config = { apiKey: store.anthropicApiKey, model: store.localLLMModel };
     } else if (activeProviderId === 'groq' || activeProviderId === 'mixtral-8x7b-groq' || activeProviderId?.startsWith('groq')) {
       config = { apiKey: store.groqApiKey, model: store.localLLMModel };
@@ -399,9 +404,10 @@ const LLMProviderSettings: React.FC<LLMProviderSettingsProps> = (props) => {
                           id="openai-model-select"
                           aria-label="OpenAI Model Selection"
                           className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-deep-space-accent-neon/50 transition-all font-bold"
-                          value={store.localLLMModel || 'gpt-4o'}
+                          value={store.localLLMModel || 'gpt-5.2'}
                           onChange={(e) => store.setLocalLLMModel(e.target.value)}
                         >
+                          <option value="gpt-5.2">GPT-5.2 (Latest)</option>
                           <option value="gpt-4o">GPT-4o</option>
                           <option value="gpt-4-turbo">GPT-4 Turbo</option>
                           <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
@@ -454,9 +460,11 @@ const LLMProviderSettings: React.FC<LLMProviderSettingsProps> = (props) => {
                           id="claude-model-select"
                           aria-label="Claude Model Selection"
                           className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-deep-space-accent-neon/50 transition-all font-bold"
-                          value={store.localLLMModel || 'claude-3-5-sonnet-20240620'}
+                          value={store.localLLMModel || 'claude-sonnet-4-6'}
                           onChange={(e) => store.setLocalLLMModel(e.target.value)}
                         >
+                          <option value="claude-sonnet-4-6">Claude Sonnet 4.6 (Vision)</option>
+                          <option value="claude-3-7-sonnet-20250224">Claude 3.7 Sonnet</option>
                           <option value="claude-3-5-sonnet-20240620">Claude 3.5 Sonnet</option>
                           <option value="claude-3-opus-20240229">Claude 3 Opus</option>
                           <option value="claude-3-haiku-20240307">Claude 3 Haiku</option>

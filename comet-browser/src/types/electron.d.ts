@@ -229,6 +229,96 @@ declare global {
             performClick: (options: any) => Promise<{ success: boolean; error?: string }>;
             performOCR: (options: any) => Promise<{ success: boolean; results: any[]; error?: string }>;
             getWindowInfo: () => Promise<any>;
+
+            // Desktop Automation v2 — Permission Store
+            permGrant: (key: string, level: string, description: string, sessionOnly?: boolean) => Promise<{ success: boolean; error?: string }>;
+            permRevoke: (key: string) => Promise<{ success: boolean }>;
+            permRevokeAll: () => Promise<{ success: boolean }>;
+            permCheck: (key: string) => Promise<{ granted: boolean }>;
+            permList: () => Promise<Array<{ key: string; level: string; granted_at: number; expires_at: number | null; description: string }>>;
+            permAuditLog: (limit?: number) => Promise<Array<{ entry: string; timestamp: number }>>;
+
+            // Desktop Automation v2 — Robot Service
+            robotExecute: (action: {
+                type: 'click' | 'type' | 'key' | 'scroll';
+                x?: number; y?: number;
+                button?: 'left' | 'right' | 'middle';
+                double?: boolean;
+                text?: string;
+                key?: string;
+                modifiers?: ('command' | 'control' | 'alt' | 'shift')[];
+                direction?: 'up' | 'down' | 'left' | 'right';
+                amount?: number;
+                reason: string;
+            }) => Promise<{ success: boolean; error?: string }>;
+            robotExecuteSequence: (actions: any[], options?: { stopOnError?: boolean; skipConfirm?: boolean }) => Promise<any[]>;
+            robotKill: () => Promise<{ success: boolean }>;
+            robotResetKill: () => Promise<{ success: boolean }>;
+            robotStatus: () => Promise<{ available: boolean; permitted: boolean; killActive: boolean }>;
+            onRobotKilled: (callback: () => void) => () => void;
+
+            // Desktop Automation v2 — Tesseract OCR
+            ocrCaptureWords: (displayId?: string) => Promise<{
+                success: boolean;
+                words?: Array<{ text: string; confidence: number; bbox: { x0: number; y0: number; x1: number; y1: number }; centerX: number; centerY: number }>;
+                error?: string;
+            }>;
+            ocrClick: (target: string, useAi?: boolean) => Promise<{ success: boolean; clickedText?: string; method?: string; error?: string }>;
+            ocrScreenText: (displayId?: string) => Promise<{ success: boolean; text?: string; error?: string }>;
+
+            // Desktop Automation v2 — Screen Vision AI
+            visionDescribe: (question?: string) => Promise<{ success: boolean; description?: string; error?: string }>;
+            visionAnalyze: (question: string) => Promise<{ success: boolean; description?: string; analysis?: string; ocrWordCount?: number; error?: string }>;
+            visionCaptureBase64: () => Promise<{ success: boolean; image?: string; error?: string }>;
+
+            // Desktop Automation v2 — AI Engine
+            aiEngineChat: (opts: { message: string; model?: string; systemPrompt?: string; history?: Array<{ role: string; content: string }> }) => Promise<{ success: boolean; response?: string; error?: string }>;
+            aiEngineConfigure: (keys: Record<string, string>) => Promise<{ success: boolean }>;
+
+            // Flutter Bridge
+            bridgeGetPairingCode: () => Promise<{ success: boolean; code?: string; error?: string }>;
+            bridgeGetStatus: () => Promise<{ running: boolean; connectedDevices: number }>;
+            bridgeRotateSecret: () => Promise<{ success: boolean; code?: string }>;
+            bridgeBroadcast: (message: any) => Promise<{ success: boolean }>;
+
+            // MCP Desktop — FileSystem (sandboxed)
+            mcpFsRead: (filePath: string) => Promise<{ success: boolean; content?: string; error?: string }>;
+            mcpFsWrite: (filePath: string, content: string) => Promise<{ success: boolean; result?: string; error?: string }>;
+            mcpFsList: (dirPath: string) => Promise<{ success: boolean; entries?: Array<{ name: string; isDirectory: boolean; path: string }>; error?: string }>;
+            mcpFsApprovedDirs: () => Promise<{ success: boolean; dirs?: string[] }>;
+
+            // MCP Desktop — NativeApp (AppleScript/PowerShell)
+            mcpNativeApplescript: (script: string) => Promise<{ success: boolean; result?: string; error?: string }>;
+            mcpNativePowershell: (script: string) => Promise<{ success: boolean; result?: string; error?: string }>;
+            mcpNativeActiveWindow: () => Promise<{ success: boolean; app?: string; window?: string; error?: string }>;
+
+            // Web Search v2 (Brave / Tavily / SerpAPI)
+            webSearch: (query: string, provider?: 'brave' | 'tavily' | 'serp', count?: number) => Promise<{ success: boolean; results?: Array<{ title: string; url: string; snippet: string }>; error?: string }>;
+            webSearchContext: (query: string, provider?: string) => Promise<{ success: boolean; context?: string; error?: string }>;
+            webSearchProviders: () => Promise<{ success: boolean; providers?: string[] }>;
+            webSearchConfigure: (keys: Record<string, string>) => Promise<{ success: boolean }>;
+
+            // RAG — Local Vector Store
+            ragIngest: (text: string, source: string) => Promise<{ success: boolean; chunksAdded?: number; error?: string }>;
+            ragRetrieve: (query: string, k?: number) => Promise<{ success: boolean; results?: Array<{ text: string; source: string; score: number }>; error?: string }>;
+            ragContext: (query: string, k?: number) => Promise<{ success: boolean; context?: string; error?: string }>;
+            ragStats: () => Promise<{ success: boolean; totalChunks?: number; sources?: string[]; error?: string }>;
+            ragDeleteSource: (source: string) => Promise<{ success: boolean; deleted?: number; error?: string }>;
+            ragClear: () => Promise<{ success: boolean }>;
+
+            // Voice Control (Whisper)
+            voiceTranscribe: (audioBase64: string, format?: string) => Promise<{ success: boolean; text?: string; error?: string }>;
+            voiceMicPermission: () => Promise<{ success: boolean; granted?: boolean; error?: string }>;
+
+            // Workflow Recorder
+            workflowStart: () => Promise<{ success: boolean; recording?: boolean }>;
+            workflowRecord: (type: string, action: any) => Promise<{ success: boolean }>;
+            workflowStop: () => Promise<{ success: boolean; steps?: number }>;
+            workflowSave: (name: string, description?: string) => Promise<{ success: boolean; filePath?: string; steps?: number; error?: string }>;
+            workflowList: () => Promise<{ success: boolean; workflows?: Array<{ name: string; description: string; steps: number; created: number; file: string }>; error?: string }>;
+            workflowReplay: (name: string) => Promise<{ success: boolean; results?: any[]; error?: string }>;
+            workflowDelete: (name: string) => Promise<{ success: boolean; deleted?: boolean; error?: string }>;
+            workflowStatus: () => Promise<{ success: boolean; isRecording?: boolean; stepCount?: number }>;
         };
     }
 }

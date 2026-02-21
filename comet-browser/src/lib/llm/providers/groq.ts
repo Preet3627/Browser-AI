@@ -5,7 +5,7 @@ export class GroqProvider implements LLMProvider {
     id: string = 'groq';
     name: string = 'Groq';
     private apiKey: string | undefined;
-    private model: string = 'llama3-8b-8192';
+    private model: string = 'llama-3.3-70b-versatile';
     private baseUrl: string = 'https://api.groq.com/openai/v1';
 
     constructor(options?: LLMProviderOptions) {
@@ -16,7 +16,7 @@ export class GroqProvider implements LLMProvider {
 
     init(options: LLMProviderOptions): void {
         this.apiKey = options.apiKey;
-        this.model = options.model || 'llama3-8b-8192';
+        this.model = options.model || 'llama-3.3-70b-versatile';
     }
 
     async generateContent(prompt: string, options?: any): Promise<GenerateContentResult> {
