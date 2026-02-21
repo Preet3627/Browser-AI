@@ -95,6 +95,8 @@ jobs:
 
       - name: Build APK (Release)
         working-directory: flutter_browser_app
+        env:
+          JAVA_TOOL_OPTIONS: "-Xmx4096m"
         run: flutter build apk --release --verbose
 
       - name: Upload APK

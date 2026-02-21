@@ -102,6 +102,8 @@ jobs:
       - name: Build Android APK
         if: matrix.target == 'android'
         working-directory: flutter_browser_app
+        env:
+          JAVA_TOOL_OPTIONS: "-Xmx4096m"
         run: flutter build apk --release
 
       - name: Build iOS App
