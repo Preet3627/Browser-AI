@@ -52,6 +52,9 @@ Modern browsers are built for scale, monetization, and cloud-first users. Comet 
 *   **Spotlight Search (Alt+Space)**: System-wide shortcut for quick app launching, calculations, currency conversion, and AI prompts.
 *   **Neural Modules (Extensions)**: A modular extension system with a glassmorphic UI for managing browser capabilities.
 *   **Sidebar Multi-Tasking**: A persistent AI companion that stays with you across all tabs for summarization and action.
+*   **Customizable Homepage**: Personalize your starting page with custom backgrounds, URLs, welcome messages, and quick actions.
+*   **Floating Popups**: Enhanced multitasking with draggable, non-blocking popup windows for Search, Downloads, Unified Cart, and Translators.
+*   **Pop-Search Integration**: Global, unified search capability accessible anywhere to quickly find what you need.
 
 ### ⚡ Performance & Core
 *   **Speedometer 3 Optimized**: Consistently achieves ultra-low latency (~14ms) outperforming mainstream browsers.
@@ -60,9 +63,10 @@ Modern browsers are built for scale, monetization, and cloud-first users. Comet 
 *   **Premium UI**: Custom-built with **Framer Motion**, featuring vibrant dark modes, glassmorphism, and smooth micro-animations.
 
 ### 🔄 Multi-Device Ecosystem
-*   **WiFi Desktop Sync**: Securely connect mobile and desktop via local network QR scans.
+*   **WiFi Desktop Sync**: Securely connect mobile and desktop via local network QR scans. Includes robust WebSockets architecture.
 *   **P2P Clipboard Sharing**: Copy text on your phone and paste it on your laptop without the cloud.
 *   **Sync Session Recovery**: Seamlessly pick up your open tabs and AI conversations across devices.
+*   **Remote Device Control**: Broadcast intents like AI tasks or app launches from mobile to desktop using the unified bridge.
 
 ---
 

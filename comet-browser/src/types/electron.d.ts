@@ -221,6 +221,7 @@ declare global {
             getWifiSyncInfo: () => Promise<{ deviceName: string, pairingCode: string, ip: string, port: number }>;
             onWifiSyncStatus: (callback: (data: { connected: boolean }) => void) => () => void;
             onRemoteAiPrompt: (callback: (data: { prompt: string; commandId: string }) => void) => () => void;
+            wifiSyncBroadcast: (data: any) => void;
 
             // Missing APIs
             generatePDF: (title: string, content: string) => Promise<{ success: boolean; error?: string }>;

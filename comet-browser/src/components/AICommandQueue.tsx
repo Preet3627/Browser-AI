@@ -178,7 +178,8 @@ export const AICommandQueue: React.FC<AICommandQueueProps> = ({
                 </div>
             )}
 
-            <style jsx>{`
+            <style dangerouslySetInnerHTML={{
+                __html: `
         .custom-scrollbar::-webkit-scrollbar {
           width: 6px;
         }
@@ -192,7 +193,7 @@ export const AICommandQueue: React.FC<AICommandQueueProps> = ({
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
           background: rgba(6, 182, 212, 0.5);
         }
-      `}</style>
+      `}} />
         </motion.div>
     );
 };
