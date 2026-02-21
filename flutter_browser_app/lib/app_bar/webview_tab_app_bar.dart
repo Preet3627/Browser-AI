@@ -470,15 +470,27 @@ class _WebViewTabAppBarState extends State<WebViewTabAppBar>
   }
 
   Widget _buildMoreAction() {
-    return PopupMenuButton<String>(
-      icon: const Icon(Icons.more_vert, color: Colors.white70),
-      onSelected: _popupMenuChoiceAction,
-      itemBuilder: (context) => PopupMenuActions.choices
-          .map((choice) => PopupMenuItem(
-                value: choice,
-                child: Text(choice),
-              ))
-          .toList(),
+    return Container(
+      width: 44,
+      child: PopupMenuButton<String>(
+        padding: EdgeInsets.zero,
+        icon: const Icon(Icons.more_vert, color: Colors.white, size: 26),
+        onSelected: _popupMenuChoiceAction,
+        color: const Color(0xFF2C2C2C),
+        itemBuilder: (context) => PopupMenuActions.choices
+            .map((choice) => PopupMenuItem(
+                  value: choice,
+                  child: Text(
+                    choice,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ))
+            .toList(),
+      ),
     );
   }
 
@@ -501,7 +513,7 @@ class _WebViewTabAppBarState extends State<WebViewTabAppBar>
             style: const TextStyle(color: Colors.white),
             decoration: InputDecoration(
               hintText: "Issue a command...",
-              hintStyle: TextStyle(color: Colors.white24),
+              hintStyle: const TextStyle(color: Colors.white24),
               filled: true,
               fillColor: Colors.white.withOpacity(0.05),
               border: OutlineInputBorder(
@@ -2252,19 +2264,28 @@ class _WebViewTabAppBarState extends State<WebViewTabAppBar>
     var currentUrl = (await webViewController?.getUrl())?.toString() ?? "";
 
     if (mounted && currentUrl.isNotEmpty) {
-      setState(() {
-        if (!_suggestions.contains(currentUrl)) {
+      if (!_suggestions.contains(currentUrl)) {
+        setState(() {
           _suggestions = [currentUrl, ..._suggestions];
-        }
-      });
+        });
+      }
     }
+
+    _hideSuggestionsOverlay();
+
     _overlayEntry = _createOverlayEntry();
-    Overlay.of(context).insert(_overlayEntry!);
+    if (mounted) {
+      Overlay.of(context).insert(_overlayEntry!);
+    }
   }
 
   void _hideSuggestionsOverlay() {
-    _overlayEntry?.remove();
-    _overlayEntry = null;
+    if (_overlayEntry != null) {
+      if (_overlayEntry!.mounted) {
+        _overlayEntry!.remove();
+      }
+      _overlayEntry = null;
+    }
   }
 
   void _updateOverlay() {

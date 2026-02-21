@@ -122,8 +122,6 @@ ipcMain.handle('set-as-default-browser', async () => {
   }
   return false;
 });
-  ]
-});
 let mcpServerPort = MCP_SERVER_PORT;
 // Custom protocol for authentication
 const PROTOCOL = 'comet-browser';
