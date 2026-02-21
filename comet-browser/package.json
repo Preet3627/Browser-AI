@@ -92,16 +92,24 @@
     "productName": "Comet Browser",
     "copyright": "Copyright © 2026 Latestinssan",
     "asar": true,
+    "asarUnpack": [
+      "**/node_modules/robotjs/**/*",
+      "**/node_modules/sharp/**/*"
+    ],
     "files": [
       "out/**/*",
-      "!out/web/**/*",
       "main.js",
       "preload.js",
       "view_preload.js",
       "src/lib/**/*",
       "assets/**/*",
       "package.json",
-      "LICENSE.txt"
+      "!node_modules/next/**/*",
+      "!node_modules/react/**/*",
+      "!node_modules/react-dom/**/*",
+      "!node_modules/framer-motion/**/*",
+      "!src/app/**/*",
+      "!src/components/**/*"
     ],
     "nsis": {
       "oneClick": false,
@@ -109,7 +117,7 @@
       "license": "LICENSE.txt",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Comet-AI"
+      "shortcutName": "Comet Browser"
     },
     "win": {
       "icon": "assets/icon.ico",
