@@ -182,7 +182,13 @@ jobs:
       - name: Remove package-lock.json (Non-Windows)
         if: runner.os != 'Windows'
         working-directory: comet-browser
-        run: rm package-lock.json
+        run: rm -f package-lock.json
+
+      - name: Remove package-lock.json (Windows)
+        if: runner.os == 'Windows'
+        working-directory: comet-browser
+        run: if (Test-Path package-lock.json) { Remove-Item package-lock.json -Force }
+        shell: pwsh
 
       - name: Install Dependencies
         working-directory: comet-browser

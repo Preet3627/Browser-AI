@@ -5,6 +5,7 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:provider/provider.dart';
 import 'package:collection/collection.dart';
 import '../models/browser_model.dart';
+import '../models/window_model.dart';
 import 'comet_agent_service.dart';
 
 // ─────────────────────────────────────────────
