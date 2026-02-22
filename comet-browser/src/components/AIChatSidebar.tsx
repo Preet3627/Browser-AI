@@ -260,8 +260,8 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = (props) => {
       const cleanupRemote = window.electronAPI.onRemoteAiPrompt((data: any) => {
         if (data && data.prompt) {
           setInputMessage(data.prompt);
-          // Optionally auto-send if you want
-          // handleSendMessage(data.prompt);
+          // Automatically execute the prompt without needing to click enter
+          handleSendMessage(data.prompt);
         }
       });
 
@@ -1733,6 +1733,11 @@ ${pageContext || "Content not loaded. Use [READ_PAGE_CONTENT] command to read fu
           </button>
         </div>
       </footer>
+      <AICommandQueue
+        commands={commandQueue}
+        currentCommandIndex={currentCommandIndex}
+        onCancel={cancelActions}
+      />
     </div>
   );
 };

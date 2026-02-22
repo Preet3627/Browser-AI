@@ -497,11 +497,23 @@ export const useAppStore = create<BrowserState>()(
 
             // AI settings
             setEnableAIAssist: (enable) => set({ enableAIAssist: enable }),
-            setOpenaiApiKey: (key) => set({ openaiApiKey: key }),
-            setGeminiApiKey: (key) => set({ geminiApiKey: key }),
+            setOpenaiApiKey: (key) => {
+                set({ openaiApiKey: key });
+                if (window.electronAPI) window.electronAPI.savePersistentData('openai_api_key', key);
+            },
+            setGeminiApiKey: (key) => {
+                set({ geminiApiKey: key });
+                if (window.electronAPI) window.electronAPI.savePersistentData('gemini_api_key', key);
+            },
             setGeminiModel: (model) => set({ geminiModel: model }),
-            setAnthropicApiKey: (key) => set({ anthropicApiKey: key }),
-            setGroqApiKey: (key) => set({ groqApiKey: key }),
+            setAnthropicApiKey: (key) => {
+                set({ anthropicApiKey: key });
+                if (window.electronAPI) window.electronAPI.savePersistentData('anthropic_api_key', key);
+            },
+            setGroqApiKey: (key) => {
+                set({ groqApiKey: key });
+                if (window.electronAPI) window.electronAPI.savePersistentData('groq_api_key', key);
+            },
             setAIProvider: (provider) => set({ aiProvider: provider }),
             setOllamaBaseUrl: (url) => set({ ollamaBaseUrl: url }),
             setOllamaModel: (model) => set({ ollamaModel: model }),

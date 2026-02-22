@@ -160,12 +160,7 @@ export default function Home() {
     { icon: <Lock size={20} />, label: 'Passwords', manager: 'password' },
     { icon: <Shield size={20} />, label: 'Firewall', manager: 'firewall' },
     { icon: <Share2 size={20} />, label: 'P2P Sync', manager: 'p2p' },
-    { icon: <CopyIcon size={20} />, label: 'Clipboard', popup: 'clipboard' },
-    { icon: <Languages size={20} />, label: 'Translate', popup: 'translate' },
-    { icon: <Search size={20} />, label: 'Search Apps', popup: 'search' },
-    { icon: <DownloadIcon size={20} />, label: 'Downloads', popup: 'downloads' },
-    { icon: <ShoppingCart size={20} />, label: 'Cart', popup: 'cart' },
-    { icon: <Puzzle size={20} />, label: 'Extensions', popup: 'plugins' },
+    // Redundant items integrated into header or settings
   ];
 
   // Handle sidebar item clicks - now mostly using local panels
@@ -421,21 +416,14 @@ export default function Home() {
 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
-    if (window.electronAPI) {
-      window.electronAPI.openContextMenuPopup({
-        x: e.screenX,
-        y: e.screenY,
-      });
-    } else {
-      const menuWidth = 192;
-      const menuHeight = 250;
-      const padding = 16;
-      let x = e.clientX;
-      let y = e.clientY;
-      if (e.clientX + menuWidth + padding > window.innerWidth) x = window.innerWidth - menuWidth - padding;
-      if (e.clientY + menuHeight + padding > window.innerHeight) y = window.innerHeight - menuHeight - padding;
-      setShowContextMenu({ x, y });
-    }
+    const menuWidth = 192;
+    const menuHeight = 250;
+    const padding = 16;
+    let x = e.clientX;
+    let y = e.clientY;
+    if (e.clientX + menuWidth + padding > window.innerWidth) x = window.innerWidth - menuWidth - padding;
+    if (e.clientY + menuHeight + padding > window.innerHeight) y = window.innerHeight - menuHeight - padding;
+    setShowContextMenu({ x, y });
   };
 
   const handleTranslate = async () => {
@@ -1021,9 +1009,15 @@ export default function Home() {
       const cleanup = window.electronAPI.onAddNewTab((url: string) => {
         store.addTab(url);
       });
-      return cleanup;
+      const cleanupNav = window.electronAPI.on('navigate-to-url', (url: string) => {
+        handleGo(url);
+      });
+      return () => {
+        cleanup();
+        cleanupNav();
+      };
     }
-  }, [store]);
+  }, [store, handleGo]);
 
   useEffect(() => {
     if (!window.electronAPI) {
@@ -1364,6 +1358,9 @@ export default function Home() {
                     </button>
                     <button onClick={() => setShowCart(!showCart)} className={`p-1.5 rounded-lg transition-all ${showCart ? 'text-accent bg-sky-500/10' : 'text-secondary-text hover:text-sky-400'} hover:bg-white/5`} title="Unified Cart">
                       <ShoppingCart size={14} />
+                    </button>
+                    <button onClick={() => setShowTranslateDialog(true)} className={`p-1.5 rounded-lg transition-all ${showTranslateDialog ? 'text-accent bg-sky-500/10' : 'text-secondary-text hover:text-sky-400'} hover:bg-white/5`} title="Translate Page">
+                      <Languages size={14} />
                     </button>
                     <button onClick={() => setShowExtensionsPopup(!showExtensionsPopup)} className={`p-1.5 rounded-lg transition-all ${showExtensionsPopup ? 'text-accent bg-sky-500/10' : 'text-secondary-text hover:text-sky-400'} hover:bg-white/5`} title="Extensions">
                       <Puzzle size={14} />

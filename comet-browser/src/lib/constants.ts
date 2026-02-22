@@ -9,7 +9,10 @@ export type Action =
     | 'zoom-in'
     | 'zoom-out'
     | 'zoom-reset'
-    | 'toggle-spotlight';
+    | 'toggle-spotlight'
+    | 'spotlight-search'
+    | 'pop-search'
+    | 'global-search';
 
 export interface Shortcut {
     accelerator: string;
@@ -28,5 +31,7 @@ export const defaultShortcuts: Shortcut[] = [
     { accelerator: 'CommandOrControl+Plus', action: 'zoom-in' }, // Add this for completeness, although '=' usually covers it
     { accelerator: 'CommandOrControl+-', action: 'zoom-out' },
     { accelerator: 'CommandOrControl+0', action: 'zoom-reset' },
+    { accelerator: 'Alt+Space', action: 'spotlight-search' },
+    { accelerator: 'CommandOrControl+Shift+S', action: 'pop-search' },
     { accelerator: 'Capslock+S', action: 'toggle-spotlight' },
 ];

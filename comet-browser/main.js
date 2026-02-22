@@ -214,9 +214,15 @@ const llmGenerateHandler = async (messages, options = {}) => {
     return llmCache.get(cacheKey);
   }
 
-  const providerId = options.provider || activeLlmProvider;
-  const config = llmConfigs[providerId] || {};
-  const apiKey = options.apiKey || config.apiKey;
+  const providerId = options.provider || (typeof activeLlmProvider !== 'undefined' ? activeLlmProvider : 'gemini-1.5-flash');
+  const config = (typeof llmConfigs !== 'undefined' ? llmConfigs[providerId] : {}) || {};
+  const apiKey = options.apiKey || config.apiKey || store.get(`${providerId.split('-')[0]}_api_key`) || store.get(providerId.split('-')[0] + 'ApiKey');
+
+  // Role mapping to fix "invalid role" errors (e.g. from Groq)
+  const mappedMessages = messages.map(m => ({
+    role: m.role === 'model' ? 'assistant' : m.role,
+    content: m.content
+  }));
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), providerId === 'ollama' ? 120000 : 180000); // 120s for local Ollama, 180s for reasoning
@@ -224,8 +230,8 @@ const llmGenerateHandler = async (messages, options = {}) => {
   try {
     let result;
     if (providerId.startsWith('gemini')) {
-      const gKey = apiKey || process.env.GEMINI_API_KEY;
-      if (!gKey) return { error: 'Missing Gemini API Key' };
+      const gKey = apiKey || store.get('gemini_api_key') || store.get('geminiApiKey') || process.env.GEMINI_API_KEY;
+      if (!gKey) return { error: 'Missing Gemini API Key. Please configure it in settings.' };
 
       const genAI = new GoogleGenAI(gKey);
 
@@ -325,7 +331,7 @@ const llmGenerateHandler = async (messages, options = {}) => {
       result = { text: response.text() };
 
     } else if (providerId.startsWith('gpt') || providerId.startsWith('o1') || providerId === 'openai-compatible') {
-      const oaiKey = apiKey || config.apiKey || process.env.OPENAI_API_KEY;
+      const oaiKey = apiKey || store.get('openai_api_key') || store.get('openaiApiKey') || process.env.OPENAI_API_KEY;
       const baseUrl = config.baseUrl || 'https://api.openai.com/v1';
 
       let modelName = config.model;
@@ -356,8 +362,8 @@ const llmGenerateHandler = async (messages, options = {}) => {
       result = { text: data.choices?.[0]?.message?.content || 'No response from intelligence provider.' };
 
     } else if (providerId.startsWith('claude') || providerId === 'anthropic') {
-      const anthropicKey = apiKey || process.env.ANTHROPIC_API_KEY;
-      if (!anthropicKey) return { error: 'Missing Anthropic API Key' };
+      const anthropicKey = apiKey || store.get('anthropic_api_key') || store.get('anthropicApiKey') || process.env.ANTHROPIC_API_KEY;
+      if (!anthropicKey) return { error: 'Missing Anthropic API Key. Please configure it in settings.' };
 
       const modelName = providerId.includes('4-6') ? 'claude-sonnet-4-6' : providerId.includes('3-7') ? 'claude-3-7-sonnet-20250224' : 'claude-sonnet-4-6';
       const isExtended = providerId.includes('3-7') || providerId.includes('4-6');
@@ -373,7 +379,7 @@ const llmGenerateHandler = async (messages, options = {}) => {
           model: modelName,
           max_tokens: 16384,
           thinking: isExtended ? { type: 'enabled', budget_tokens: 4096 } : undefined,
-          messages: messages.map(m => ({ role: m.role, content: m.content }))
+          messages: mappedMessages.filter(m => m.role !== 'system')
         }),
         signal: controller.signal
       });
@@ -423,7 +429,7 @@ const llmGenerateHandler = async (messages, options = {}) => {
       }
 
     } else if (providerId.includes('groq')) {
-      const groqKey = apiKey || process.env.GROQ_API_KEY;
+      const groqKey = apiKey || store.get('groq_api_key') || store.get('groqApiKey') || process.env.GROQ_API_KEY;
       if (!groqKey) return { error: 'Missing Groq API Key. Please add it in settings.' };
 
       let modelName = 'llama-3.3-70b-versatile'; // Standard high-quality default
@@ -446,7 +452,7 @@ const llmGenerateHandler = async (messages, options = {}) => {
         },
         body: JSON.stringify({
           model: modelName,
-          messages: messages.map(m => ({ role: m.role, content: m.content })),
+          messages: mappedMessages.filter(m => m.role !== 'system'),
           temperature: 0.7,
         }),
         signal: controller.signal
@@ -1174,6 +1180,9 @@ ipcMain.on('open-auth-window', (event, authUrl) => {
       modal: true,
       show: false,
     });
+
+    // Fix "Unsecure Browser" error by setting a modern User-Agent
+    authWindow.webContents.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
 
     authWindow.loadURL(authUrl);
 
@@ -2335,10 +2344,32 @@ app.whenReady().then(() => {
         } else {
           sendResponse({ success: false, error: 'robotjs not available' });
         }
+      } else if (command === 'key-tap') {
+        if (robot) {
+          robot.keyTap(args.key, args.modifier);
+          sendResponse({ success: true, output: `Key ${args.key} tapped` });
+        } else {
+          sendResponse({ success: false, error: 'robotjs not available' });
+        }
+      } else if (command === 'move-mouse') {
+        if (robot) {
+          robot.moveMouse(args.x, args.y);
+          sendResponse({ success: true, output: `Mouse moved to (${args.x}, ${args.y})` });
+        } else {
+          sendResponse({ success: false, error: 'robotjs not available' });
+        }
       } else if (command === 'switch-tab') {
         if (mainWindow) {
           mainWindow.webContents.send('switch-to-tab', args.tabId);
           sendResponse({ success: true, output: `Switching to tab: ${args.tabId}` });
+        } else {
+          sendResponse({ success: false, error: 'Desktop window not available' });
+        }
+      } else if (command === 'navigate') {
+        if (mainWindow) {
+          const url = args.url;
+          mainWindow.webContents.send('navigate-to-url', url);
+          sendResponse({ success: true, output: `Navigating to: ${url}` });
         } else {
           sendResponse({ success: false, error: 'Desktop window not available' });
         }
@@ -4136,82 +4167,78 @@ app.whenReady().then(() => {
   // ============================================================================
   // GLOBAL HOTKEY - Register global shortcuts
   // ============================================================================
-  app.whenReady().then(() => {
-    // Alt+Space avoids conflict with Windows input switcher (Ctrl+Shift+Space)
-    // and macOS Spotlight (Cmd+Space). Alt+Space is rarely bound by the OS.
+  function registerGlobalShortcuts(shortcuts) {
+    globalShortcut.unregisterAll();
+
+    // Default shortcuts if none provided
     const spotlightShortcut = process.platform === 'darwin' ? 'Option+Space' : 'Alt+Space';
+    const defaultShortcuts = [
+      { accelerator: spotlightShortcut, action: 'spotlight-search' },
+      { accelerator: 'CommandOrControl+Shift+S', action: 'pop-search' },
+      { accelerator: 'CommandOrControl+P', action: 'print' },
+      { accelerator: process.platform === 'darwin' ? 'Command+Shift+Escape' : 'Control+Shift+Escape', action: 'kill-switch' }
+    ];
 
-    try {
-      globalShortcut.register(spotlightShortcut, () => {
-        console.log('[Hotkey] Spotlight search triggered');
+    const shortcutsToRegister = (shortcuts && shortcuts.length > 0) ? shortcuts : defaultShortcuts;
 
-        if (mainWindow) {
-          // Show window if hidden
-          if (!mainWindow.isVisible()) {
-            mainWindow.show();
-          }
-
-          // Focus window
-          mainWindow.focus();
-
-          // Send event to renderer to open unified search
-          mainWindow.webContents.send('open-unified-search');
-        } else {
-          // If window doesn't exist, create it
-          createWindow();
-        }
-      });
-
-      console.log(`[Hotkey] Registered ${spotlightShortcut} for spotlight search`);
-
-      // Ctrl+Shift+S for PopSearch quick search
-      globalShortcut.register('CommandOrControl+Shift+S', () => {
-        console.log('[Hotkey] PopSearch triggered');
-        if (popSearch) {
-          popSearch.showPopupWithText('');
-        }
-      });
-      console.log('[Hotkey] Registered Ctrl+Shift+S for PopSearch');
-
-      globalShortcut.register('Alt+Shift+S', () => {
-        if (popSearch) popSearch.showPopupWithText('');
-      });
-
-      // Ctrl+P for Printing
-      globalShortcut.register('CommandOrControl+P', () => {
-        const view = tabViews.get(activeTabId);
-        if (view) {
-          view.webContents.print();
-        } else if (mainWindow) {
-          mainWindow.webContents.print();
-        }
-      });
-
-      // Emergency Kill Switch — Ctrl+Shift+Esc (Cmd+Shift+Esc on Mac)
-      const killShortcut = process.platform === 'darwin' ? 'Command+Shift+Escape' : 'Control+Shift+Escape';
+    shortcutsToRegister.forEach(s => {
       try {
-        globalShortcut.register(killShortcut, () => {
-          console.log('[Hotkey] EMERGENCY KILL SWITCH activated');
-          if (robotService) {
-            robotService.kill();
-          }
-          if (mainWindow) {
-            mainWindow.webContents.send('robot-killed');
-            dialog.showMessageBox(mainWindow, {
-              type: 'warning',
-              title: 'Comet-AI Kill Switch',
-              message: 'All robot actions have been stopped and permissions revoked.',
-              detail: 'You can re-enable robot permissions in Settings > Permissions.',
-            });
+        if (!s.accelerator) return;
+
+        globalShortcut.register(s.accelerator, () => {
+          console.log(`[Hotkey] Triggered: ${s.action} (${s.accelerator})`);
+
+          if (s.action === 'spotlight-search' || s.action === 'global-search') {
+            if (mainWindow) {
+              if (mainWindow.isMinimized()) mainWindow.restore();
+              if (!mainWindow.isVisible()) mainWindow.show();
+              mainWindow.focus();
+              mainWindow.webContents.send('open-unified-search');
+            } else {
+              createWindow();
+            }
+          } else if (s.action === 'pop-search') {
+            if (popSearch) {
+              popSearch.showPopupWithText('');
+            }
+          } else if (s.action === 'kill-switch' || s.action === 'emergency-kill') {
+            console.log('[Hotkey] EMERGENCY KILL SWITCH activated');
+            if (robotService) robotService.kill();
+            if (mainWindow) {
+              mainWindow.webContents.send('robot-killed');
+              dialog.showMessageBox(mainWindow, {
+                type: 'warning',
+                title: 'Comet-AI Kill Switch',
+                message: 'All robot actions have been stopped and permissions revoked.',
+                detail: 'You can re-enable robot permissions in Settings > Permissions.',
+              });
+            }
+          } else if (s.action === 'print') {
+            const view = tabViews.get(activeTabId);
+            if (view) view.webContents.print();
+            else if (mainWindow) mainWindow.webContents.print();
+          } else if (mainWindow) {
+            mainWindow.webContents.send('execute-shortcut', s.action);
           }
         });
-        console.log(`[Hotkey] Registered ${killShortcut} for emergency kill switch`);
-      } catch (killErr) {
-        console.warn('[Hotkey] Could not register kill switch:', killErr.message);
+      } catch (e) {
+        console.warn(`[Hotkey] Failed to register shortcut ${s.accelerator} for ${s.action}:`, e.message);
       }
-    } catch (error) {
-      console.error('[Hotkey] Failed to register:', error);
-    }
+    });
+
+    console.log(`[Hotkeys] Registered ${globalShortcut.isRegistered('Alt+Space') ? 'Alt+Space' : 'global shortcuts'}`);
+  }
+
+  app.whenReady().then(() => {
+    // Initial registration from store
+    const savedShortcuts = store.get('shortcuts') || [];
+    registerGlobalShortcuts(savedShortcuts);
+  });
+
+  ipcMain.on('update-shortcuts', (event, shortcuts) => {
+    console.log('[Main] Updating global shortcuts');
+    store.set('shortcuts', shortcuts);
+    registerGlobalShortcuts(shortcuts);
   });
 
   app.on('will-quit', () => {
