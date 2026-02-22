@@ -152,6 +152,18 @@ Most people are scared of AI browsers because of "Prompt Injection." You should 
 > * **Out-of-Band Authorization (HITL):** All **RobotJS** native actions require a **QR/PIN-secured signature** from the Comet Mobile app. The "Brain" (LLM) cannot act without the "Human" (You).
 > 
 > 
+🛡️ Architectural Isolation & Security
+Comet-AI does not rely on fragile "guardrails" inside the AI model. Instead, it enforces Physical and Logic-Based Isolation to mitigate the risks of Prompt Injection.
+
+Non-Executable Perception (OCR-Only): By using Tesseract OCR, Comet-AI treats the web as a flat image. This eliminates traditional "Direct Injection" (malicious HTML/JS) because the AI never parses the underlying code.
+
+The "Confused Deputy" Defense: Even if the AI is "socially engineered" by visible text on a page to attempt a harmful action, it remains a Confused Deputy with zero actual power.
+
+Out-of-Band Authorization (HITL): This is Comet's primary defense. All RobotJS native actions are gated by a QR/PIN-secured mobile handshake. The "Action Intent" is sent to an external device, forcing a human-in-the-loop (HITL) checkpoint that the AI cannot bypass.
+
+Permission Gating: Sensitive OS-level commands (like rm -rf or powershell.exe) are filtered at the Syntactic Firewall level before the AI's plan is even displayed for approval.
+
+Summary: We do not claim LLM "immunity." We claim System Isolation—where the AI can be "tricked," but its tricks are physically blocked from execution.
 
 ---
 
