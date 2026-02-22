@@ -10,6 +10,10 @@
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Android%20%7C%20iOS-blue)]()
 [![Version](https://img.shields.io/badge/Version-0.2.0--stable-green)]()
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)]()
+![Maintained](https://img.shields.io/badge/Maintained-Yes-green)
+![Hardware](https://img.shields.io/badge/Tested_On-i5--8250U_|_8GB-orange)
+![Security](https://img.shields.io/badge/Prompt_Injection-Protected-blueviolet)
+![MCP](https://img.shields.io/badge/Protocol-MCP_Enabled-cyan)
 <div align="center">
 
 [![Built by 16yo](https://img.shields.io/badge/Developer-16_Year_Old_Student-FF69B4?style=for-the-badge&logo=github)](https://github.com/Preet3627)
@@ -83,13 +87,14 @@ Measured on real hardware, not marketing slides.
 
 | Metric | Value | Notes |
 | :--- | :--- | :--- |
-| Speedometer 3 | ~14 ms | |
+| Speedometer 3 | ~12 ms | |
 | UI Load Time | < 2 seconds | Cold start observed |
 | Electron RAM (AI + 1 tab) | ~462-500 MB | Expected Electron overhead |
 | System RAM | 8 GB (6.9 GB used) | Still smooth, no visible lag |
 | Agent Reaction Time | ~3-5s | Claude 3.7 Sonnet processing latency |
 
 ---
+
 
 ## 🧠 Recent Updates (v0.2.0) - The Agency Update
 
