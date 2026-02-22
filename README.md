@@ -10,6 +10,13 @@
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Android%20%7C%20iOS-blue)]()
 [![Version](https://img.shields.io/badge/Version-0.2.0--stable-green)]()
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)]()
+<div align="center">
+
+[![Built by 16yo](https://img.shields.io/badge/Developer-16_Year_Old_Student-FF69B4?style=for-the-badge&logo=github)](https://github.com/Preet3627)
+[![Low Spec Optimized](https://img.shields.io/badge/Optimized-i5--U_|_8GB_RAM-success?style=for-the-badge&logo=cpu-z)](https://github.com/Preet3627/Comet-AI)
+[![Security Model](https://img.shields.io/badge/Security-Triple--Lock_HITL-blueviolet?style=for-the-badge&logo=shield)](https://github.com/Preet3627/Comet-AI)
+
+</div>
 
 [Features](#-features) • [Download](#-download) • [Quick Start](#-quick-start) • [Development Status](#-development-status) • [Contributing](#-contributing)
 
@@ -288,11 +295,30 @@ A big thank you to the community for their suggestions and feedback!
 
 ---
 
+<details>
+<summary><b>🛡️ Click to see the "Triple-Lock" Security Architecture</b></summary>
+
+Unlike other agentic browsers vulnerable to code-based prompt injection, Comet-AI uses a **Triple-Lock** model:
+1. **Visual Sandbox (OCR-Only):** Perceives the web via **Tesseract OCR**. It never reads raw HTML, making it immune to hidden malicious scripts.
+2. **Syntactic Firewall:** Every OCR output is filtered to strip out OS-level commands (CMD/PowerShell) before reaching the LLM.
+3. **Out-of-Band Auth (HITL):** All **RobotJS** actions require a **QR/PIN-secured signature** from the Comet Mobile app. The Brain cannot act without the Human.
+</details>
 ## 🧑‍💻 About the Creator
 
 Built by a **16‑year‑old student** preparing for JEE, Comet AI Browser is proof that skill, patience, and curiosity matter more than budget or hardware.
 
 **Primary Dev Machine**: Intel i5‑U | 8GB RAM | SATA SSD
+
+## 🧑‍💻 The "Zero Budget" Engineering Challenge
+
+| Challenge | Comet-AI Solution |
+| :--- | :--- |
+| **Old Hardware** | Custom memory management in Electron to stay under **500MB RAM**. |
+| **No GPU for AI** | Hybrid routing to **Groq** for speed and **Ollama** for local tasks. |
+| **Security Risk** | Built a custom **Mobile-to-Desktop WebSocket bridge** for human verification. |
+| **Zero Budget** | Entirely open-source stack: Flutter, Electron, Tesseract.js, and Node.js. |
+
+**Built by a 16-year-old student preparing for JEE. Built for privacy, speed, and true agency.**
 
 ---
 
