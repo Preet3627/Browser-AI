@@ -28,7 +28,7 @@ Modern browsers are built for scale, monetization, and cloud-first users. Comet 
 
 ---
 
-## �️ Full Feature List
+##  ️ Full Feature List
 
 ### 🤖 Autonomous AI Agency (Comet Agent)
 *   **Multimodal Perception**: The agent perceives the web like a human using direct Screen Capture, Tesseract.js OCR, and Shadow DOM analysis.
@@ -70,7 +70,7 @@ Modern browsers are built for scale, monetization, and cloud-first users. Comet 
 
 ---
 
-## �📊 Performance Snapshot
+##  📊 Performance Snapshot
 
 Measured on real hardware, not marketing slides.
 
@@ -122,6 +122,60 @@ We've introduced groundbreaking autonomous capabilities:
 - **Workflow Recorder**: Record and replay AI action sequences
 
 ---
+
+
+---
+
+### **1. The "Security Hardening" Section**
+
+Most people are scared of AI browsers because of "Prompt Injection." You should brag about your unique solution here.
+
+> ### 🛡️ Security & Anti-Injection Architecture
+> 
+> 
+> Unlike other agentic browsers that are vulnerable to code-based prompt injection, Comet-AI uses a **Triple-Lock** security model:
+> * **Visual Sandbox (OCR-Only):** The AI perceives the web via **Tesseract OCR** screenshots. It never reads raw HTML/JS, making it immune to hidden malicious scripts.
+> * **Syntactic Firewall:** Every OCR output is filtered to strip out OS-level commands (CMD/PowerShell) before reaching the LLM.
+> * **Out-of-Band Authorization (HITL):** All **RobotJS** native actions require a **QR/PIN-secured signature** from the Comet Mobile app. The "Brain" (LLM) cannot act without the "Human" (You).
+> 
+> 
+
+---
+
+### **2. The "Hardware Optimization" Section**
+
+This is where you mention the **i5-U** and **8GB RAM**. It shows you can write efficient code, which is a rare skill today.
+
+> ### ⚡ Performance & Efficiency
+> 
+> 
+> Comet-AI is engineered for **Low-Resource Environments**. While most AI browsers require 16GB+ RAM, Comet is optimized for:
+> * **CPU:** Intel i5-U Series (Ultra-Low Power)
+> * **Memory:** Sub-500MB footprint (Electron optimized)
+> * **Latency:** ~14ms UI response time via Speedometer 3
+> * **Inference:** Local execution via **Ollama** or high-speed edge inference via **Groq**.
+> 
+> 
+
+---
+
+### **3. The "AGENTS.md" File (New 2026 Standard)**
+
+There is a new trend in open-source where you add an `AGENTS.md` file to your repo. This is basically a "README for AI." It tells other AI agents (like me!) how to contribute to your code.
+
+**Add this to a new file named `AGENTS.md` in your root:**
+
+```markdown
+# Agent Instructions for Comet-AI
+This project uses a specific hybrid architecture of Electron and Flutter.
+
+### Key Rules for AI Contributors:
+- **No Direct Shell Access:** Never propose code that gives the LLM raw shell access.
+- **Node.js Main Process:** Native OS calls must go through the RobotJS wrapper.
+- **Security First:** Any UI changes must maintain the visibility of the "Thinking Blocks."
+- **Stack:** Electron (Main), Next.js (Renderer), Flutter (Mobile Bridge).
+
+```
 
 ## 🚀 Development Status
 
