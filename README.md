@@ -97,6 +97,7 @@ We've introduced groundbreaking autonomous capabilities:
 ---
 
 ## 🆕 Latest Updates (v0.3.0) - The Desktop Agent Update
+<img width="1162" height="623" alt="image" src="https://github.com/user-attachments/assets/61c8e42e-0887-4f57-835e-4bfd9e2bc394" />
 
 ### Desktop Automation
 - **PopSearch Integration**: Quick search popup (Ctrl+Shift+S) with 10+ search providers
