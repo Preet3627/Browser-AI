@@ -374,7 +374,7 @@ Summary: We do not claim LLM "immunity." We claim System Isolation—where the A
 
 ### **2. The "Hardware Optimization" Section**
 
-This is where you mention the **i5-U** and **8GB RAM**. It shows you can write efficient code, which is a rare skill today.
+This is where you mention the **i5-U** and **8GB RAM**. It shows you can write efficient code, which is a rare ski
 
 > ### ⚡ Performance & Efficiency
 > 
@@ -384,16 +384,15 @@ This is where you mention the **i5-U** and **8GB RAM**. It shows you can write e
 > * **Memory:** Sub-500MB footprint (Electron optimized)
 > * **Latency:** ~14ms UI response time via Speedometer 3
 > * **Inference:** Local execution via **Ollama** or high-speed edge inference via **Groq**.
-> 
+>
 > 
 
 ---
 
 ### **3. The "AGENTS.md" File (New 2026 Standard)**
 
-There is a new trend in open-source where you add an `AGENTS.md` file to your repo. This is basically a "README for AI." It tells other AI agents (like me!) how to contribute to your code.
 
-**Add this to a new file named `AGENTS.md` in your root:**
+**`AGENTS.md`**
 
 ```markdown
 # Agent Instructions for Comet-AI
