@@ -19,6 +19,7 @@
 [![Built by 16yo](https://img.shields.io/badge/Developer-16_Year_Old_Student-FF69B4?style=for-the-badge&logo=github)](https://github.com/Preet3627)
 [![Low Spec Optimized](https://img.shields.io/badge/Optimized-i5--U_|_8GB_RAM-success?style=for-the-badge&logo=cpu-z)](https://github.com/Preet3627/Comet-AI)
 [![Security Model](https://img.shields.io/badge/Security-Triple--Lock_HITL-blueviolet?style=for-the-badge&logo=shield)](https://github.com/Preet3627/Comet-AI)
+[![Low-Spec](https://img.shields.io/badge/Low-Spec_i5-U_8GB-green?style=flat&logo=electron)](https://github.com/Preet3627/Comet-AI)
 
 </div>
 
