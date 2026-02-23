@@ -320,6 +320,8 @@ Unlike other agentic browsers vulnerable to code-based prompt injection, Comet-A
 2. **Syntactic Firewall:** Every OCR output is filtered to strip out OS-level commands (CMD/PowerShell) before reaching the LLM.
 3. **Out-of-Band Auth (HITL):** All **RobotJS** actions require a **QR/PIN-secured signature** from the Comet Mobile app. The Brain cannot act without the Human.
 </details>
+### 🛡️ Triple-Lock Security (Prompt Injection Proof)
+
 ## 🧑‍💻 About the Creator
 
 Built by a **16‑year‑old student** preparing for JEE, Comet AI Browser is proof that skill, patience, and curiosity matter more than budget or hardware.
