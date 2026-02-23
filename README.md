@@ -39,6 +39,13 @@ Modern browsers are built for scale, monetization, and cloud-first users. Comet 
 - **Computer Vision**: An agent that "sees" the web through screenshots, OCR, and DOM analysis.
 
 ---
+Comet is for:
+Developers who want programmable browsing
+Researchers who automate workflows
+Power users who need OS-level automation with safety
+Low-spec users who can’t run heavy AI browsers
+
+
 
 ##  ️ Full Feature List
 
@@ -176,10 +183,8 @@ Without mobile confirmation → nothing runs.
 
 Even if the AI is socially engineered by visible content:
 
-* It has no direct shell access
-* It cannot bypass mobile approval
-* It cannot self-authorize execution
-* It cannot escalate privileges
+B
+“Prompt Injection Resistant by Design” or “Architecturally Isolated Against Code Injection”
 
 It can be tricked.
 It cannot act on the trick.
