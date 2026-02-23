@@ -76,7 +76,7 @@ Low-spec users who can’t run heavy AI browsers
 *   **Pop-Search Integration**: Global, unified search capability accessible anywhere to quickly find what you need.
 
 ### ⚡ Performance & Core
-*   **Speedometer 3 Optimized**: Consistently achieves ultra-low latency (~14ms) outperforming mainstream browsers.
+*   **Speedometer 3 Optimized**: Consistently achieves ultra-low latency (~14ms)
 *   **Hardware Isolation**: Sandboxed tabs and resource-heavy process management for crash resistance.
 *   **Ad-Blocking & Privacy**: Integrated **Ghostery Adblocker** and tracking prevention.
 *   **Premium UI**: Custom-built with **Framer Motion**, featuring vibrant dark modes, glassmorphism, and smooth micro-animations.
