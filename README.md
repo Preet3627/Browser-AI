@@ -109,6 +109,205 @@ We've introduced groundbreaking autonomous capabilities:
 
 ---
 
+# 🛡️ Security Hardening — Triple-Lock Architecture
+
+## 🛡️ Security & Anti-Injection Architecture
+
+Most AI browsers rely on model-level “guardrails.”
+Comet-AI relies on **system-level isolation**.
+
+### 🔐 Triple-Lock Security Model
+
+#### 1️⃣ Visual Sandbox (OCR-Only Perception)
+
+Comet does **not trust raw HTML or JavaScript**.
+
+The agent perceives the web using:
+
+* Screen capture
+* Tesseract OCR
+* Structured non-executable snapshots
+
+This eliminates:
+
+* Hidden HTML prompt injection
+* Script-based payloads
+* Invisible CSS attacks
+* DOM-level manipulation exploits
+
+The AI sees pixels — not executable code.
+
+---
+
+#### 2️⃣ Syntactic Firewall
+
+Before OCR text reaches the LLM:
+
+* OS-level commands are stripped
+* Dangerous execution patterns are filtered
+* Encoded shell payloads are rejected
+
+Examples blocked:
+
+* `rm -rf`
+* `powershell.exe`
+* `sudo`
+* Direct shell injection attempts
+
+The LLM never receives raw execution primitives.
+
+---
+
+#### 3️⃣ Out-of-Band Authorization (Human-in-the-Loop)
+
+All native desktop actions via RobotJS require:
+
+* 📱 QR-secured mobile handshake
+* 🔐 PIN-based verification
+* ✍️ Human signature approval
+
+The AI generates **Action Intent**, not execution.
+
+Without mobile confirmation → nothing runs.
+
+---
+
+### 🧩 Confused Deputy Defense
+
+Even if the AI is socially engineered by visible content:
+
+* It has no direct shell access
+* It cannot bypass mobile approval
+* It cannot self-authorize execution
+* It cannot escalate privileges
+
+It can be tricked.
+It cannot act on the trick.
+
+---
+
+### ✅ Security Summary
+
+Comet-AI does not claim LLM immunity.
+
+It enforces:
+
+* Non-executable perception
+* Filtered planning
+* Human-authorized execution
+
+This is architectural isolation — not prompt engineering.
+
+---
+
+# ⚡ Hardware Optimization — Built on Low Specs
+
+Most AI browsers assume:
+
+* 16–32GB RAM
+* Dedicated GPU
+* High-end CPUs
+
+Comet-AI was built and tested on:
+
+* **CPU:** Intel i5-U (Ultra-Low Power)
+* **RAM:** 8GB
+* **Storage:** SATA SSD
+* **GPU:** None
+
+Yet achieves:
+
+* ~12–14ms Speedometer 3
+* <2s cold start
+* ~462–500MB Electron footprint
+* 3–5s agent response (Claude 3.7 Sonnet)
+
+---
+
+## 🧠 Optimization Techniques
+
+* Controlled renderer isolation
+* Custom Electron memory management
+* Efficient IPC channel usage
+* Lazy AI model routing
+* Hybrid inference:
+
+  * ⚡ Groq (speed)
+  * 🧠 Ollama (local privacy)
+* Sandboxed tab processes
+
+Efficient engineering > expensive hardware.
+
+---
+
+# 🤖 AGENTS.md (AI Contributor Guidelines)
+
+
+
+---
+
+# Agent Instructions for Comet-AI
+
+Comet-AI uses a hybrid Electron + Next.js + Flutter architecture.
+
+## Core Architecture
+
+* Electron (Main Process)
+* Next.js (Renderer)
+* Flutter (Mobile Bridge)
+* RobotJS (Desktop Automation)
+* Tesseract.js (OCR Engine)
+
+---
+
+## Mandatory Rules for AI Contributors
+
+### 1. No Direct Shell Access
+
+Never propose:
+
+* child_process.exec
+* Raw bash / cmd / powershell execution
+* Direct OS bindings
+
+All native actions must go through:
+RobotJS + Mobile Authorization layer.
+
+---
+
+### 2. Preserve Thinking Blocks
+
+AI reasoning transparency must remain visible.
+Do not remove or obscure reasoning logs.
+
+---
+
+### 3. Maintain Human-in-the-Loop
+
+Any feature involving:
+
+* File deletion
+* Keyboard/mouse automation
+* File system access
+* App launching
+
+Must require:
+
+* QR verification
+* PIN approval
+* Signed mobile confirmation
+
+---
+
+### 4. Security First
+
+System isolation > model guardrails.
+
+The AI may be tricked.
+The system must remain unexploitable.
+
+---
+
 ## 🆕 Latest Updates (v0.3.0) - The Desktop Agent Update
 <img width="1162" height="623" alt="image" src="https://github.com/user-attachments/assets/61c8e42e-0887-4f57-835e-4bfd9e2bc394" />
 
