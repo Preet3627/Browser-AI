@@ -1,6 +1,6 @@
 # 🌟 Comet AI Browser (v0.2.0)
 
-<div align="center">
+<div align="center"><a id="top"></a>
 
 ![Comet AI Browser](https://raw.githubusercontent.com/Preet3627/Comet-AI/main/icon.ico)
 
@@ -322,6 +322,6 @@ MIT License
 
 ---
 
-⬆ Back to Top
+[⬆ Back to Top](#top)
 
 ---
