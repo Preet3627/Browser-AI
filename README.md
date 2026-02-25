@@ -270,7 +270,7 @@ flutter run
 Official documentation & builds:
 
 👉 https://browser.ponsrischool.in
-
+Local Ollama and Other Cloud LLM are suppoeted Natively and A 99% Accurate Ad Blocker
 
 ---
 
