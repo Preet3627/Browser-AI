@@ -1,4 +1,5 @@
-# 🌟 Comet AI Browser (v0.2.0)
+# 🌟 Comet AI Browser (v0.2.0)!      [Made with Love in India](https://madewithlove.org.in/badge.svg)
+
 
 <div align="center"><a id="top"></a>
 
