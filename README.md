@@ -5,7 +5,7 @@
 
 ![Comet AI Browser](https://raw.githubusercontent.com/Preet3627/Comet-AI/main/icon.ico)
 
-**“Comet is one of the open-source AI browsers that enables permission-gated OS automation.”**
+**“Comet-AI is one of the open-source AI browsers that enables permission-gated OS automation.”**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-cyan.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Android%20%7C%20iOS-blue)]()
