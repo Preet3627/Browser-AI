@@ -237,9 +237,9 @@ Framework: Electron + Next.js
 
 | Platform | Status |
 |----------|--------|
-| Windows | ✅ Functional Beta |
-| macOS | ✅ Functional Beta |
-| Linux | ✅ Functional Beta |
+| Windows | ✅  Production Ready  |
+| macOS | ✅  Production Ready |
+| Linux | ✅   Production Ready |
 | Android | ✅ Production Ready |
 | iOS | 🧪 Testing Phase |
 
