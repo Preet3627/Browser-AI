@@ -95,9 +95,9 @@ const LLMProviderSettings: React.FC<LLMProviderSettingsProps> = (props) => {
     } else if (activeProviderId === 'anthropic') {
       config = { apiKey: store.anthropicApiKey, model: store.anthropicModel || 'claude-3-5-sonnet-latest' };
     } else if (activeProviderId === 'xai') {
-      config = { apiKey: (store as any).xaiApiKey, model: (store as any).xaiModel || 'grok-2-latest' };
+      config = { apiKey: store.xaiApiKey, model: store.xaiModel || 'grok-2-latest' };
     } else if (activeProviderId === 'groq') {
-      config = { apiKey: store.groqApiKey, model: (store as any).groqModel || 'llama-3.3-70b-versatile' };
+      config = { apiKey: store.groqApiKey, model: store.groqModel || 'llama-3.3-70b-versatile' };
     }
 
     if (window.electronAPI) {
@@ -416,7 +416,7 @@ const LLMProviderSettings: React.FC<LLMProviderSettingsProps> = (props) => {
                             placeholder="sk-..."
                             className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2.5 text-xs text-white placeholder:text-white/10 outline-none"
                             value={store.openaiApiKey || ''}
-                            onChange={(e) => store.setOpenaiApiKey(e.target.value)}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => store.setOpenaiApiKey(e.target.value)}
                           />
                         </div>
                         <div className="space-y-1">
@@ -426,7 +426,7 @@ const LLMProviderSettings: React.FC<LLMProviderSettingsProps> = (props) => {
                             placeholder="e.g. gpt-4o"
                             className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2.5 text-xs text-white placeholder:text-white/10 outline-none"
                             value={store.openaiModel || ''}
-                            onChange={(e) => store.setOpenaiModel(e.target.value)}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => store.setOpenaiModel(e.target.value)}
                           />
                         </div>
                       </div>
@@ -445,7 +445,7 @@ const LLMProviderSettings: React.FC<LLMProviderSettingsProps> = (props) => {
                             placeholder="sk-ant-..."
                             className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2.5 text-xs text-white placeholder:text-white/10 outline-none"
                             value={store.anthropicApiKey || ''}
-                            onChange={(e) => store.setAnthropicApiKey(e.target.value)}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => store.setAnthropicApiKey(e.target.value)}
                           />
                         </div>
                         <div className="space-y-1">
@@ -455,7 +455,7 @@ const LLMProviderSettings: React.FC<LLMProviderSettingsProps> = (props) => {
                             placeholder="e.g. claude-3-5-sonnet-latest"
                             className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2.5 text-xs text-white placeholder:text-white/10 outline-none"
                             value={store.anthropicModel || ''}
-                            onChange={(e) => store.setAnthropicModel(e.target.value)}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => store.setAnthropicModel(e.target.value)}
                           />
                         </div>
                       </div>
@@ -473,8 +473,8 @@ const LLMProviderSettings: React.FC<LLMProviderSettingsProps> = (props) => {
                             type="password"
                             placeholder="xai-..."
                             className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2.5 text-xs text-white placeholder:text-white/10 outline-none"
-                            value={(store as any).xaiApiKey || ''}
-                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => (store as any).setXaiApiKey(e.target.value)}
+                            value={store.xaiApiKey || ''}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => store.setXaiApiKey(e.target.value)}
                           />
                         </div>
                         <div className="space-y-1">
@@ -483,8 +483,8 @@ const LLMProviderSettings: React.FC<LLMProviderSettingsProps> = (props) => {
                             type="text"
                             placeholder="e.g. grok-2-latest"
                             className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2.5 text-xs text-white placeholder:text-white/10 outline-none"
-                            value={(store as any).xaiModel || ''}
-                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => (store as any).setXaiModel(e.target.value)}
+                            value={store.xaiModel || ''}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => store.setXaiModel(e.target.value)}
                           />
                         </div>
                       </div>
@@ -503,7 +503,7 @@ const LLMProviderSettings: React.FC<LLMProviderSettingsProps> = (props) => {
                             placeholder="gsk_..."
                             className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2.5 text-xs text-white placeholder:text-white/10 outline-none"
                             value={store.groqApiKey || ''}
-                            onChange={(e) => store.setGroqApiKey(e.target.value)}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => store.setGroqApiKey(e.target.value)}
                           />
                         </div>
                         <div className="space-y-1">

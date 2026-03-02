@@ -160,6 +160,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   maximizeWindow: () => ipcRenderer.send('maximize-window'),
   closeWindow: () => ipcRenderer.send('close-window'),
   toggleFullscreen: () => ipcRenderer.send('toggle-fullscreen'),
+  setAsDefaultBrowser: () => ipcRenderer.invoke('set-as-default-browser'),
   hideWebview: () => ipcRenderer.send('hide-webview'),
   showWebview: () => ipcRenderer.send('show-webview'),
 

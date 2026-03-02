@@ -101,7 +101,15 @@ interface BrowserState {
     geminiModel: string;
     setGeminiModel: (model: string) => void;
     setAnthropicApiKey: (key: string) => void;
+    setAnthropicModel: (model: string) => void;
+    anthropicModel: string;
     setGroqApiKey: (key: string) => void;
+    setGroqModel: (model: string) => void;
+    groqModel: string;
+    xaiApiKey: string;
+    setXaiApiKey: (key: string) => void;
+    xaiModel: string;
+    setXaiModel: (model: string) => void;
     setAIProvider: (provider: string) => void;
     setOllamaBaseUrl: (url: string) => void;
     setOllamaModel: (model: string) => void;
@@ -296,7 +304,11 @@ export const useAppStore = create<BrowserState>()(
             geminiApiKey: '',
             geminiModel: 'gemini-2.0-flash',
             anthropicApiKey: '',
+            anthropicModel: 'claude-3-5-sonnet-latest',
             groqApiKey: '',
+            groqModel: 'llama-3.3-70b-versatile',
+            xaiApiKey: '',
+            xaiModel: 'grok-2-latest',
             aiProvider: 'ollama',
             ollamaBaseUrl: 'http://localhost:11434',
             ollamaModel: 'deepseek-r1:1.5b',
@@ -510,10 +522,17 @@ export const useAppStore = create<BrowserState>()(
                 set({ anthropicApiKey: key });
                 if (window.electronAPI) window.electronAPI.savePersistentData('anthropic_api_key', key);
             },
+            setAnthropicModel: (model) => set({ anthropicModel: model }),
             setGroqApiKey: (key) => {
                 set({ groqApiKey: key });
                 if (window.electronAPI) window.electronAPI.savePersistentData('groq_api_key', key);
             },
+            setGroqModel: (model) => set({ groqModel: model }),
+            setXaiApiKey: (key) => {
+                set({ xaiApiKey: key });
+                if (window.electronAPI) window.electronAPI.savePersistentData('xai_api_key', key);
+            },
+            setXaiModel: (model) => set({ xaiModel: model }),
             setAIProvider: (provider) => set({ aiProvider: provider }),
             setOllamaBaseUrl: (url) => set({ ollamaBaseUrl: url }),
             setOllamaModel: (model) => set({ ollamaModel: model }),

@@ -67,16 +67,22 @@ void _handleSharedMedia(List<SharedMediaFile> sharedFiles) {
   // Navigate to AI chat with the shared content
   Future.delayed(const Duration(milliseconds: 500), () {
     if (file.type == SharedMediaType.image) {
-      navigatorKey.currentState?.pushNamed('/ai-chat',
-          arguments: {'initialMessage': 'Explain this image: ${file.path}'});
+      navigatorKey.currentState?.pushNamed(
+        '/ai-chat',
+        arguments: {'initialMessage': 'Explain this image: ${file.path}'},
+      );
     } else {
       String message = file.path;
       if (message.startsWith('>>')) {
-        navigatorKey.currentState?.pushNamed('/agent-chat',
-            arguments: {'task': message.substring(2).trim()});
+        navigatorKey.currentState?.pushNamed(
+          '/agent-chat',
+          arguments: {'task': message.substring(2).trim()},
+        );
       } else {
-        navigatorKey.currentState
-            ?.pushNamed('/ai-chat', arguments: {'initialMessage': message});
+        navigatorKey.currentState?.pushNamed(
+          '/ai-chat',
+          arguments: {'initialMessage': message},
+        );
       }
     }
   });
@@ -132,8 +138,9 @@ void main(List<String> args) async {
     WindowOptions windowOptions = WindowOptions(
       center: true,
       backgroundColor: Colors.transparent,
-      titleBarStyle:
-          Util.isWindows() ? TitleBarStyle.normal : TitleBarStyle.hidden,
+      titleBarStyle: Util.isWindows()
+          ? TitleBarStyle.normal
+          : TitleBarStyle.hidden,
       minimumSize: const Size(1280, 720),
       size: const Size(1280, 720),
     );
@@ -234,6 +241,61 @@ class _CometAIAppState extends State<CometAIApp> with WindowListener {
     } else {
       _appLifecycleListener = null;
     }
+
+    _setupIntentListener();
+  }
+
+  void _setupIntentListener() {
+    const MethodChannel(
+      'com.comet_ai_com.comet_ai.intent_data',
+    ).setMethodCallHandler((call) async {
+      if (call.method == "onIntentReceived") {
+        final String? data = call.arguments;
+        if (data != null && data.isNotEmpty) {
+          _handleIntentData(data);
+        }
+      }
+    });
+  }
+
+  void _handleIntentData(String data) {
+    if (data == "comet-ai://search") {
+      navigatorKey.currentState?.pushNamedAndRemoveUntil(
+        '/home',
+        (route) => false,
+      );
+    } else if (data == "comet-ai://ai") {
+      navigatorKey.currentState?.pushNamed('/ai-chat');
+    } else if (data == "comet-ai://voice") {
+      navigatorKey.currentState?.pushNamed(
+        '/home',
+        arguments: {'focus': true, 'voice': true},
+      );
+    } else if (data.startsWith('http://') || data.startsWith('https://')) {
+      final windowModel = Provider.of<WindowModel>(
+        navigatorKey.currentContext!,
+        listen: false,
+      );
+      windowModel.addTab(
+        WebViewTab(
+          key: GlobalKey(),
+          webViewModel: WebViewModel(url: WebUri(data)),
+        ),
+      );
+      navigatorKey.currentState?.pushNamed('/browser');
+    } else {
+      if (data.startsWith('>>')) {
+        navigatorKey.currentState?.pushNamed(
+          '/agent-chat',
+          arguments: {'task': data.substring(2).trim()},
+        );
+      } else {
+        navigatorKey.currentState?.pushNamed(
+          '/ai-chat',
+          arguments: {'initialMessage': data},
+        );
+      }
+    }
   }
 
   void _handleStateChange(AppLifecycleState state) {
@@ -289,14 +351,16 @@ class _CometAIAppState extends State<CometAIApp> with WindowListener {
         '/browser': (context) => const Browser(),
         '/settings': (context) => const SettingsPage(),
         '/ai-chat': (context) {
-          final args = ModalRoute.of(context)!.settings.arguments
-              as Map<String, dynamic>?;
+          final args =
+              ModalRoute.of(context)!.settings.arguments
+                  as Map<String, dynamic>?;
           final message = args?['initialMessage'] ?? "Hello, how can I help?";
           return FullScreenAIChat(initialMessage: message);
         },
         '/agent-chat': (context) {
-          final args = ModalRoute.of(context)!.settings.arguments
-              as Map<String, dynamic>?;
+          final args =
+              ModalRoute.of(context)!.settings.arguments
+                  as Map<String, dynamic>?;
           final task = args?['task'] ?? "";
           return AgentChatPage(initialTask: task);
         },

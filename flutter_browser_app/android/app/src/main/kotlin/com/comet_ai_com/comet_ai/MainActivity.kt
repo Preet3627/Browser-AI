@@ -21,36 +21,49 @@ class MainActivity: FlutterActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Log.d("intent URI", intent.toUri(0));
+        handleIntent(intent)
+    }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleIntent(intent)
+    }
+
+    private fun handleIntent(intent: Intent) {
         var url: String? = null
-        //var headers: Map<String, String>? = null
         val action = intent.action
+        
         if (RecognizerResultsIntent.ACTION_VOICE_SEARCH_RESULTS == action) {
             return
         }
+        
         if (Intent.ACTION_VIEW == action) {
             val data: Uri? = intent.data
             if (data != null) url = data.toString()
         } else if (Intent.ACTION_SEARCH == action || MediaStore.INTENT_ACTION_MEDIA_SEARCH == action
                 || Intent.ACTION_WEB_SEARCH == action) {
             url = intent.getStringExtra(SearchManager.QUERY)
+        } else if (Intent.ACTION_SEND == action && "text/plain" == intent.type) {
+            url = intent.getStringExtra(Intent.EXTRA_TEXT)
+        } else if (Intent.ACTION_PROCESS_TEXT == action && "text/plain" == intent.type) {
+            url = intent.getStringExtra(Intent.EXTRA_PROCESS_TEXT) 
+                ?: intent.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT)?.toString()
+        } else if ("com.comet_ai.ACTION_SEARCH" == action) {
+            url = "comet-ai://search"
+        } else if ("com.comet_ai.ACTION_AI" == action) {
+            url = "comet-ai://ai"
+        } else if ("com.comet_ai.ACTION_VOICE" == action) {
+            url = "comet-ai://voice"
         }
-//        if (url != null && url.startsWith("http")) {
-//            val pairs = intent
-//                    .getBundleExtra(Browser.EXTRA_HEADERS)
-//            if (pairs != null && !pairs.isEmpty) {
-//                val iter: Iterator<String> = pairs.keySet().iterator()
-//                headers = HashMap()
-//                while (iter.hasNext()) {
-//                    val key = iter.next()
-//                    headers.put(key, pairs.getString(key)!!)
-//                }
-//            }
-//        }
 
         this.url = url
-        //this.headers = headers
+        
+        // Notify Flutter immediately if engine is running
+        url?.let {
+            flutterEngine?.let { engine ->
+                MethodChannel(engine.dartExecutor.binaryMessenger, CHANNEL).invokeMethod("onIntentReceived", it)
+            }
+        }
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {

@@ -8,7 +8,9 @@ import '../webview_tab.dart';
 import 'ai_chat_page.dart';
 import 'agent_chat_page.dart';
 import '../url_predictor.dart';
-import 'dart:ui';
+import 'settings/main.dart';
+import 'settings/android_settings.dart';
+import 'dart:ui' as ui;
 
 class CometHomePage extends StatefulWidget {
   final Function(String)? onSearch;
@@ -78,8 +80,10 @@ class _CometHomePageState extends State<CometHomePage>
         if (query.contains('.') && !query.contains(' ')) {
           url = 'https://$query';
         } else {
-          final browserModel =
-              Provider.of<BrowserModel>(context, listen: false);
+          final browserModel = Provider.of<BrowserModel>(
+            context,
+            listen: false,
+          );
           final searchEngine = browserModel.getSettings().searchEngine;
           url = '${searchEngine.searchUrl}${Uri.encodeComponent(query)}';
         }
@@ -112,7 +116,7 @@ class _CometHomePageState extends State<CometHomePage>
                 ? [
                     const Color(0xFF0F0C29),
                     const Color(0xFF302B63),
-                    const Color(0xFF24243E)
+                    const Color(0xFF24243E),
                   ]
                 : [const Color(0xFF000000), const Color(0xFF0A0A0A)],
           ),
@@ -161,9 +165,15 @@ class _CometHomePageState extends State<CometHomePage>
                             const SizedBox(height: 40),
                             _buildAddressSearchBar(settings),
                             _buildSuggestions(),
-                            const SizedBox(height: 48),
+                            const SizedBox(height: 32),
+                            _buildPremiumWeatherWidget(),
+                            const SizedBox(height: 32),
+                            _buildAIInsightsWidget(),
+                            const SizedBox(height: 32),
+                            _buildTopSitesWidget(settings),
+                            const SizedBox(height: 32),
                             _buildBookmarksSection(settings, browserModel),
-                            const Spacer(),
+                            const SizedBox(height: 48),
                             _buildQuickFeatures(context),
                             const SizedBox(height: 40),
                           ],
@@ -197,9 +207,10 @@ class _CometHomePageState extends State<CometHomePage>
               height: 140,
               fit: BoxFit.cover,
               errorBuilder: (context, error, stackTrace) => const Icon(
-                  Icons.rocket_launch,
-                  size: 140,
-                  color: Colors.white),
+                Icons.rocket_launch,
+                size: 140,
+                color: Colors.white,
+              ),
             ),
           ),
         ),
@@ -254,6 +265,10 @@ class _CometHomePageState extends State<CometHomePage>
               onSubmitted: (_) => _handleSearch(),
             ),
           ),
+          const SizedBox(width: 8),
+          _buildActionButton(Icons.mic_none, () => _handleSearch("> Voice: ")),
+          const SizedBox(width: 8),
+          _buildActionButton(Icons.auto_awesome, () => _handleSearch(">> ")),
           const SizedBox(width: 16),
           _buildActionButton(Icons.add, () => _handleSearch()),
           const SizedBox(width: 8),
@@ -288,24 +303,32 @@ class _CometHomePageState extends State<CometHomePage>
       ),
       child: Column(
         children: _suggestions
-            .map((s) => ListTile(
-                  title: Text(s,
-                      style:
-                          const TextStyle(color: Colors.white70, fontSize: 14)),
-                  leading: const Icon(Icons.history,
-                      color: Colors.white24, size: 18),
-                  onTap: () {
-                    _searchController.text = s;
-                    _handleSearch();
-                  },
-                ))
+            .map(
+              (s) => ListTile(
+                title: Text(
+                  s,
+                  style: const TextStyle(color: Colors.white70, fontSize: 14),
+                ),
+                leading: const Icon(
+                  Icons.history,
+                  color: Colors.white24,
+                  size: 18,
+                ),
+                onTap: () {
+                  _searchController.text = s;
+                  _handleSearch();
+                },
+              ),
+            )
             .toList(),
       ),
     );
   }
 
   Widget _buildBookmarksSection(
-      BrowserSettings settings, BrowserModel browserModel) {
+    BrowserSettings settings,
+    BrowserModel browserModel,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -315,10 +338,11 @@ class _CometHomePageState extends State<CometHomePage>
             Text(
               "BOOKMARKS",
               style: TextStyle(
-                  color: Colors.white38,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 2),
+                color: Colors.white38,
+                fontSize: 10,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 2,
+              ),
             ),
             IconButton(
               icon: const Icon(Icons.add, color: Colors.white24, size: 16),
@@ -363,8 +387,11 @@ class _CometHomePageState extends State<CometHomePage>
                         height: 36,
                         fit: BoxFit.cover,
                         errorBuilder: (context, error, stackTrace) =>
-                            const Icon(Icons.public,
-                                color: Colors.white54, size: 24),
+                            const Icon(
+                              Icons.public,
+                              color: Colors.white54,
+                              size: 24,
+                            ),
                       ),
                     )
                   : const Icon(Icons.public, color: Colors.white54, size: 24),
@@ -385,14 +412,62 @@ class _CometHomePageState extends State<CometHomePage>
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
-        _buildFeatureIcon(Icons.history, "History",
-            () => Navigator.pushNamed(context, '/settings')),
-        _buildFeatureIcon(Icons.bookmark, "Bookmarks",
-            () => Navigator.pushNamed(context, '/bookmarks')),
-        _buildFeatureIcon(Icons.download, "Downloads", () {}),
-        _buildFeatureIcon(Icons.qr_code, "Sync",
-            () => Navigator.pushNamed(context, '/connect-desktop')),
+        _buildFeatureIcon(
+          Icons.history,
+          "History",
+          () => Navigator.pushNamed(context, '/settings'),
+        ),
+        _buildFeatureIcon(
+          Icons.bookmark,
+          "Bookmarks",
+          () => Navigator.pushNamed(context, '/bookmarks'),
+        ),
+        _buildFeatureIcon(
+          Icons.remove_red_eye_outlined,
+          "AI Vision",
+          () => _handleSearch("> Explain what I'm looking at"),
+        ),
+        _buildFeatureIcon(
+          Icons.newspaper,
+          "News",
+          () => _handleSearch("https://news.google.com"),
+        ),
+        _buildFeatureIcon(
+          Icons.security,
+          "Privacy",
+          () => _openSettingsTab(
+            context,
+            const AndroidSettings(),
+            "Privacy & Security",
+          ),
+        ),
+        _buildFeatureIcon(
+          Icons.qr_code,
+          "Sync",
+          () => Navigator.pushNamed(context, '/connect-desktop'),
+        ),
       ],
+    );
+  }
+
+  void _openSettingsTab(BuildContext context, Widget child, String title) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => Scaffold(
+          backgroundColor: Colors.black,
+          appBar: AppBar(
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            title: Text(title, style: const TextStyle(fontFamily: 'Outfit')),
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back, color: Color(0xFF00E5FF)),
+              onPressed: () => Navigator.pop(context),
+            ),
+          ),
+          body: child,
+        ),
+      ),
     );
   }
 
@@ -403,10 +478,226 @@ class _CometHomePageState extends State<CometHomePage>
         children: [
           Icon(icon, color: Colors.white30, size: 24),
           const SizedBox(height: 8),
-          Text(label,
-              style: const TextStyle(color: Colors.white30, fontSize: 10)),
+          Text(
+            label,
+            style: const TextStyle(color: Colors.white30, fontSize: 10),
+          ),
         ],
       ),
+    );
+  }
+
+  Widget _buildPremiumWeatherWidget() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withOpacity(0.1)),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.white.withOpacity(0.1),
+            Colors.white.withOpacity(0.0),
+          ],
+        ),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.wb_sunny_outlined, color: Colors.amber, size: 40),
+          const SizedBox(width: 20),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  "MONDAY, MARCH 2",
+                  style: TextStyle(
+                    color: Colors.white54,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 2,
+                  ),
+                ),
+                Text(
+                  "24°C in San Francisco",
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.9),
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const Text(
+                  "Mostly Sunny",
+                  style: TextStyle(color: Colors.white30, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, py: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFF00E5FF).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Text(
+              "IDEAL",
+              style: TextStyle(
+                color: Color(0xFF00E5FF),
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAIInsightsWidget() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFF00E5FF).withOpacity(0.03),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFF00E5FF).withOpacity(0.1)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.bolt, color: Color(0xFF00E5FF), size: 16),
+              const SizedBox(width: 8),
+              Text(
+                "AI INSIGHT",
+                style: TextStyle(
+                  color: const Color(0xFF00E5FF).withOpacity(0.8),
+                  fontSize: 10,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 2,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            "Did you know? You can use '>>' to issue deep commands directly to the neural agent for system automation.",
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.7),
+              fontSize: 14,
+              height: 1.5,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              TextButton(
+                onPressed: () => _handleSearch(">> explain quantum computing"),
+                style: TextButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  minimumSize: const Size(0, 0),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: const Text(
+                  "Try a command",
+                  style: TextStyle(
+                    color: Color(0xFF00E5FF),
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const Icon(
+                Icons.chevron_right,
+                color: Color(0xFF00E5FF),
+                size: 16,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTopSitesWidget(BrowserSettings settings) {
+    // Mock top sites for now
+    final topSites = [
+      {'name': 'Google', 'url': 'https://www.google.com', 'icon': Icons.search},
+      {
+        'name': 'YouTube',
+        'url': 'https://www.youtube.com',
+        'icon': Icons.play_circle_outline,
+      },
+      {
+        'name': 'ChatGPT',
+        'url': 'https://chat.openai.com',
+        'icon': Icons.psychology,
+      },
+      {'name': 'GitHub', 'url': 'https://github.com', 'icon': Icons.code},
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          "FREQUENTLY VISITED",
+          style: TextStyle(
+            color: Colors.white38,
+            fontSize: 10,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 2,
+          ),
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          height: 100,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            itemCount: topSites.length,
+            itemBuilder: (context, index) {
+              final site = topSites[index];
+              return GestureDetector(
+                onTap: () => _handleSearch(site['url'] as String),
+                child: Container(
+                  width: 80,
+                  margin: const EdgeInsets.only(right: 16),
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 60,
+                        height: 60,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.05),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.05),
+                          ),
+                        ),
+                        child: Icon(
+                          site['icon'] as IconData,
+                          color: Colors.white54,
+                          size: 28,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        site['name'] as String,
+                        style: const TextStyle(
+                          color: Colors.white38,
+                          fontSize: 10,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 
@@ -414,16 +705,18 @@ class _CometHomePageState extends State<CometHomePage>
     final controller = TextEditingController();
     showDialog(
       context: context,
-      builder: (context) => BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+      builder: (context) => ui.BackdropFilter(
+        filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: AlertDialog(
           backgroundColor: Colors.black.withOpacity(0.8),
           shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(32),
-              side: const BorderSide(color: Colors.white12)),
-          title: const Text("Comet Neural Agent",
-              style:
-                  TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
+            borderRadius: BorderRadius.circular(32),
+            side: const BorderSide(color: Colors.white12),
+          ),
+          title: const Text(
+            "Comet Neural Agent",
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
+          ),
           content: TextField(
             controller: controller,
             style: const TextStyle(color: Colors.white),
@@ -433,15 +726,18 @@ class _CometHomePageState extends State<CometHomePage>
               filled: true,
               fillColor: Colors.white.withOpacity(0.05),
               border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide.none),
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide.none,
+              ),
             ),
             onSubmitted: (val) {
               Navigator.pop(context);
               Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (c) => AgentChatPage(initialTask: val)));
+                context,
+                MaterialPageRoute(
+                  builder: (c) => AgentChatPage(initialTask: val),
+                ),
+              );
             },
           ),
         ),
@@ -450,7 +746,9 @@ class _CometHomePageState extends State<CometHomePage>
   }
 
   void _showAddShortcutDialog(
-      BrowserSettings settings, BrowserModel browserModel) {
+    BrowserSettings settings,
+    BrowserModel browserModel,
+  ) {
     final nameController = TextEditingController();
     final urlController = TextEditingController();
     final logoController = TextEditingController();
@@ -458,24 +756,30 @@ class _CometHomePageState extends State<CometHomePage>
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1A1A1A),
-        title:
-            const Text("Add Shortcut", style: TextStyle(color: Colors.white)),
+        title: const Text(
+          "Add Shortcut",
+          style: TextStyle(color: Colors.white),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
-                controller: nameController,
-                style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(labelText: "Name")),
+              controller: nameController,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(labelText: "Name"),
+            ),
             TextField(
-                controller: urlController,
-                style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(labelText: "URL")),
+              controller: urlController,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(labelText: "URL"),
+            ),
             TextField(
-                controller: logoController,
-                style: const TextStyle(color: Colors.white),
-                decoration:
-                    const InputDecoration(labelText: "Logo URL (optional)")),
+              controller: logoController,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(
+                labelText: "Logo URL (optional)",
+              ),
+            ),
           ],
         ),
         actions: [
@@ -483,8 +787,9 @@ class _CometHomePageState extends State<CometHomePage>
             onPressed: () {
               if (nameController.text.isNotEmpty &&
                   urlController.text.isNotEmpty) {
-                final newShortcuts =
-                    List<Map<String, String>>.from(settings.homePageShortcuts);
+                final newShortcuts = List<Map<String, String>>.from(
+                  settings.homePageShortcuts,
+                );
                 newShortcuts.add({
                   'name': nameController.text,
                   'url': urlController.text,
@@ -515,24 +820,30 @@ class _CometHomePageState extends State<CometHomePage>
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1A1A1A),
-        title:
-            const Text("Edit Shortcut", style: TextStyle(color: Colors.white)),
+        title: const Text(
+          "Edit Shortcut",
+          style: TextStyle(color: Colors.white),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
-                controller: nameController,
-                style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(labelText: "Name")),
+              controller: nameController,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(labelText: "Name"),
+            ),
             TextField(
-                controller: urlController,
-                style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(labelText: "URL")),
+              controller: urlController,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(labelText: "URL"),
+            ),
             TextField(
-                controller: logoController,
-                style: const TextStyle(color: Colors.white),
-                decoration:
-                    const InputDecoration(labelText: "Logo URL (optional)")),
+              controller: logoController,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(
+                labelText: "Logo URL (optional)",
+              ),
+            ),
           ],
         ),
         actions: [

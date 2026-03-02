@@ -6,6 +6,8 @@ import 'package:flutter_browser/pages/settings/cross_platform_settings.dart';
 import 'package:flutter_browser/pages/settings/ios_settings.dart';
 import 'package:flutter_browser/util.dart';
 import 'package:provider/provider.dart';
+import 'package:android_intent_plus/android_intent.dart';
+import 'package:app_settings/app_settings.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -40,22 +42,16 @@ class _SettingsPageState extends State<SettingsPage> {
             'Themes',
             'Dark, Vibrant, Glass, Minimal',
             Icons.palette_outlined,
-            () => _openSettingsTab(
-              context,
-              const _ThemesSettingsTab(),
-              'Themes',
-            ),
+            () =>
+                _openSettingsTab(context, const _ThemesSettingsTab(), 'Themes'),
           ),
           _buildSettingsTile(
             context,
             'Layout',
             'Default, Compact, Sidebar',
             Icons.dashboard_customize_outlined,
-            () => _openSettingsTab(
-              context,
-              const _LayoutSettingsTab(),
-              'Layout',
-            ),
+            () =>
+                _openSettingsTab(context, const _LayoutSettingsTab(), 'Layout'),
           ),
           const SizedBox(height: 20),
           _buildSectionHeader('AI Models'),
@@ -213,22 +209,31 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  void _setAsDefaultBrowser(BuildContext context) async {
-    if (Util.isDesktop()) {
-      // success = await window.ipcRenderers.invoke('set-as-default-browser');
-    } else if (Platform.isAndroid) {
-      // Open Android Default App Settings
-      // const intent = 'android.settings.MANAGE_DEFAULT_APPS_SETTINGS';
-      // InAppWebView can handle some intents or we can use url_launcher
-      // For now, let's just show a snackbar or use a method in BrowserModel
-    }
-
-    if (context.mounted) {
+  Future<void> _setAsDefaultBrowser(BuildContext context) async {
+    if (Util.isAndroid()) {
+      try {
+        const intent = AndroidIntent(
+          action: 'android.settings.MANAGE_DEFAULT_APPS_SETTINGS',
+        );
+        await intent.launch();
+      } catch (e) {
+        // Fallback to app settings if specific default apps setting fails
+        await AppSettings.openAppSettings();
+      }
+    } else if (Util.isIOS() || Util.isMacOS()) {
+      // On iOS/macOS, we can only open the app settings where the user can change the default browser
+      await AppSettings.openAppSettings();
+    } else if (Util.isDesktop()) {
+      // For Windows/Linux desktop, we can try to use a protocol handler or inform the user
+      // Electron handles this via app.setAsDefaultProtocolClient('http')
+      // If this is the Flutter desktop version, we might need a different approach
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(Util.isDesktop()
-              ? 'Please set Comet-AI as default in your System Settings.'
-              : 'Please set Comet-AI as default in your System Settings.'),
+          content: Text(
+            Util.isDesktop()
+                ? 'Please set Comet-AI as default in your System Settings.'
+                : 'Please set Comet-AI as default in your System Settings.',
+          ),
         ),
       );
     }
@@ -290,22 +295,70 @@ class _ThemesSettingsTab extends StatelessWidget {
         return ListView(
           padding: const EdgeInsets.all(20),
           children: [
-            _buildThemeOption(context, browserModel, settings, 'Dark',
-                Colors.black, 'Classic dark theme'),
-            _buildThemeOption(context, browserModel, settings, 'Vibrant',
-                const Color(0xFF1A1A2E), 'Colorful gradient theme'),
-            _buildThemeOption(context, browserModel, settings, 'Glass',
-                const Color(0xFF2D2D3A), 'Glassmorphism style'),
-            _buildThemeOption(context, browserModel, settings, 'Minimal',
-                const Color(0xFF121212), 'Clean minimal look'),
-            _buildThemeOption(context, browserModel, settings, 'Ocean',
-                const Color(0xFF0A192F), 'Deep ocean blue'),
-            _buildThemeOption(context, browserModel, settings, 'Sunset',
-                const Color(0xFF2C1332), 'Warm sunset colors'),
-            _buildThemeOption(context, browserModel, settings, 'Forest',
-                const Color(0xFF1B2D1B), 'Nature green theme'),
-            _buildThemeOption(context, browserModel, settings, 'Purple',
-                const Color(0xFF1E1B2E), 'Purple night theme'),
+            _buildThemeOption(
+              context,
+              browserModel,
+              settings,
+              'Dark',
+              Colors.black,
+              'Classic dark theme',
+            ),
+            _buildThemeOption(
+              context,
+              browserModel,
+              settings,
+              'Vibrant',
+              const Color(0xFF1A1A2E),
+              'Colorful gradient theme',
+            ),
+            _buildThemeOption(
+              context,
+              browserModel,
+              settings,
+              'Glass',
+              const Color(0xFF2D2D3A),
+              'Glassmorphism style',
+            ),
+            _buildThemeOption(
+              context,
+              browserModel,
+              settings,
+              'Minimal',
+              const Color(0xFF121212),
+              'Clean minimal look',
+            ),
+            _buildThemeOption(
+              context,
+              browserModel,
+              settings,
+              'Ocean',
+              const Color(0xFF0A192F),
+              'Deep ocean blue',
+            ),
+            _buildThemeOption(
+              context,
+              browserModel,
+              settings,
+              'Sunset',
+              const Color(0xFF2C1332),
+              'Warm sunset colors',
+            ),
+            _buildThemeOption(
+              context,
+              browserModel,
+              settings,
+              'Forest',
+              const Color(0xFF1B2D1B),
+              'Nature green theme',
+            ),
+            _buildThemeOption(
+              context,
+              browserModel,
+              settings,
+              'Purple',
+              const Color(0xFF1E1B2E),
+              'Purple night theme',
+            ),
           ],
         );
       },
@@ -313,12 +366,13 @@ class _ThemesSettingsTab extends StatelessWidget {
   }
 
   Widget _buildThemeOption(
-      BuildContext context,
-      BrowserModel browserModel,
-      BrowserSettings settings,
-      String themeName,
-      Color color,
-      String description) {
+    BuildContext context,
+    BrowserModel browserModel,
+    BrowserSettings settings,
+    String themeName,
+    Color color,
+    String description,
+  ) {
     final isSelected = settings.theme == themeName;
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -350,8 +404,10 @@ class _ThemesSettingsTab extends StatelessWidget {
         ),
         title: Text(
           themeName,
-          style:
-              const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+          ),
         ),
         subtitle: Text(
           description,
@@ -376,22 +432,47 @@ class _LayoutSettingsTab extends StatelessWidget {
         return ListView(
           padding: const EdgeInsets.all(20),
           children: [
-            _buildLayoutOption(context, browserModel, settings, 'Default',
-                'Standard browser layout'),
-            _buildLayoutOption(context, browserModel, settings, 'Compact',
-                'Smaller UI elements'),
-            _buildLayoutOption(context, browserModel, settings, 'Sidebar',
-                'Side navigation panel'),
-            _buildLayoutOption(context, browserModel, settings, 'Fullscreen',
-                'Hide UI for maximum space'),
+            _buildLayoutOption(
+              context,
+              browserModel,
+              settings,
+              'Default',
+              'Standard browser layout',
+            ),
+            _buildLayoutOption(
+              context,
+              browserModel,
+              settings,
+              'Compact',
+              'Smaller UI elements',
+            ),
+            _buildLayoutOption(
+              context,
+              browserModel,
+              settings,
+              'Sidebar',
+              'Side navigation panel',
+            ),
+            _buildLayoutOption(
+              context,
+              browserModel,
+              settings,
+              'Fullscreen',
+              'Hide UI for maximum space',
+            ),
           ],
         );
       },
     );
   }
 
-  Widget _buildLayoutOption(BuildContext context, BrowserModel browserModel,
-      BrowserSettings settings, String layout, String description) {
+  Widget _buildLayoutOption(
+    BuildContext context,
+    BrowserModel browserModel,
+    BrowserSettings settings,
+    String layout,
+    String description,
+  ) {
     final isSelected = settings.layout == layout;
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -416,16 +497,18 @@ class _LayoutSettingsTab extends StatelessWidget {
           layout == 'Default'
               ? Icons.view_agenda_outlined
               : layout == 'Compact'
-                  ? Icons.view_comfortable_outlined
-                  : layout == 'Sidebar'
-                      ? Icons.view_sidebar_outlined
-                      : Icons.fullscreen_outlined,
+              ? Icons.view_comfortable_outlined
+              : layout == 'Sidebar'
+              ? Icons.view_sidebar_outlined
+              : Icons.fullscreen_outlined,
           color: isSelected ? const Color(0xFF00E5FF) : Colors.white54,
         ),
         title: Text(
           layout,
-          style:
-              const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+          ),
         ),
         subtitle: Text(
           description,
@@ -510,10 +593,11 @@ class _AIModelsSettingsTabState extends State<_AIModelsSettingsTab> {
             const Text(
               'SELECT PROVIDER',
               style: TextStyle(
-                  color: Color(0xFF00E5FF),
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1),
+                color: Color(0xFF00E5FF),
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1,
+              ),
             ),
             Wrap(
               spacing: 10,
@@ -527,10 +611,11 @@ class _AIModelsSettingsTabState extends State<_AIModelsSettingsTab> {
             const Text(
               'API KEY',
               style: TextStyle(
-                  color: Color(0xFF00E5FF),
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1),
+                color: Color(0xFF00E5FF),
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1,
+              ),
             ),
             const SizedBox(height: 10),
             Container(
@@ -538,8 +623,9 @@ class _AIModelsSettingsTabState extends State<_AIModelsSettingsTab> {
               decoration: BoxDecoration(
                 color: Colors.white.withOpacity(0.05),
                 borderRadius: BorderRadius.circular(12),
-                border:
-                    Border.all(color: const Color(0xFF00E5FF).withOpacity(0.2)),
+                border: Border.all(
+                  color: const Color(0xFF00E5FF).withOpacity(0.2),
+                ),
               ),
               child: TextField(
                 controller: _apiKeyController,
@@ -558,80 +644,184 @@ class _AIModelsSettingsTabState extends State<_AIModelsSettingsTab> {
               const Text(
                 'GOOGLE GEMINI MODELS',
                 style: TextStyle(
-                    color: Color(0xFF00E5FF),
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1),
+                  color: Color(0xFF00E5FF),
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1,
+                ),
               ),
               const SizedBox(height: 10),
-              _buildModelTile('gemini-2.5-flash', 'Gemini 2.5 Flash ✨',
-                  'Stable, fast, cost-effective', currentModel, 'Google'),
-              _buildModelTile('gemini-2.5-flash-lite', 'Gemini 2.5 Flash Lite',
-                  'Lowest cost, 1.5x faster', currentModel, 'Google'),
-              _buildModelTile('gemini-2.5-pro', 'Gemini 2.5 Pro',
-                  'Flagship, deep understanding', currentModel, 'Google'),
-              _buildModelTile('gemini-2.0-flash', 'Gemini 2.0 Flash',
-                  'Fast response model', currentModel, 'Google'),
-              _buildModelTile('gemini-2.0-pro', 'Gemini 2.0 Pro',
-                  'Advanced capabilities', currentModel, 'Google'),
-              _buildModelTile('gemini-1.5-pro', 'Gemini 1.5 Pro',
-                  '1M token context', currentModel, 'Google'),
-              _buildModelTile('gemini-1.5-flash', 'Gemini 1.5 Flash',
-                  'Balanced speed/quality', currentModel, 'Google'),
+              _buildModelTile(
+                'gemini-2.5-flash',
+                'Gemini 2.5 Flash ✨',
+                'Stable, fast, cost-effective',
+                currentModel,
+                'Google',
+              ),
+              _buildModelTile(
+                'gemini-2.5-flash-lite',
+                'Gemini 2.5 Flash Lite',
+                'Lowest cost, 1.5x faster',
+                currentModel,
+                'Google',
+              ),
+              _buildModelTile(
+                'gemini-2.5-pro',
+                'Gemini 2.5 Pro',
+                'Flagship, deep understanding',
+                currentModel,
+                'Google',
+              ),
+              _buildModelTile(
+                'gemini-2.0-flash',
+                'Gemini 2.0 Flash',
+                'Fast response model',
+                currentModel,
+                'Google',
+              ),
+              _buildModelTile(
+                'gemini-2.0-pro',
+                'Gemini 2.0 Pro',
+                'Advanced capabilities',
+                currentModel,
+                'Google',
+              ),
+              _buildModelTile(
+                'gemini-1.5-pro',
+                'Gemini 1.5 Pro',
+                '1M token context',
+                currentModel,
+                'Google',
+              ),
+              _buildModelTile(
+                'gemini-1.5-flash',
+                'Gemini 1.5 Flash',
+                'Balanced speed/quality',
+                currentModel,
+                'Google',
+              ),
             ],
             if (_selectedProvider == 'OpenAI') ...[
               const Text(
                 'OPENAI MODELS (GPT-5 Series)',
                 style: TextStyle(
-                    color: Color(0xFF00E5FF),
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1),
+                  color: Color(0xFF00E5FF),
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1,
+                ),
               ),
               const SizedBox(height: 10),
-              _buildModelTile('gpt-5.2', 'GPT-5.2 ✨',
-                  'Current flagship reasoning', currentModel, 'OpenAI'),
-              _buildModelTile('gpt-5.3-codex', 'GPT-5.3 Codex',
-                  'Best agentic coding', currentModel, 'OpenAI'),
-              _buildModelTile('gpt-4.1', 'GPT-4.1',
-                  '1M token, best non-reasoning', currentModel, 'OpenAI'),
-              _buildModelTile('gpt-4.1-mini', 'GPT-4.1 Mini',
-                  'Fast & affordable', currentModel, 'OpenAI'),
-              _buildModelTile('gpt-4.1-nano', 'GPT-4.1 Nano',
-                  'Cheapest & fastest', currentModel, 'OpenAI'),
-              _buildModelTile('o3', 'o3 Reasoning', 'Math & science reasoning',
-                  currentModel, 'OpenAI'),
-              _buildModelTile('o4-mini', 'o4-mini',
-                  'Fast cost-efficient reasoning', currentModel, 'OpenAI'),
+              _buildModelTile(
+                'gpt-5.2',
+                'GPT-5.2 ✨',
+                'Current flagship reasoning',
+                currentModel,
+                'OpenAI',
+              ),
+              _buildModelTile(
+                'gpt-5.3-codex',
+                'GPT-5.3 Codex',
+                'Best agentic coding',
+                currentModel,
+                'OpenAI',
+              ),
+              _buildModelTile(
+                'gpt-4.1',
+                'GPT-4.1',
+                '1M token, best non-reasoning',
+                currentModel,
+                'OpenAI',
+              ),
+              _buildModelTile(
+                'gpt-4.1-mini',
+                'GPT-4.1 Mini',
+                'Fast & affordable',
+                currentModel,
+                'OpenAI',
+              ),
+              _buildModelTile(
+                'gpt-4.1-nano',
+                'GPT-4.1 Nano',
+                'Cheapest & fastest',
+                currentModel,
+                'OpenAI',
+              ),
+              _buildModelTile(
+                'o3',
+                'o3 Reasoning',
+                'Math & science reasoning',
+                currentModel,
+                'OpenAI',
+              ),
+              _buildModelTile(
+                'o4-mini',
+                'o4-mini',
+                'Fast cost-efficient reasoning',
+                currentModel,
+                'OpenAI',
+              ),
             ],
             if (_selectedProvider == 'Groq') ...[
               const Text(
                 'GROQ MODELS (Ultra-Low Latency)',
                 style: TextStyle(
-                    color: Color(0xFF00E5FF),
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1),
+                  color: Color(0xFF00E5FF),
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1,
+                ),
               ),
               const SizedBox(height: 10),
-              _buildModelTile('llama-3.3-70b-versatile', 'Llama 3.3 70B ✨',
-                  'Best all-round, 128K context', currentModel, 'Groq'),
-              _buildModelTile('llama-3.1-8b-instant', 'Llama 3.1 8B Instant',
-                  'Fastest ~900 t/s', currentModel, 'Groq'),
               _buildModelTile(
-                  'deepseek-r1-distill-llama-70b',
-                  'DeepSeek R1 70B 🧠',
-                  'Reasoning model, math/coding',
-                  currentModel,
-                  'Groq'),
-              _buildModelTile('groq/compound', 'Groq Compound',
-                  'Agentic with web search', currentModel, 'Groq'),
-              _buildModelTile('qwen/qwen3-32b', 'Qwen3 32B',
-                  'Thinking mode support', currentModel, 'Groq'),
-              _buildModelTile('moonshotai/kimi-k2-instruct-0905',
-                  'Kimi K2 0905', '1T param MoE agentic', currentModel, 'Groq'),
-              _buildModelTile('openai/gpt-oss-120b', 'GPT-OSS 120B',
-                  'Highest intel on Groq', currentModel, 'Groq'),
+                'llama-3.3-70b-versatile',
+                'Llama 3.3 70B ✨',
+                'Best all-round, 128K context',
+                currentModel,
+                'Groq',
+              ),
+              _buildModelTile(
+                'llama-3.1-8b-instant',
+                'Llama 3.1 8B Instant',
+                'Fastest ~900 t/s',
+                currentModel,
+                'Groq',
+              ),
+              _buildModelTile(
+                'deepseek-r1-distill-llama-70b',
+                'DeepSeek R1 70B 🧠',
+                'Reasoning model, math/coding',
+                currentModel,
+                'Groq',
+              ),
+              _buildModelTile(
+                'groq/compound',
+                'Groq Compound',
+                'Agentic with web search',
+                currentModel,
+                'Groq',
+              ),
+              _buildModelTile(
+                'qwen/qwen3-32b',
+                'Qwen3 32B',
+                'Thinking mode support',
+                currentModel,
+                'Groq',
+              ),
+              _buildModelTile(
+                'moonshotai/kimi-k2-instruct-0905',
+                'Kimi K2 0905',
+                '1T param MoE agentic',
+                currentModel,
+                'Groq',
+              ),
+              _buildModelTile(
+                'openai/gpt-oss-120b',
+                'GPT-OSS 120B',
+                'Highest intel on Groq',
+                currentModel,
+                'Groq',
+              ),
             ],
           ],
         );
@@ -661,9 +851,11 @@ class _AIModelsSettingsTabState extends State<_AIModelsSettingsTab> {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon,
-                size: 16,
-                color: isSelected ? const Color(0xFF00E5FF) : Colors.white54),
+            Icon(
+              icon,
+              size: 16,
+              color: isSelected ? const Color(0xFF00E5FF) : Colors.white54,
+            ),
             const SizedBox(width: 6),
             Text(
               provider,
@@ -678,8 +870,13 @@ class _AIModelsSettingsTabState extends State<_AIModelsSettingsTab> {
     );
   }
 
-  Widget _buildModelTile(String modelId, String name, String description,
-      String currentModel, String provider) {
+  Widget _buildModelTile(
+    String modelId,
+    String name,
+    String description,
+    String currentModel,
+    String provider,
+  ) {
     final isSelected = currentModel == modelId;
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -713,8 +910,9 @@ class _AIModelsSettingsTabState extends State<_AIModelsSettingsTab> {
           setState(() {});
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-                content: Text('Selected: $name'),
-                duration: const Duration(seconds: 1)),
+              content: Text('Selected: $name'),
+              duration: const Duration(seconds: 1),
+            ),
           );
         },
       ),

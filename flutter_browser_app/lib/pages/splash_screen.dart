@@ -1,5 +1,14 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import '../models/browser_model.dart';
+import '../models/webview_model.dart';
+import '../models/window_model.dart';
+import '../webview_tab.dart';
+import 'package:provider/provider.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'ai_chat_page.dart';
+import 'agent_chat_page.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -47,11 +56,54 @@ class _SplashScreenState extends State<SplashScreen>
 
     _controller.forward();
 
-    Timer(const Duration(milliseconds: 3000), () {
+    Timer(const Duration(milliseconds: 3000), () async {
       if (mounted) {
-        Navigator.of(context).pushReplacementNamed('/home');
+        final intentData = await const MethodChannel(
+          'com.comet_ai_com.comet_ai.intent_data',
+        ).invokeMethod<String>('getIntentData');
+
+        if (intentData != null && intentData.isNotEmpty) {
+          _handleIntentData(intentData);
+        } else {
+          Navigator.of(context).pushReplacementNamed('/home');
+        }
       }
     });
+  }
+
+  void _handleIntentData(String data) {
+    if (data == "comet-ai://search") {
+      Navigator.of(context).pushReplacementNamed('/home');
+    } else if (data == "comet-ai://ai") {
+      Navigator.of(context).pushReplacementNamed('/ai-chat');
+    } else if (data == "comet-ai://voice") {
+      // Voice search can be home with focus or a specific voice UI if exists
+      Navigator.of(context).pushReplacementNamed(
+        '/home',
+        arguments: {'focus': true, 'voice': true},
+      );
+    } else if (data.startsWith('http://') || data.startsWith('https://')) {
+      final windowModel = Provider.of<WindowModel>(context, listen: false);
+      windowModel.addTab(
+        WebViewTab(
+          key: GlobalKey(),
+          webViewModel: WebViewModel(url: WebUri(data)),
+        ),
+      );
+      Navigator.of(context).pushReplacementNamed('/browser');
+    } else {
+      // It's likely shared text or PROCESS_TEXT
+      if (data.startsWith('>>')) {
+        Navigator.of(context).pushReplacementNamed(
+          '/agent-chat',
+          arguments: {'task': data.substring(2).trim()},
+        );
+      } else {
+        Navigator.of(
+          context,
+        ).pushReplacementNamed('/ai-chat', arguments: {'initialMessage': data});
+      }
+    }
   }
 
   @override
@@ -114,10 +166,10 @@ class _SplashScreenState extends State<SplashScreen>
                               fit: BoxFit.cover,
                               errorBuilder: (context, error, stackTrace) =>
                                   const Icon(
-                                Icons.rocket_launch,
-                                size: 80,
-                                color: Color(0xFF00E5FF),
-                              ),
+                                    Icons.rocket_launch,
+                                    size: 80,
+                                    color: Color(0xFF00E5FF),
+                                  ),
                             ),
                           ),
                         ),

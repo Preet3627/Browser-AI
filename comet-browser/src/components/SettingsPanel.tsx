@@ -480,7 +480,34 @@ const SettingsPanel = ({ onClose, defaultSection = 'profile' }: { onClose: () =>
                             </div>
                         )}
 
-                        {activeSection === 'system' && <UserAgentSettings />}
+                        {activeSection === 'system' && (
+                            <div className="space-y-8">
+                                <div className="p-8 rounded-[2rem] bg-white/[0.03] border border-white/5 space-y-8">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <p className="font-bold text-white mb-1">Default Browser</p>
+                                            <p className="text-xs text-white/30">Make Comet your primary portal for external links.</p>
+                                        </div>
+                                        <button
+                                            onClick={async () => {
+                                                if (window.electronAPI) {
+                                                    const success = await window.electronAPI.setAsDefaultBrowser();
+                                                    if (success) {
+                                                        alert("Comet is now your default browser!");
+                                                    } else {
+                                                        alert("Failed to set as default browser. Please try manual settings.");
+                                                    }
+                                                }
+                                            }}
+                                            className="px-6 py-2.5 bg-deep-space-accent-neon/10 border border-deep-space-accent-neon/30 text-deep-space-accent-neon rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-deep-space-accent-neon hover:text-black transition-all no-drag-region"
+                                        >
+                                            Set as Default
+                                        </button>
+                                    </div>
+                                </div>
+                                <UserAgentSettings />
+                            </div>
+                        )}
 
                         {activeSection === 'ambient-music' && (
                             <div className="space-y-8">
