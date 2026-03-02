@@ -705,7 +705,7 @@ class _CometHomePageState extends State<CometHomePage>
     final controller = TextEditingController();
     showDialog(
       context: context,
-      builder: (context) => ui.BackdropFilter(
+      builder: (context) => BackdropFilter(
         filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: AlertDialog(
           backgroundColor: Colors.black.withOpacity(0.8),
