@@ -1004,14 +1004,14 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = (props) => {
    * Shows the ClickPermissionModal and waits for the user to Allow or Deny.
    * Returns true if allowed, false if denied.
    */
-  const requestClickPermission = useCallback((
+const requestClickPermission = useCallback((
     action: string,
     target: string,
     reason: string,
     risk: 'low' | 'medium' | 'high' = 'medium',
   ): Promise<boolean> => {
     return new Promise<boolean>((resolve) => {
-      setPermissionPending({ resolve, context: { action, target, reason, risk } });
+      setPermissionPending({ resolve, context: { actionType: 'CLICK_ELEMENT', action, target, what: action, reason, risk } });
     });
   }, []);
 
