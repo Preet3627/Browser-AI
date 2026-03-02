@@ -1,0 +1,32 @@
+name: "Clean Actions Cache"
+
+on:
+  workflow_dispatch:
+    inputs:
+      cache_key:
+        description: 'Specific cache key to delete (leave empty to delete all)'
+        required: false
+        default: ''
+
+jobs:
+  delete-cache:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Delete cache
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CACHE_KEY: ${{ github.event.inputs.cache_key }}
+        run: |
+          if [ -z "$CACHE_KEY" ]; then
+            echo "Deleting all caches..."
+            gh cache delete --all
+          else
+            echo "Deleting cache with key: $CACHE_KEY"
+            gh cache delete "$CACHE_KEY"
+          fi

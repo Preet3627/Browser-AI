@@ -250,7 +250,7 @@ const LLMProviderSettings: React.FC<LLMProviderSettingsProps> = (props) => {
                             placeholder="Or type model name..."
                             className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-[10px] text-white outline-none italic"
                             value={store.ollamaModel || ''}
-                            onChange={(e) => store.setOllamaModel(e.target.value)}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => store.setOllamaModel(e.target.value)}
                           />
                         </div>
 
@@ -513,7 +513,7 @@ const LLMProviderSettings: React.FC<LLMProviderSettingsProps> = (props) => {
                             placeholder="e.g. llama-3.3-70b-versatile"
                             className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2.5 text-xs text-white placeholder:text-white/10 outline-none"
                             value={store.groqModel || ''}
-                            onChange={(e) => store.setGroqModel(e.target.value)}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => store.setGroqModel(e.target.value)}
                           />
                         </div>
                       </div>

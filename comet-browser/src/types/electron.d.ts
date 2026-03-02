@@ -44,7 +44,7 @@ declare global {
             getAvailableLLMProviders: () => Promise<{ id: string; name: string }[]>;
             setActiveLLMProvider: (providerId: string) => Promise<boolean>;
             configureLLMProvider: (providerId: string, options: any) => Promise<boolean>;
-            generateChatContent: (messages: ChatMessage[], options?: any) => Promise<{ text?: string; error?: string }>;
+            generateChatContent: (messages: ChatMessage[], options?: any) => Promise<{ text?: string; thought?: string; error?: string }>;
             getAiMemory: () => Promise<any[]>;
             addAiMemory: (entry: any) => void;
             getSelectedText: () => Promise<string>; // For context menu integration

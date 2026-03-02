@@ -9,35 +9,10 @@ rootProject.buildDir = '../build'
 subprojects { subproject ->
     subproject.buildDir = "${rootProject.buildDir}/${subproject.name}"
     
-    // Force all subprojects to use the same AGP version
-    subproject.configurations.all {
-        resolutionStrategy.eachDependency { details ->
-            if (details.requested.group == 'com.android.tools.build' && details.requested.name == 'gradle') {
-                details.useVersion '8.6.0'
-            }
-        }
-    }
-
     // Fix JVM target mismatch for Kotlin/Java tasks
     subproject.tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
         kotlinOptions {
             jvmTarget = '1.8'
-        }
-    }
-    subproject.afterEvaluate { p ->
-        if (p.hasProperty('android')) {
-            p.android {
-                compileOptions {
-                    sourceCompatibility JavaVersion.VERSION_1_8
-                    targetCompatibility JavaVersion.VERSION_1_8
-                }
-            }
-            // Safely set namespace for plugins that don't have one
-            try {
-                if (p.android.namespace == null) {
-                    p.android.namespace = p.group
-                }
-            } catch (Exception e) {}
         }
     }
 }
