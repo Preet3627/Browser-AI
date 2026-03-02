@@ -826,8 +826,7 @@ const ClickPermissionModal = memo(function ClickPermissionModal({ context, onAll
     </motion.div>
   );
 });
-
-
+const ConversationHistoryPanel = memo(function ConversationHistoryPanel({
   show,
   conversations,
   activeId,
