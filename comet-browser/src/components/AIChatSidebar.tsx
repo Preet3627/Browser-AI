@@ -2088,7 +2088,8 @@ ${sourceQualityNote}
               }
 
               // Use Tesseract with word-level bounding boxes
-              const { data: { words } } = await tesseractWorkerRef.current.recognize(screenshotData, {}, { text: false, blocks: false, hocr: false, tsv: false, box: false });
+             const { data } = await tesseractWorkerRef.current.recognize(screenshotData) as any;
+              const words = data?.words;
               const target = elementText.toLowerCase().trim();
 
               // Find best matching word cluster
