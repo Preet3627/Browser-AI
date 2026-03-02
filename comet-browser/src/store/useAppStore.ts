@@ -253,7 +253,7 @@ export interface BrowserState {
 
 export const useAppStore = create<BrowserState>()(
     persist(
-        (set: any, get: any) => ({
+       (set, get) => ({
             // URL and navigation
             currentUrl: 'https://www.google.com',
             defaultUrl: 'https://www.google.com',
@@ -263,9 +263,8 @@ export const useAppStore = create<BrowserState>()(
             activeTabId: 'default',
 
             // History and clipboard
-            history: [],
-            clipboard: [],
-
+           history: [] as BrowserState['history'],
+           clipboard: [] as BrowserState['clipboard'],
             // User and auth
             user: null,
             isAdmin: false,
