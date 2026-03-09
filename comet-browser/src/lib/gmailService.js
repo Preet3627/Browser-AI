@@ -14,14 +14,24 @@ const getOAuth2Client = () => {
   let credentials = {};
   if (fs.existsSync(CREDENTIALS_PATH)) {
     credentials = JSON.parse(fs.readFileSync(CREDENTIALS_PATH, 'utf-8'));
+    const data = credentials.installed || credentials.web;
+    oAuth2Client = new google.auth.OAuth2(data.client_id, data.client_secret, data.redirect_uris[0]);
   } else {
-    // Fallback or user prompt to provide credentials
-    console.warn('Gmail API credentials not found. Please provide client_secret.json');
-    return null;
-  }
+    // Fallback to electron-store (synced from landing page)
+    const Store = require('electron-store');
+    const store = new Store();
+    const clientId = store.get('google_client_id');
+    const clientSecret = store.get('google_client_secret');
+    const redirectUri = store.get('google_redirect_uri') || 'https://browser.ponsrischool.in/oauth2callback';
 
-  const { client_secret, client_id, redirect_uris } = credentials.installed || credentials.web;
-  oAuth2Client = new google.auth.OAuth2(client_id, client_secret, redirect_uris[0]);
+    if (clientId && clientSecret) {
+      console.log('[Gmail] Using credentials from electron-store');
+      oAuth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
+    } else {
+      console.warn('Gmail API credentials not found in file or store.');
+      return null;
+    }
+  }
 
   // Load token if it exists
   if (fs.existsSync(TOKEN_PATH)) {

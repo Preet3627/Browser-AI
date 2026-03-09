@@ -45,6 +45,8 @@ declare global {
             setActiveLLMProvider: (providerId: string) => Promise<boolean>;
             configureLLMProvider: (providerId: string, options: any) => Promise<boolean>;
             generateChatContent: (messages: ChatMessage[], options?: any) => Promise<{ text?: string; thought?: string; error?: string }>;
+            streamChatContent: (messages: ChatMessage[], options?: any) => void;
+            onChatStreamPart: (callback: (part: any) => void) => () => void;
             getAiMemory: () => Promise<any[]>;
             addAiMemory: (entry: any) => void;
             getSelectedText: () => Promise<string>; // For context menu integration
@@ -72,7 +74,9 @@ declare global {
 
             // Auth
             openAuthWindow: (url: string) => void;
-            onAuthCallback: (callback: (event: any, url: string) => void) => () => void;
+            saveGoogleConfig: (config: { clientId?: string; clientSecret?: string; redirectUri?: string }) => void;
+    getGoogleConfig: () => Promise<{ clientId: string; clientSecret: string; redirectUri: string }>;
+    onAuthCallback: (callback: (event: any, url: string) => void) => () => void;
             onAuthTokenReceived: (callback: (token: string) => void) => () => void;
 
             // Chat & File Export
@@ -323,6 +327,8 @@ declare global {
             workflowReplay: (name: string) => Promise<{ success: boolean; results?: any[]; error?: string }>;
             workflowDelete: (name: string) => Promise<{ success: boolean; deleted?: boolean; error?: string }>;
             workflowStatus: () => Promise<{ success: boolean; isRecording?: boolean; stepCount?: number }>;
+            generateHighRiskQr: (actionId: string) => Promise<string | null>;
+            getAppIcon: () => Promise<string | null>;
         };
     }
 }

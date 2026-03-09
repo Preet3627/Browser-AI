@@ -253,8 +253,8 @@ const SyncSettings: React.FC<SyncSettingsProps> = () => {
 
             <div className="p-8 rounded-[2rem] bg-white/[0.03] border border-white/5 space-y-8">
                 <div>
-                    <h3 className="text-lg font-bold text-white mb-2">Connect to Remote Device (P2P)</h3>
-                    <p className="text-xs text-white/30">Enter the Device ID of a peer to establish a direct connection for P2P sync.</p>
+                    <h3 className="text-lg font-bold text-white mb-2">Connect Desktop & Desktop (P2P Sync)</h3>
+                    <p className="text-xs text-white/30">Enter the Device ID of your other computer to establish a direct connection for real-time synchronization.</p>
                 </div>
                 <input
                     type="text"

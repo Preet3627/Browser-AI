@@ -277,6 +277,16 @@ var WiFiSyncService = /** @class */ (function (_super) {
     WiFiSyncService.prototype.getPairingCode = function () {
         return this.pairingCode;
     };
+    WiFiSyncService.prototype.broadcast = function (message) {
+        if (!this.wss)
+            return;
+        var data = JSON.stringify(message);
+        this.clients.forEach(function (client) {
+            if (client.readyState === ws_1.WebSocket.OPEN) {
+                client.send(data);
+            }
+        });
+    };
     return WiFiSyncService;
 }(events_1.EventEmitter));
 exports.WiFiSyncService = WiFiSyncService;

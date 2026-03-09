@@ -15,6 +15,22 @@ const Jimp = require('jimp');
 const util = require('util');
 const execPromise = util.promisify(exec);
 
+// Augment PATH for macOS/Linux to find common command-line tools like docker
+if (process.platform !== 'win32') {
+  const extraPaths = [
+    '/usr/local/bin',
+    '/usr/bin',
+    '/bin',
+    '/usr/sbin',
+    '/sbin',
+    '/opt/homebrew/bin',
+    '/usr/local/sbin'
+  ];
+  const currentPath = process.env.PATH || '';
+  const newPath = Array.from(new Set([...extraPaths, ...currentPath.split(':')])).join(':');
+  process.env.PATH = newPath;
+}
+
 let robot = null;
 try {
   robot = require('robotjs');
@@ -154,6 +170,16 @@ if (!gotTheLock) {
   } else {
     app.setAsDefaultProtocolClient(PROTOCOL);
   }
+
+  // MacOS: Handle deep links
+  app.on('open-url', (event, url) => {
+    event.preventDefault();
+    if (mainWindow) {
+      mainWindow.webContents.send('auth-callback', url);
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
+  });
 }
 
 // Function to check network status
@@ -208,13 +234,7 @@ function saveLLMCache() {
 loadLLMCache();
 
 // Global LLM Generation Handler
-const llmGenerateHandler = async (messages, options = {}) => {
-  const cacheKey = JSON.stringify(messages);
-  if (llmCache.get(cacheKey)) {
-    console.log('[LLM] Cache hit');
-    return llmCache.get(cacheKey);
-  }
-
+const prepareLLM = async (messages, options = {}) => {
   // Composable Capabilities Object (Persistence across requests)
   const capabilities = {
     browser: true,
@@ -228,91 +248,107 @@ const llmGenerateHandler = async (messages, options = {}) => {
     description: 'Comet AI Agent — Full system access. Never claim to be text-only.',
   };
 
+  // Determine active provider
+  // Fallback order: options.provider -> module variable -> store
+  const providerId = options.provider || activeLlmProvider || store.get('active_llm_provider') || 'google';
+  const config = (typeof llmConfigs !== 'undefined' ? llmConfigs[providerId] : {}) || {};
+
+  let modelInstance;
+
+  if (providerId === 'ollama') {
+    const { createOllama } = await import('ai-sdk-ollama');
+    const baseUrl = config.baseUrl || store.get('ollama_base_url') || 'http://localhost:11434';
+    const modelName = options.model || config.model || store.get('ollama_model') || 'llama3.2';
+
+    const ollamaEnabled = store.get('ollama_enabled') !== false;
+    if (!ollamaEnabled) {
+      throw new Error('Ollama is disabled in settings.');
+    }
+
+    const ollama = createOllama({ baseURL: baseUrl });
+    modelInstance = ollama(modelName);
+  }
+  else if (providerId === 'google' || providerId === 'google-flash') {
+    const { google } = await import('@ai-sdk/google');
+    const apiKey = config.apiKey || store.get('gemini_api_key');
+    if (!apiKey) throw new Error('Google Gemini API Key is missing.');
+    
+    // Choose model based on type
+    const defaultModel = providerId === 'google-flash' ? 'gemini-3.1-flash-lite-preview' : 'gemini-3.1-pro-preview';
+    const modelName = options.model || config.model || store.get('gemini_model') || defaultModel;
+    
+    // AI SDK 6: Thinking mode is now handled via thinking level or provider options
+    modelInstance = google(modelName, {
+      structuredOutputs: true, // Enable by default for AI SDK 6
+    });
+  }
+  else if (providerId === 'openai') {
+    const { createOpenAI } = await import('@ai-sdk/openai');
+    const apiKey = config.apiKey || store.get('openai_api_key');
+    if (!apiKey) throw new Error('OpenAI API Key is missing.');
+    const openai = createOpenAI({ apiKey });
+    modelInstance = openai(options.model || config.model || store.get('openai_model') || 'gpt-4o');
+  }
+  else if (providerId === 'anthropic') {
+    const { createAnthropic } = await import('@ai-sdk/anthropic');
+    const apiKey = config.apiKey || store.get('anthropic_api_key');
+    if (!apiKey) throw new Error('Anthropic API Key is missing.');
+    const anthropic = createAnthropic({ apiKey });
+    modelInstance = anthropic(options.model || config.model || store.get('anthropic_model') || 'claude-3-5-sonnet-latest');
+  }
+  else if (providerId === 'xai') {
+    const { createXai } = await import('@ai-sdk/xai');
+    const apiKey = config.apiKey || store.get('xai_api_key');
+    if (!apiKey) throw new Error('xAI API Key is missing.');
+    const xai = createXai({ apiKey });
+    modelInstance = xai(options.model || config.model || store.get('xai_model') || 'grok-2-latest');
+  }
+  else if (providerId === 'groq') {
+    const { createGroq } = await import('@ai-sdk/groq');
+    const apiKey = config.apiKey || store.get('groq_api_key');
+    if (!apiKey) throw new Error('Groq API Key is missing.');
+    const groq = createGroq({ apiKey });
+    modelInstance = groq(options.model || config.model || store.get('groq_model') || 'llama-3.3-70b-versatile');
+  }
+  else {
+    throw new Error(`Unsupported provider: ${providerId}`);
+  }
+
+  // SYSTEM MESSAGE PIPELINE
+  const systemMsgs = messages.filter(m => m.role === 'system');
+  const systemPrompt = [
+    ...systemMsgs.map(m => m.content),
+    `[COMET_CAPABILITIES]\n${JSON.stringify(capabilities, null, 2)}\n(You are an AGENT with full system access. Use reasoning for complex tasks.)`
+  ].join('\n\n');
+
+  const chatMessages = messages.filter(m => m.role !== 'system').map(m => {
+    let experimental_attachments = [];
+    if (m.attachments && Array.isArray(m.attachments)) {
+      experimental_attachments = m.attachments.map(att => ({
+        url: att.data.startsWith('data:') ? att.data : `data:${att.mimeType || 'image/png'};base64,${att.data}`,
+        contentType: att.mimeType || 'image/png'
+      }));
+    }
+    return {
+      role: m.role === 'model' ? 'assistant' : m.role,
+      content: m.content || '',
+      experimental_attachments
+    };
+  });
+
+  const cacheKey = JSON.stringify({ providerId, messages, options });
+  return { modelInstance, systemPrompt, chatMessages, cacheKey };
+};
+
+const llmGenerateHandler = async (messages, options = {}) => {
   try {
     const { generateText } = await import('ai');
+    const { modelInstance, systemPrompt, chatMessages, cacheKey } = await prepareLLM(messages, options);
 
-    // Determine active provider
-    // Fallback order: options.provider -> module variable -> store
-    const providerId = options.provider || activeLlmProvider || store.get('active_llm_provider') || 'google';
-    const config = (typeof llmConfigs !== 'undefined' ? llmConfigs[providerId] : {}) || {};
-
-    let modelInstance;
-
-    if (providerId === 'ollama') {
-      const { createOllama } = await import('@ai-sdk/ollama');
-      const baseUrl = config.baseUrl || store.get('ollama_base_url') || 'http://localhost:11434';
-      const modelName = options.model || config.model || store.get('ollama_model') || 'llama3.2';
-
-      const ollamaEnabled = store.get('ollama_enabled') !== false;
-      if (!ollamaEnabled) {
-        throw new Error('Ollama is disabled in settings.');
-      }
-
-      const ollama = createOllama({ baseURL: `${baseUrl}/api` });
-      modelInstance = ollama(modelName);
+    if (llmCache.has(cacheKey)) {
+      console.log('[LLM] Cache hit');
+      return llmCache.get(cacheKey);
     }
-    else if (providerId === 'google' || providerId === 'google-flash') {
-      const { createGoogleGenerativeAI } = await import('@ai-sdk/google');
-      const apiKey = config.apiKey || store.get('gemini_api_key');
-      if (!apiKey) throw new Error('Google Gemini API Key is missing.');
-      const google = createGoogleGenerativeAI({ apiKey });
-
-      const defaultModel = providerId === 'google-flash' ? 'gemini-3.0-flash' : 'gemini-3.1-flash';
-      modelInstance = google(options.model || config.model || store.get('gemini_model') || defaultModel);
-    }
-    else if (providerId === 'openai') {
-      const { createOpenAI } = await import('@ai-sdk/openai');
-      const apiKey = config.apiKey || store.get('openai_api_key');
-      if (!apiKey) throw new Error('OpenAI API Key is missing.');
-      const openai = createOpenAI({ apiKey });
-      modelInstance = openai(options.model || config.model || store.get('openai_model') || 'gpt-4o');
-    }
-    else if (providerId === 'anthropic') {
-      const { createAnthropic } = await import('@ai-sdk/anthropic');
-      const apiKey = config.apiKey || store.get('anthropic_api_key');
-      if (!apiKey) throw new Error('Anthropic API Key is missing.');
-      const anthropic = createAnthropic({ apiKey });
-      modelInstance = anthropic(options.model || config.model || store.get('anthropic_model') || 'claude-3-5-sonnet-latest');
-    }
-    else if (providerId === 'xai') {
-      const { createXai } = await import('@ai-sdk/xai');
-      const apiKey = config.apiKey || store.get('xai_api_key');
-      if (!apiKey) throw new Error('xAI API Key is missing.');
-      const xai = createXai({ apiKey });
-      modelInstance = xai(options.model || config.model || store.get('xai_model') || 'grok-2-latest');
-    }
-    else if (providerId === 'groq') {
-      const { createGroq } = await import('@ai-sdk/groq');
-      const apiKey = config.apiKey || store.get('groq_api_key');
-      if (!apiKey) throw new Error('Groq API Key is missing.');
-      const groq = createGroq({ apiKey });
-      modelInstance = groq(options.model || config.model || store.get('groq_model') || 'llama-3.3-70b-versatile');
-    }
-    else {
-      throw new Error(`Unsupported provider: ${providerId}`);
-    }
-
-    // SYSTEM MESSAGE PIPELINE
-    const systemMsgs = messages.filter(m => m.role === 'system');
-    const systemPrompt = [
-      ...systemMsgs.map(m => m.content),
-      `[COMET_CAPABILITIES]\n${JSON.stringify(capabilities, null, 2)}\n(You are an AGENT with full system access. Use reasoning for complex tasks.)`
-    ].join('\n\n');
-
-    const chatMessages = messages.filter(m => m.role !== 'system').map(m => {
-      let experimental_attachments = [];
-      if (m.attachments && Array.isArray(m.attachments)) {
-        experimental_attachments = m.attachments.map(att => ({
-          url: att.data.startsWith('data:') ? att.data : `data:${att.mimeType || 'image/png'};base64,${att.data}`,
-          contentType: att.mimeType || 'image/png'
-        }));
-      }
-      return {
-        role: m.role === 'model' ? 'assistant' : m.role,
-        content: m.content || '',
-        experimental_attachments
-      };
-    });
 
     const { text, reasoning } = await generateText({
       model: modelInstance,
@@ -320,11 +356,24 @@ const llmGenerateHandler = async (messages, options = {}) => {
       messages: chatMessages,
       temperature: 0.7,
       maxTokens: 8192,
+      // Gemini 3.1 Thinking Mode (SDK 6)
+      providerOptions: {
+        google: modelInstance.modelId.includes('3') ? {
+          thinking: {
+            includeThoughts: true,
+            thinkingLevel: options.thinkingLevel || 'medium' // Dynamic thinking level
+          }
+        } : {},
+        ollama: {
+          sendReasoning: true,
+          think: true
+        }
+      }
     });
 
     const result = {
       text: text,
-      thought: reasoning || null
+      thought: reasoning || null // AI SDK 6 provides 'reasoning' field
     };
 
     llmCache.set(cacheKey, result);
@@ -334,6 +383,43 @@ const llmGenerateHandler = async (messages, options = {}) => {
   } catch (error) {
     console.error("Vercel AI SDK Error:", error);
     return { error: `Intelligence Failure: ${error.message}` };
+  }
+};
+
+const llmStreamHandler = async (event, messages, options = {}) => {
+  try {
+    const { streamText } = await import('ai');
+    const { modelInstance, systemPrompt, chatMessages } = await prepareLLM(messages, options);
+
+    const result = await streamText({
+      model: modelInstance,
+      system: systemPrompt,
+      messages: chatMessages,
+      temperature: 0.7,
+      maxTokens: 8192,
+      providerOptions: {
+        google: modelInstance.modelId.includes('3') ? {
+          thinking: {
+            includeThoughts: true,
+            thinkingLevel: options.thinkingLevel || 'medium'
+          }
+        } : {},
+        ollama: {
+          sendReasoning: true,
+          think: true
+        }
+      }
+    });
+
+    for await (const part of result.fullStream) {
+      if (event.sender.isDestroyed()) break;
+      event.sender.send('llm-chat-stream-part', part);
+    }
+    event.sender.send('llm-chat-stream-part', { type: 'finish' });
+
+  } catch (error) {
+    console.error("Vercel AI SDK Stream Error:", error);
+    event.sender.send('llm-chat-stream-part', { type: 'error', error: error.message });
   }
 };
 
@@ -563,7 +649,7 @@ async function createWindow() {
   });
 
   // Set Chrome User-Agent for all sessions (for browser detection)
-  const chromeUserAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+  const chromeUserAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
   session.defaultSession.setUserAgent(chromeUserAgent);
 
   // Header stripping for embedding and Google Workspace compatibility
@@ -1019,11 +1105,24 @@ ipcMain.on('open-auth-window', (event, authUrl) => {
     authUrl.includes('auth');
 
   if (isOAuthUrl) {
-    // Create a new window for OAuth
-    if (authWindow) {
-      authWindow.focus();
-      authWindow.loadURL(authUrl);
+    // FIX: Google Sign-In "unsupported browser" / 401 error
+    // For Google/Firebase OAuth, we open the EXTERNAL browser to bypass Electron limits.
+    // The redirect URI (https://browser.ponsrischool.in/oauth2callback) should then
+    // redirect back to comet-browser://auth using the Custom Protocol we registered.
+    if (authUrl.includes('accounts.google.com')) {
+      shell.openExternal(authUrl);
+      console.log('[Auth] Google OAuth: Opening external browser');
       return;
+    }
+
+    // For other OAuth that doesn't block Electron, we can use BrowserWindow
+    if (authWindow) {
+      if (!authWindow.isDestroyed()) {
+        authWindow.focus();
+        authWindow.loadURL(authUrl);
+        return;
+      }
+      authWindow = null;
     }
 
     authWindow = new BrowserWindow({
@@ -1039,7 +1138,7 @@ ipcMain.on('open-auth-window', (event, authUrl) => {
     });
 
     // Fix "Unsecure Browser" error by setting a modern User-Agent
-    authWindow.webContents.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+    authWindow.webContents.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36");
 
     authWindow.loadURL(authUrl);
 
@@ -1095,7 +1194,7 @@ ipcMain.on('open-auth-window', (event, authUrl) => {
 ipcMain.on('create-view', (event, { tabId, url }) => {
   if (tabViews.has(tabId)) return; // Prevent redundant creation
 
-  const chromeUserAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+  const chromeUserAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
   const newView = new BrowserView({
     webPreferences: {
       preload: path.join(__dirname, 'view_preload.js'),
@@ -1665,6 +1764,20 @@ ipcMain.on('send-to-ai-chat-input', (event, text) => {
   }
 });
 
+ipcMain.on('save-google-config', (event, { clientId, clientSecret, redirectUri }) => {
+  if (clientId) store.set('google_client_id', clientId);
+  if (clientSecret) store.set('google_client_secret', clientSecret);
+  if (redirectUri) store.set('google_redirect_uri', redirectUri);
+});
+
+ipcMain.handle('get-google-config', () => {
+  return {
+    clientId: store.get('google_client_id'),
+    clientSecret: store.get('google_client_secret'),
+    redirectUri: store.get('google_redirect_uri')
+  };
+});
+
 ipcMain.on('send-ai-overview-to-sidebar', (event, data) => {
   if (mainWindow) {
     mainWindow.webContents.send('ai-overview-data', data);
@@ -1673,6 +1786,10 @@ ipcMain.on('send-ai-overview-to-sidebar', (event, data) => {
 
 ipcMain.handle('llm-generate-chat-content', async (event, messages, options = {}) => {
   return await llmGenerateHandler(messages, options);
+});
+
+ipcMain.on('llm-stream-chat-content', (event, messages, options = {}) => {
+  llmStreamHandler(event, messages, options);
 });
 
 // Ollama Integration:
@@ -1863,13 +1980,16 @@ public class Audio {
 Write-Output "Volume set to ${clamped}"
 `;
     return new Promise((resolve) => {
-      exec(`powershell -NoProfile -NonInteractive -Command "${script.replace(/\n/g, ' ').replace(/"/g, '\\"')}"`,
+      // Escape script for cmd/powershell
+      const escapedScript = script.replace(/\n/g, ' ').replace(/"/g, '\\"');
+      exec(`powershell -NoProfile -ExecutionPolicy Bypass -NonInteractive -Command "${escapedScript}"`,
         { timeout: 8000 },
         (err, stdout, stderr) => {
           if (err) {
+            console.error('[Main] Windows Volume Error:', stderr);
             // Fallback: try nircmd if available
             exec(`nircmd.exe setsysvolume ${Math.round((clamped / 100) * 65535)}`, (err2) => {
-              if (err2) resolve({ success: false, error: `Volume control failed: ${err.message}` });
+              if (err2) resolve({ success: false, error: `Volume control failed: ${stderr || err.message}` });
               else resolve({ success: true, output: `Volume set to ${clamped}% via nircmd` });
             });
           } else {
@@ -1899,22 +2019,30 @@ Write-Output "Volume set to ${clamped}"
 });
 
 ipcMain.handle('set-brightness', async (event, level) => {
-
   const clamped = Math.max(0, Math.min(100, parseInt(level, 10) || 50));
+  
   if (process.platform === 'win32') {
     return new Promise((resolve) => {
-      exec(`powershell -NoProfile -NonInteractive -Command "(Get-WmiObject -Namespace root/WMI -Class WmiMonitorBrightnessMethods).WmiSetBrightness(1,${clamped})"`,
-        { timeout: 8000 },
-        (err, stdout) => {
-          if (err) resolve({ success: false, error: err.message });
-          else resolve({ success: true, output: `Brightness set to ${clamped}%` });
-        }
-      );
+      // Try CIM first (modern), then WMI (legacy)
+      const cmd = `powershell -NoProfile -NonInteractive -Command "$b = Get-CimInstance -Namespace root/WMI -ClassName WmiMonitorBrightnessMethods; if($b) { $b.WmiSetBrightness(1,${clamped}) } else { (Get-WmiObject -Namespace root/WMI -Class WmiMonitorBrightnessMethods).WmiSetBrightness(1,${clamped}) }"`;
+      exec(cmd, { timeout: 8000 }, (err, stdout, stderr) => {
+        if (err) resolve({ success: false, error: `Windows Brightness Error: ${stderr || err.message}` });
+        else resolve({ success: true, output: `Brightness set to ${clamped}%` });
+      });
     });
   } else if (process.platform === 'darwin') {
     return new Promise((resolve) => {
+      // Try 'brightness' CLI first, then fallback to AppleScript Key Codes (Universal)
       exec(`brightness ${clamped / 100}`, (err) => {
-        if (err) resolve({ success: false, error: err.message });
+        if (err) {
+          // Fallback: Simulate Brightness-Down (145) and Brightness-Up (144) keys
+          const steps = Math.round((clamped / 100) * 16);
+          const osascript = `osascript -e 'tell application "System Events"' -e 'repeat 16 times' -e 'key code 145' -e 'end repeat' -e 'repeat ${steps} times' -e 'key code 144' -e 'end repeat' -e 'end tell'`;
+          exec(osascript, (err2, stdout2, stderr2) => {
+            if (err2) resolve({ success: false, error: `macOS Brightness Error: ${stderr2 || err2.message}` });
+            else resolve({ success: true, output: `Brightness set to ${clamped}% via key codes` });
+          });
+        }
         else resolve({ success: true, output: `Brightness set to ${clamped}%` });
       });
     });
@@ -2457,6 +2585,21 @@ app.whenReady().then(() => {
     }
   });
 
+  ipcMain.handle('generate-high-risk-qr', async (event, actionId) => {
+    // Generate a secure deep link that opens flutter_browser_app
+    // Format: comet-ai://approve?id=TOKEN&deviceId=DEVICE_ID&action=high_risk
+    const deviceId = os.hostname();
+    const token = actionId || Math.random().toString(36).substring(2, 10);
+    // Use a redirect URL that modern mobile browsers can handle and redirect to the app
+    const deepLinkUrl = `https://browser.ponsrischool.in/approve?id=${token}&deviceId=${encodeURIComponent(deviceId)}&app=flutter_browser_app`;
+    try {
+      return await QRCode.toDataURL(deepLinkUrl);
+    } catch (err) {
+      console.error('[Main] Failed to generate High-Risk QR:', err);
+      return null;
+    }
+  });
+
   ipcMain.handle('get-wifi-sync-info', () => {
     if (!wifiSyncService) return null;
     return {
@@ -2645,6 +2788,24 @@ app.whenReady().then(() => {
     return path.join(__dirname, 'icon.ico');
   });
 
+  ipcMain.handle('get-app-icon-base64', async () => {
+    try {
+      const iconPath = path.join(__dirname, 'assets', 'icon.png'); // PNG is better for PDF embedding
+      const fallbackPath = path.join(__dirname, 'assets', 'icon.ico');
+      const targetPath = fs.existsSync(iconPath) ? iconPath : (fs.existsSync(fallbackPath) ? fallbackPath : null);
+      
+      if (targetPath) {
+        const mime = targetPath.endsWith('.png') ? 'image/png' : 'image/x-icon';
+        const base64 = fs.readFileSync(targetPath).toString('base64');
+        return `data:${mime};base64,${base64}`;
+      }
+      return null;
+    } catch (e) {
+      console.error('[Main] Failed to read app icon:', e);
+      return null;
+    }
+  });
+
   ipcMain.on('open-extension-dir', () => {
     shell.openPath(extensionsPath);
   });
@@ -2684,7 +2845,13 @@ app.whenReady().then(() => {
 
     shortcuts.forEach(s => {
       try {
-        if (s.accelerator) { // Only register if an accelerator is provided
+        if (s.accelerator) {
+          // Skip accelerators with non-ASCII characters (e.g. Alt+Ø) to prevent Electron crashes
+          if (/[^\x00-\x7F]/.test(s.accelerator)) {
+             console.warn(`[Hotkey] Skipping invalid shortcut signature: ${s.accelerator}`);
+             return;
+          }
+
           globalShortcut.register(s.accelerator, () => {
             if (mainWindow) {
               if (mainWindow.isMinimized()) mainWindow.restore();
@@ -2953,57 +3120,138 @@ app.whenReady().then(() => {
     }
   });
 
-  // PDF Generation IPC
+  // PDF Generation IPC (High-Fidelity HTML-to-PDF)
   ipcMain.handle('generate-pdf', async (event, title, content) => {
+    let workerWindow = null;
     try {
-      const pdfDoc = await PDFDocument.create();
-      const timesRomanFont = await pdfDoc.embedFont(StandardFonts.TimesRoman);
-      const page = pdfDoc.addPage();
-      const { width, height } = page.getSize();
-      const fontSize = 12;
-
-      page.drawText(title || "Generated Document", {
-        x: 50,
-        y: height - 100,
-        size: 24,
-        font: timesRomanFont,
-        color: rgb(0, 0, 0.5),
+      // Use hidden window to render the HTML properly for printing
+      workerWindow = new BrowserWindow({
+        show: false,
+        webPreferences: { offscreen: true }
       });
 
-      const text = content || "No content provided.";
-      const lines = text.split('\n');
-      let yOffset = height - 150;
+      // Wrap content if it's not a full HTML document
+      const isFullHTML = /<html/i.test(content);
+      const htmlToRender = isFullHTML ? content : `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body { 
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+              padding: 50px; 
+              line-height: 1.6; 
+              color: #1a1a1a;
+              background: #ffffff;
+            }
+            h1 { 
+              color: #0369a1; 
+              border-bottom: 2px solid #e0f2fe; 
+              padding-bottom: 20px; 
+              margin-bottom: 40px;
+              font-size: 2.5rem;
+              text-align: center;
+              font-weight: 800;
+              letter-spacing: -0.05em;
+            }
+            .header-info {
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              gap: 15px;
+              margin-bottom: 50px;
+            }
+            .meta { 
+              font-size: 0.85rem; 
+              color: #64748b; 
+              text-align: center;
+              margin-bottom: 50px;
+              text-transform: uppercase;
+              letter-spacing: 0.1em;
+            }
+            .footer { 
+              position: fixed; 
+              bottom: 30px; 
+              left: 50px; 
+              right: 50px; 
+              border-top: 1px solid #f1f5f9; 
+              padding-top: 15px; 
+              font-size: 0.75rem; 
+              color: #94a3b8; 
+              display: flex; 
+              justify-content: space-between;
+              align-items: center;
+            }
+            .branding {
+              display: flex;
+              align-items: center;
+              gap: 8px;
+              font-weight: 900;
+              color: #0ea5e9;
+              letter-spacing: 0.1em;
+              text-transform: uppercase;
+            }
+            pre { 
+              background: #f8fafc; 
+              padding: 20px; 
+              border-radius: 12px; 
+              border: 1px solid #e2e8f0; 
+              font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+              overflow-x: auto;
+              font-size: 0.9rem;
+            }
+            blockquote {
+              border-left: 4px solid #0ea5e9;
+              padding-left: 20px;
+              margin-left: 0;
+              color: #475569;
+              font-style: italic;
+            }
+            hr { border: 0; border-top: 1px solid #f1f5f9; margin: 40px 0; }
+            table { width: 100%; border-collapse: collapse; margin: 30px 0; }
+            th { text-align: left; border-bottom: 2px solid #f1f5f9; padding: 12px; color: #475569; font-weight: 800; }
+            td { padding: 12px; border-bottom: 1px solid #f8fafc; color: #1e293b; }
+          </style>
+        </head>
+        <body>
+          <div class="header-info">
+             <div class="branding" style="font-size: 1.5rem;">🌌 Comet-AI</div>
+          </div>
+          <h1>${title || 'Comet AI Document'}</h1>
+          <div class="meta">Verified Intelligence Report • ${new Date().toLocaleDateString()}</div>
+          ${content}
+          <div class="footer">
+            <div class="branding">🌠 Comet-AI Browser</div>
+            <div>Autonomous Agent Workspace • Page 1 of 1</div>
+          </div>
+        </body>
+        </html>
+      `;
 
-      for (const line of lines) {
-        if (yOffset < 50) {
-          pdfDoc.addPage();
-          yOffset = height - 50;
-        }
-        page.drawText(line, {
-          x: 50,
-          y: yOffset,
-          size: fontSize,
-          font: timesRomanFont,
-        });
-        yOffset -= 20;
-      }
+      await workerWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlToRender)}`);
+      
+      const pdfBytes = await workerWindow.webContents.printToPDF({
+        printBackground: true,
+        margins: { top: 0, bottom: 0, left: 0, right: 0 },
+        pageSize: 'A4'
+      });
 
-      const pdfBytes = await pdfDoc.save();
       const downloadsPath = path.join(os.homedir(), 'Downloads');
-      const fileName = `${(title || 'doc').replace(/[^a-z0-9]/gi, '_')}_${Date.now()}.pdf`;
+      const fileName = `${(title || 'doc').replace(/[^a-z0-9]/gi, '_')}.pdf`;
       const filePath = path.join(downloadsPath, fileName);
 
       fs.writeFileSync(filePath, pdfBytes);
 
       if (mainWindow) {
         mainWindow.webContents.send('download-started', fileName);
-        mainWindow.webContents.send('notification', { title: 'PDF Generated', body: `Saved to Downloads: ${fileName}` });
       }
 
       return { success: true, fileName, filePath };
     } catch (error) {
       console.error('[PDF] Generation failed:', error);
       return { success: false, error: error.message };
+    } finally {
+      if (workerWindow) workerWindow.destroy();
     }
   });
 

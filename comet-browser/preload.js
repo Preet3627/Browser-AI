@@ -77,10 +77,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setActiveLLMProvider: (providerId) => ipcRenderer.invoke('llm-set-active-provider', providerId),
   configureLLMProvider: (providerId, options) => ipcRenderer.invoke('llm-configure-provider', providerId, options),
   generateChatContent: (messages, options) => ipcRenderer.invoke('llm-generate-chat-content', messages, options),
+  streamChatContent: (messages, options) => {
+    ipcRenderer.send('llm-stream-chat-content', messages, options);
+  },
+  onChatStreamPart: (callback) => {
+    const subscription = (event, data) => callback(data);
+    ipcRenderer.on('llm-chat-stream-part', subscription);
+    return () => ipcRenderer.removeListener('llm-chat-stream-part', subscription);
+  },
   getAiMemory: () => ipcRenderer.invoke('get-ai-memory'),
   addAiMemory: (entry) => ipcRenderer.send('add-ai-memory', entry),
   saveVectorStore: (data) => ipcRenderer.invoke('save-vector-store', data),
   loadVectorStore: () => ipcRenderer.invoke('load-vector-store'),
+  saveGoogleConfig: (config) => ipcRenderer.send('save-google-config', config),
+  getGoogleConfig: () => ipcRenderer.invoke('get-google-config'),
   webSearchRag: (query) => ipcRenderer.invoke('web-search-rag', query),
   extractSearchResults: (tabId) => ipcRenderer.invoke('extract-search-results', tabId),
   translateWebsite: (args) => ipcRenderer.invoke('translate-website', args),
@@ -484,7 +494,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getWifiSyncUri: () => ipcRenderer.invoke('get-wifi-sync-uri'),
   getWifiSyncQr: () => ipcRenderer.invoke('get-wifi-sync-qr'),
   getWifiSyncInfo: () => ipcRenderer.invoke('get-wifi-sync-info'),
+  generateHighRiskQr: (actionId) => ipcRenderer.invoke('generate-high-risk-qr', actionId),
 
   // Window utilities
   bringWindowToTop: () => ipcRenderer.invoke('bring-window-to-top'),
+  getAppIcon: () => ipcRenderer.invoke('get-app-icon-base64'),
 });

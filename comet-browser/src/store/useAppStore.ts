@@ -71,6 +71,7 @@ export interface BrowserState {
     setGithubToken: (token: string | null) => void;
     loginWithToken: (token: string) => void;
     clientId: string;
+    clientSecret: string;
     redirectUri: string;
     fetchAppConfig: () => Promise<void>;
 
@@ -273,18 +274,28 @@ export const useAppStore = create<BrowserState>()(
             setLocalPhotoURL: (url: string | null) => set({ localPhotoURL: url }),
             githubToken: null,
             clientId: '',
+            clientSecret: '',
             redirectUri: '',
             fetchAppConfig: async () => {
                 try {
-                    const res = await fetch('https://browser.ponsrischool.in/api/config');
+                    const res = await fetch('https://browser.ponsrischool.in/api/config', {
+                        headers: {
+                            'X-Comet-App-Token': 'comet-secure-v1' // Same token as landing page
+                        }
+                    });
                     if (res.ok) {
                         const config = await res.json();
-                        set({
+                        const update = {
                             clientId: config.googleClientId || '601898745585-8g9t0k72gq4q1a4s1o4d1t6t7e5v4c4g.apps.googleusercontent.com',
-                            redirectUri: config.googleRedirectUri || 'https://browser.ponsrischool.in/oauth2callback',
+                            clientSecret: config.googleClientSecret || '',
+                            redirectUri: config.googleRedirectUri || 'https://browser.ponsrischool.in/oauth2callback'
+                        };
+                        set({
+                            ...update,
                             customFirebaseConfig: config.firebaseConfig || null
                         });
-                        console.log('App config synced from Vercel:', config);
+                        if (window.electronAPI) window.electronAPI.saveGoogleConfig(update);
+                        console.log('App config synced and persisted:', config);
                     }
                 } catch (e) {
                     console.error('Failed to sync app config:', e);
@@ -300,11 +311,11 @@ export const useAppStore = create<BrowserState>()(
             syncPassphrase: undefined,
 
             // AI settings
-            enableAIAssist: true,
+            enableAIAssist: false,
             openaiApiKey: '',
             openaiModel: 'gpt-4o',
             geminiApiKey: '',
-            geminiModel: 'gemini-3.0-flash',
+            geminiModel: 'gemini-3.1-pro-preview',
             anthropicApiKey: '',
             anthropicModel: 'claude-3-5-sonnet-latest',
             groqApiKey: '',
@@ -319,12 +330,12 @@ export const useAppStore = create<BrowserState>()(
             localLlmMode: 'normal',
             mcpServerPort: 3001,
             additionalAIInstructions: '',
-
+ 
             // Theme settings
             theme: 'system',
             ambientMusicUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
-            enableAmbientMusic: true,
-            ambientMusicMode: 'always',
+            enableAmbientMusic: false,
+            ambientMusicMode: 'off',
             ambientMusicVolume: 0.5,
             setAmbientMusicUrl: (url: string) => set({ ambientMusicUrl: url }),
             setEnableAmbientMusic: (enable: boolean) => set({ enableAmbientMusic: enable }),
@@ -753,19 +764,9 @@ export const useAppStore = create<BrowserState>()(
                 const id = `tab-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
 
                 if (window.electronAPI) {
-                    // Create the view first
+                    // Create the view. Activation with correct bounds will 
+                    // happen in the frontend component (useEffect on activeTabId).
                     window.electronAPI.createView({ tabId: id, url: finalUrl });
-
-                    // Activate it immediately with sensible defaults
-                    // (x: 70 for rail, y: 96 for title+url bar)
-                    setTimeout(() => {
-                        if (window.electronAPI) {
-                            window.electronAPI.activateView({
-                                tabId: id,
-                                bounds: { x: 70, y: 96, width: 1000, height: 700 }
-                            });
-                        }
-                    }, 100);
                 }
 
                 set((state: BrowserState) => {
@@ -805,8 +806,13 @@ export const useAppStore = create<BrowserState>()(
             },
             addIncognitoTab: (url?: string) => {
                 const finalUrl = url || get().defaultUrl;
+                const id = `incognito-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+
+                if (window.electronAPI) {
+                    window.electronAPI.createView({ tabId: id, url: finalUrl });
+                }
+
                 set((state: BrowserState) => {
-                    const id = `incognito-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
                     let newTabs: BrowserState['tabs'] = [...state.tabs, {
                         id,
                         url: finalUrl,

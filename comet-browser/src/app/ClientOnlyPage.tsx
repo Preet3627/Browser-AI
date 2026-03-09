@@ -954,7 +954,7 @@ export default function Home() {
       // Small overlays (context menu, AI overview, etc.) will use z-[9999] to appear on top
       // Only hide BrowserView for full-screen overlays that completely cover the page
       // Small overlays (context menu, AI overview, etc.) will use z-[9999] to appear on top
-      const hasFullScreenOverlay = showSettings || activeManager !== null || showCamera || showDownloads || showCart || showExtensionsPopup || showClipboard;
+      const hasFullScreenOverlay = showSettings || activeManager !== null || showCamera || showDownloads || showCart || showExtensionsPopup || showClipboard || showSpotlightSearch || aiOverview || (isTyping && suggestions.length > 0);
 
       if (hasFullScreenOverlay) {
         window.electronAPI.hideAllViews();
@@ -975,7 +975,15 @@ export default function Home() {
     calculateBounds,
     showSettings,
     activeManager,
-    showCamera
+    showCamera,
+    showDownloads,
+    showCart,
+    showExtensionsPopup,
+    showClipboard,
+    showSpotlightSearch,
+    aiOverview,
+    isTyping,
+    suggestions.length
   ]);
 
   useEffect(() => {
@@ -1033,9 +1041,83 @@ export default function Home() {
       console.log("Auth callback received in ClientOnlyPage:", url);
       try {
         const parsed = new URL(url);
+
+        // === CASE 1: Google OAuth Code Flow (Authorization Code returned) ===
+        const code = parsed.searchParams.get("code");
+        if (code) {
+          console.log('[Auth] Received OAuth code — exchanging for tokens...');
+          const clientId = store.clientId || '601898745585-8g9t0k72gq4q1a4s1o4d1t6t7e5v4c4g.apps.googleusercontent.com';
+          const clientSecret = store.clientSecret || '';
+          const redirectUri = store.redirectUri || 'https://browser.ponsrischool.in/oauth2callback';
+
+          if (!clientSecret) {
+            console.error('[Auth] No clientSecret available — cannot exchange code for token.');
+            return;
+          }
+
+          // Exchange code → tokens
+          const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+              code,
+              client_id: clientId,
+              client_secret: clientSecret,
+              redirect_uri: redirectUri,
+              grant_type: 'authorization_code',
+            }),
+          });
+
+          if (!tokenRes.ok) {
+            const errBody = await tokenRes.text();
+            console.error('[Auth] Token exchange failed:', errBody);
+            return;
+          }
+
+          const tokens = await tokenRes.json();
+          console.log('[Auth] Token exchange successful');
+
+          // Persist refresh token for Gmail service
+          if (tokens.refresh_token && window.electronAPI) {
+            window.electronAPI.saveGoogleConfig({ clientId, clientSecret, redirectUri });
+          }
+
+          // Fetch user profile from Google
+          const profileRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+            headers: { Authorization: `Bearer ${tokens.access_token}` },
+          });
+          const profile = await profileRes.json();
+
+          // Sign in to Firebase with the id_token
+          if (tokens.id_token) {
+            try {
+              const { GoogleAuthProvider } = await import('firebase/auth');
+              const credential = GoogleAuthProvider.credential(tokens.id_token);
+              await firebaseService.signInWithCredential(credential);
+              console.log('[Auth] Firebase sign-in successful');
+            } catch (firebaseErr) {
+              console.warn('[Auth] Firebase sign-in skipped (non-critical):', firebaseErr);
+            }
+          }
+
+          // Set the user in the store
+          store.setUser({
+            uid: profile.sub,
+            email: profile.email || '',
+            displayName: profile.name || profile.email?.split('@')[0] || '',
+            photoURL: profile.picture || '',
+          });
+          if (profile.email?.endsWith('@ponsrischool.in')) store.setAdmin(true);
+          store.setHasSeenWelcomePage(true);
+          store.setActiveView('browser');
+          store.startActiveSession();
+          console.log('[Auth] User signed in:', profile.email);
+          return;
+        }
+
+        // === CASE 2: Legacy deep-link flow (uid/email passed directly in URL) ===
         const status = parsed.searchParams.get("auth_status");
         const token = parsed.searchParams.get("id_token") || parsed.searchParams.get("token");
-
         const uid = parsed.searchParams.get("uid");
         const email = parsed.searchParams.get("email");
         const name = parsed.searchParams.get("name");
@@ -1064,7 +1146,6 @@ export default function Home() {
             }
           }
 
-          // Set user data after ensuring firebase auth is established
           store.setUser({
             uid,
             email,
@@ -1332,7 +1413,7 @@ export default function Home() {
                       }
                     }}
                     placeholder={`Search with ${store.selectedEngine} or enter URL...`}
-                    className="w-full bg-white/[0.03] border border-white/10 rounded-2xl py-2 pl-11 pr-4 text-xs text-primary-text placeholder:text-secondary-text focus:outline-none focus:ring-1 focus:ring-accent/50 focus:bg-white/[0.07] transition-all font-medium backdrop-blur-md relative z-10"
+                    className="w-full bg-white/[0.03] border border-white/10 rounded-2xl py-2 pl-11 pr-60 text-xs text-primary-text placeholder:text-secondary-text focus:outline-none focus:ring-1 focus:ring-accent/50 focus:bg-white/[0.07] transition-all font-medium backdrop-blur-md relative z-10"
                   />
                   {urlPrediction && isTyping && (
                     <div className="absolute inset-y-0 left-11 right-4 flex items-center pointer-events-none text-xs text-white/20 font-medium z-0">

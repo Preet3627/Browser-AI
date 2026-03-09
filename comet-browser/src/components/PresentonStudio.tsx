@@ -88,7 +88,43 @@ const PresentonStudio = () => {
         setTimeout(() => setCopied(false), 2000);
     };
 
-    const dockerCommand = `docker run -it --name presenton -p 5000:80 -v "\${PWD}\\app_data:/app_data" ghcr.io/presenton/presenton:latest`;
+    const getDockerCommand = () => {
+        const platform = window.electronAPI?.getPlatform() || 'darwin';
+        const isMac = platform === 'darwin';
+        const isWin = platform === 'win32';
+        
+        // On Apple Silicon Macs, we often need to specify --platform linux/amd64 for many images
+        const arch = isMac ? '--platform linux/amd64 ' : '';
+        const pathSep = isWin ? '\\' : '/';
+        const pwdVar = isWin ? '%CD%' : '${PWD}';
+        
+        return `docker run -d --name presenton -p 5000:80 ${arch}-v "${pwdVar}${pathSep}app_data:/app_data" ghcr.io/presenton/presenton:latest`;
+    };
+
+    const dockerCommand = getDockerCommand();
+
+    const handleAutoRunDocker = async () => {
+        setIsLoading(true);
+        setError(null);
+        try {
+            // First check if a container with that name already exists and try to start it
+            const checkResult = await window.electronAPI.executeShellCommand('docker ps -a --filter name=presenton --format "{{.Names}}"');
+            if (checkResult.success && checkResult.output?.includes('presenton')) {
+                await window.electronAPI.executeShellCommand('docker start presenton');
+            } else {
+                await window.electronAPI.executeShellCommand(dockerCommand);
+            }
+            
+            // Wait bit and then check connection
+            setTimeout(() => {
+                checkConnection(presentonUrl);
+            }, 3000);
+        } catch (e: any) {
+            setError(`Auto-launch failed: ${e.message}`);
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     if (!showSetup && iframeSrc) {
         return (
@@ -289,13 +325,23 @@ const PresentonStudio = () => {
                             </motion.div>
                         )}
                     </div>
-
                     {/* Action Buttons */}
                     <div className="flex gap-4">
                         <button
-                            onClick={handleLaunch}
+                            onClick={handleAutoRunDocker}
                             disabled={isLoading}
                             className="flex-1 py-5 bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-400 hover:to-amber-500 text-white rounded-2xl font-black text-sm uppercase tracking-widest transition-all shadow-[0_0_30px_rgba(245,158,11,0.3)] hover:shadow-[0_0_50px_rgba(245,158,11,0.5)] disabled:opacity-50 flex items-center justify-center gap-3"
+                        >
+                            {isLoading ? (
+                                <><Loader2 size={18} className="animate-spin" /> Starting...</>
+                            ) : (
+                                <><Terminal size={18} /> Auto-Run Docker</>
+                            )}
+                        </button>
+                        <button
+                            onClick={handleLaunch}
+                            disabled={isLoading}
+                            className="flex-1 py-5 bg-white/5 border border-white/10 hover:bg-white/10 text-white rounded-2xl font-black text-sm uppercase tracking-widest transition-all disabled:opacity-50 flex items-center justify-center gap-3"
                         >
                             {isLoading ? (
                                 <><Loader2 size={18} className="animate-spin" /> Connecting...</>
@@ -305,9 +351,9 @@ const PresentonStudio = () => {
                         </button>
                         <button
                             onClick={handleLaunchAnyway}
-                            className="px-8 py-5 bg-white/5 border border-white/10 hover:bg-white/10 text-white/60 hover:text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all flex items-center gap-2"
+                            className="px-6 py-5 bg-white/5 border border-white/10 hover:bg-white/10 text-white/40 hover:text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all flex items-center gap-2"
                         >
-                            Launch Anyway <ArrowRight size={14} />
+                            Skip <ArrowRight size={14} />
                         </button>
                     </div>
 

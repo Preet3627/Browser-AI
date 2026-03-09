@@ -476,19 +476,11 @@ async function preloadCometIcon(): Promise<void> {
   // 2. Try ICO — some browsers can decode it via Image
   if (await tryCanvas('/icon.ico')) return;
 
-  // 3. Electron fallback — read icon file via IPC and get base64 back
+  // 3. Electron fallback — read app icon via new getAppIcon IPC
   try {
     const api = (window as any).electronAPI;
-    if (typeof api?.readFileAsBase64 === 'function') {
-      const base64 = await api.readFileAsBase64('icon.ico');
-      if (base64) {
-        (window as any).__cometIconBase64 = `data:image/x-icon;base64,${base64}`;
-        return;
-      }
-    }
-    // Some builds expose nativeImage through a preload helper
-    if (typeof api?.getAppIconBase64 === 'function') {
-      const b64 = await api.getAppIconBase64();
+    if (typeof api?.getAppIcon === 'function') {
+      const b64 = await api.getAppIcon();
       if (b64) { (window as any).__cometIconBase64 = b64; }
     }
   } catch { /* silently ignore */ }
@@ -613,6 +605,7 @@ type ExtendedChatMessage = ChatMessage & {
   isOcr?: boolean;       // marks OCR/raw data messages — hidden by default
   ocrLabel?: string;     // e.g. "PAGE_CONTENT_READ" | "SCREENSHOT_ANALYSIS"
   thinkingSteps?: ThinkingStep[]; // AI reasoning steps visible to user
+  thinkText?: string;    // DeepSeek-style reasoning text
 };
 
 interface ThinkingStep {
@@ -777,12 +770,13 @@ const CollapsibleOCRMessage = memo(function CollapsibleOCRMessage({
 // ThinkingPanel — shows the AI's step-by-step reasoning, collapsible
 // ---------------------------------------------------------------------------
 interface ThinkingPanelProps {
-  steps: ThinkingStep[];
+  steps?: ThinkingStep[];
   thinkText?: string;
+  initialOpen?: boolean;
 }
 
-const ThinkingPanel = memo(function ThinkingPanel({ steps, thinkText }: ThinkingPanelProps) {
-  const [open, setOpen] = useState(true);
+const ThinkingPanel = memo(function ThinkingPanel({ steps = [], thinkText, initialOpen = true }: ThinkingPanelProps) {
+  const [open, setOpen] = useState(initialOpen);
   const hasRunning = steps.some((s) => s.status === 'running');
 
   return (
@@ -1106,6 +1100,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = (props) => {
       what: string;           // e.g. "Click the search button to submit the query"
       reason: string;         // why AI wants to do this
       risk: 'low' | 'medium' | 'high';
+      highRiskQr?: string | null;
     };
   } | null>(null);
 
@@ -1155,18 +1150,22 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = (props) => {
    * Shows the action-permission popup and waits for user approval/denial.
    * Returns true = approved, false = denied.
    */
-  const requestActionPermission = useCallback((
+  const requestActionPermission = useCallback(async (
     actionType: string,
     action: string,
     target: string,
     what: string,
     reason: string,
     risk: 'low' | 'medium' | 'high' = 'low',
-  ): Promise<boolean> =>
-    new Promise((resolve) => {
-      setPermissionPending({ resolve, context: { actionType, action, target, what, reason, risk } });
-    }),
-    [setPermissionPending]);
+  ): Promise<boolean> => {
+    let highRiskQr = null;
+    if (risk === 'high' && window.electronAPI?.generateHighRiskQr) {
+      highRiskQr = await window.electronAPI.generateHighRiskQr(Math.random().toString(36).substring(7));
+    }
+    return new Promise((resolve) => {
+      setPermissionPending({ resolve, context: { actionType, action, target, what, reason, risk, highRiskQr } });
+    });
+  }, [setPermissionPending]);
 
   // Attachments
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -1398,6 +1397,28 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = (props) => {
           return;
         }
 
+        const getStreamingResponse = async (history: ChatMessage[]): Promise<any> => {
+          return new Promise((resolve) => {
+            let fullText = '';
+            let fullThought = '';
+            const cleanup = window.electronAPI.onChatStreamPart((part: any) => {
+              if (part.type === 'text-delta') {
+                fullText += (part.textDelta || '');
+              } else if (part.type === 'reasoning-delta') {
+                fullThought += (part.reasoningDelta || '');
+                setThinkingText(fullThought.trim());
+              } else if (part.type === 'error') {
+                cleanup();
+                resolve({ error: part.error });
+              } else if (part.type === 'finish') {
+                cleanup();
+                resolve({ text: fullText, thought: fullThought });
+              }
+            });
+            window.electronAPI.streamChatContent(history);
+          });
+        };
+
         // ── Step 1: RAG context ──────────────────────────────────────────────
         const ragStepId = addThinkingStep('Retrieving local memory (RAG)…');
         const contextItems = await BrowserAI.retrieveContext(contentToUse);
@@ -1554,7 +1575,7 @@ ${JSON.stringify(COMET_CAPABILITIES, null, 2)}
         ];
 
         const startTime = Date.now();
-        const response = await window.electronAPI.generateChatContent(messageHistory);
+        const response = await getStreamingResponse(messageHistory);
         const elapsed = Date.now() - startTime;
         resolveThinkingStep(aiStepId, response.error ? 'error' : 'done',
           response.error ? response.error : `Response in ${(elapsed / 1000).toFixed(1)}s`);
@@ -1566,7 +1587,7 @@ ${JSON.stringify(COMET_CAPABILITIES, null, 2)}
         if (!response.text) return;
 
         // Extract <think>...</think> block or use provided thought from API
-        if (response.thought) {
+        if (typeof response.thought === 'string') {
           setThinkingText(response.thought.trim());
         } else {
           const thinkMatch = response.text.match(/<think>([\s\S]*?)<\/think>/i);
@@ -1609,62 +1630,69 @@ ${JSON.stringify(COMET_CAPABILITIES, null, 2)}
           setCurrentCommandIndex(0);
           processingQueueRef.current = true;
 
-          // Show the non-OCR text part before commands run (planning text)
-          if (responseText.trim()) {
+          // Always show a message if there are commands (even if just a placeholder)
+          if (!responseText.trim()) {
+            setMessages((prev) => [...prev, {
+              role: 'model',
+              content: "I'll take care of that for you. Running actions now...",
+              thinkingSteps: [...thinkingSteps],
+              thinkText: thinkingText,
+            }]);
+          } else {
             setMessages((prev) => [...prev, {
               role: 'model',
               content: responseText,
               thinkingSteps: [...thinkingSteps],
+              thinkText: thinkingText,
             }]);
           }
 
-          // Wait for all commands (including OCR) to finish before AI synthesises
-          const ocrCommands = ['SCREENSHOT_AND_ANALYZE', 'OCR_SCREEN', 'OCR_COORDINATES', 'READ_PAGE_CONTENT', 'EXTRACT_DATA'];
-          const hasOcr = aiCommands.some((c) => ocrCommands.includes(c.type));
+          // ── EXECUTE COMMANDS AND AWAIT ──
+          const actionStepId = addThinkingStep('Executing action sequence…');
+          await processCommandQueue(aiCommands);
+          resolveThinkingStep(actionStepId, 'done', 'Actions completed — now synthesing results');
 
-          if (hasOcr) {
-            const ocrStepId = addThinkingStep('Running OCR / page read — waiting before synthesis…');
-            // Execute commands and await completion
-            await processCommandQueue(aiCommands);
-            resolveThinkingStep(ocrStepId, 'done', 'OCR complete — now generating final analysis');
+          // ── SYNTHESIS (Follow up) ──
+          const synthStepId = addThinkingStep('Finalising response…');
+          
+          // Gather results from command queue for the next prompt
+          // This ensures the AI knows if clicks were successful or not
+          const actionResults = aiCommands.map(c => `[Action ${c.type}]: ${c.status === 'completed' ? (c.output || 'Success') : ('Error: ' + (c.error || 'Execution failed'))}`).join('\n');
+          
+          // Also pull any fresh RAG context (might have been updated by OCR/extraction)
+          const synthContext = await BrowserAI.retrieveContext(contentToUse + ' action results ' + currentUrl);
+          const synthContextText = synthContext.map((c) => `[Observation]: ${c.text}`).join('\n');
 
-            // Now do a second AI call with the OCR results already in memory context
-            const ocrSynthStepId = addThinkingStep('Synthesising OCR results…');
-            const ocrContext = await BrowserAI.retrieveContext(contentToUse + ' OCR screenshot page content');
-            const ocrContextText = ocrContext.map((c) => `[OCR Result]: ${c.text}`).join('\n');
+          const synthHistory: ChatMessage[] = [
+            { role: 'system', content: SYSTEM_INSTRUCTIONS + languageInstructions + platformInstructions + capabilityInstructions },
+            ...messages.map((m) => ({ role: (m.role === 'model' ? 'assistant' : m.role), content: m.content })),
+            { role: 'user', content: userMessage.content },
+            {
+              role: 'assistant' as any,
+              content: responseText || "Actions completed. Observations below:",
+            },
+            {
+              role: 'user',
+              content: `The following actions have been executed:\n\n${actionResults}\n\nRecent observations from the page:\n\n${synthContextText}\n\nPlease provide your final response to user based on these results.`,
+            },
+          ];
 
-            const synthHistory: ChatMessage[] = [
-              { role: 'system', content: SYSTEM_INSTRUCTIONS + languageInstructions + platformInstructions + capabilityInstructions },
-              ...messages.map((m) => ({ role: m.role, content: m.content })),
-              { role: 'user', content: userMessage.content },
-              {
-                role: 'assistant' as any,
-                content: responseText || 'I ran the OCR and page reads. Now synthesising the results.',
-              },
-              {
-                role: 'user',
-                content: `The OCR and page read commands have now completed. Here are the results:\n\n${ocrContextText}\n\nPlease now give your final analysis based on the ACTUAL data above. Do NOT use memory or placeholder text.`,
-              },
-            ];
+          const synthResponse = await getStreamingResponse(synthHistory);
+          resolveThinkingStep(synthStepId, synthResponse.error ? 'error' : 'done');
 
-            const synthResponse = await window.electronAPI.generateChatContent(synthHistory);
-            resolveThinkingStep(ocrSynthStepId, synthResponse.error ? 'error' : 'done');
-
-            if (synthResponse.text && !synthResponse.error) {
-              const cleanSynth = synthResponse.text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
-              setMessages((prev) => [...prev, { role: 'model', content: cleanSynth }]);
-            }
-          } else {
-            // No OCR — run normally
-            processCommandQueue(aiCommands);
-            if (!responseText.trim()) {
-              // nothing was shown yet — show any text now
-            }
+          if (synthResponse.text && !synthResponse.error) {
+            const cleanSynth = synthResponse.text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+            // Don't show the same thinkingText again if it's identical
+            setMessages((prev) => [...prev, { 
+              role: 'model', 
+              content: cleanSynth, 
+              thinkText: (synthResponse.thought || '').trim() 
+            }]);
           }
         } else {
           // Pure text response, no commands
           if (responseText.trim()) {
-            setMessages((prev) => [...prev, { role: 'model', content: responseText }]);
+            setMessages((prev) => [...prev, { role: 'model', content: responseText, thinkText: thinkingText }]);
           }
         }
 
@@ -2526,7 +2554,7 @@ Comet AI is an intelligent browser agent built directly into your browser. Unlik
 ---
 
 ## 🚀 Powered by Comet Browser
-Built with Electron + Next.js + React. Comet AI is deeply integrated into the browser — not a plugin or extension.`;
+Built with Electron + Next.js + React. Comet AI is deeply integrated into the browser — featuring professional PDF branding with the **Comet AI Logo** and footer summaries.`;
 
                   await preloadCometIcon();
                   const capDemoHTML = buildCleanPDFContent(capDemoRaw, capDemoTitle);
@@ -2867,7 +2895,7 @@ Built with Electron + Next.js + React. Comet AI is deeply integrated into the br
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="absolute inset-0 z-[9999] flex items-center justify-center p-4"
+            className="absolute inset-0 z-[10001] flex items-center justify-center p-4"
             style={{ backdropFilter: 'blur(8px)', background: 'rgba(0,0,0,0.7)' }}
           >
             <motion.div
@@ -2935,6 +2963,25 @@ Built with Electron + Next.js + React. Comet AI is deeply integrated into the br
                         ? permissionPending.context.target.substring(0, 120) + '…'
                         : permissionPending.context.target}
                     </div>
+                  </div>
+                )}
+
+                {/* High Risk QR */}
+                {permissionPending.context?.risk === 'high' && permissionPending.context?.highRiskQr && (
+                  <div className="pt-2 border-t border-red-500/10 flex flex-col items-center">
+                    <div className="text-[10px] font-black text-red-400 uppercase tracking-widest mb-3 animate-pulse">
+                      🚨 High Risk: Scan to Authorize on Mobile
+                    </div>
+                    <div className="p-3 bg-white rounded-xl shadow-2xl">
+                       <img 
+                         src={permissionPending.context.highRiskQr} 
+                         alt="Authorize" 
+                         className="w-32 h-32"
+                       />
+                    </div>
+                    <p className="text-[10px] text-white/30 text-center mt-3 leading-relaxed">
+                      Scanning opens **flutter_browser_app** on your mobile <br/> to safely verify this action.
+                    </p>
                   </div>
                 )}
               </div>
@@ -3083,9 +3130,13 @@ Built with Electron + Next.js + React. Comet AI is deeply integrated into the br
             className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}
           >
             {/* Historical thinking panel attached to a message */}
-            {msg.role === 'model' && msg.thinkingSteps && msg.thinkingSteps.length > 0 && (
+            {msg.role === 'model' && ( (msg.thinkingSteps && msg.thinkingSteps.length > 0) || msg.thinkText ) && (
               <div className="w-full mb-1">
-                <ThinkingPanel steps={msg.thinkingSteps} />
+                <ThinkingPanel
+                  steps={msg.thinkingSteps || []}
+                  thinkText={msg.thinkText}
+                  initialOpen={false}
+                />
               </div>
             )}
 
@@ -3168,7 +3219,7 @@ Built with Electron + Next.js + React. Comet AI is deeply integrated into the br
         {isLoading && <ThinkingIndicator />}
         {error && (
           <div className="text-[10px] text-red-400 bg-red-400/10 p-2 rounded-lg border border-red-500/20">
-            ⚠️ {error}
+            ⚠️ {typeof error === 'string' ? error : (error as any)?.message || JSON.stringify(error)}
           </div>
         )}
         <div ref={messagesEndRef} />

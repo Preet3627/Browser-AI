@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { Minus, Square, X, Maximize2, Settings, Search, LogIn } from 'lucide-react'; // Import Settings icon and Search icon
 import { VirtualizedTabBar } from './VirtualizedTabBar';
 import { useAppStore } from '@/store/useAppStore';
@@ -19,22 +19,63 @@ const TitleBar = ({ onToggleSpotlightSearch, onOpenSettings }: TitleBarProps) =>
     const store = useAppStore();
     const router = useRouter(); // Initialize useRouter
 
-    const handleSignIn = useCallback(() => {
-        const clientId = store.clientId || '601898745585-8g9t0k72gq4q1a4s1o4d1t6t7e5v4c4g.apps.googleusercontent.com';
-        const redirectUri = store.redirectUri || 'https://browser.ponsrischool.in/oauth2callback';
+    const [isMac, setIsMac] = useState(false);
 
-        const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
-            `client_id=${clientId}&` +
-            `redirect_uri=${redirectUri}&` +
-            `response_type=code&` +
-            `scope=email profile openid&` + // Request email, profile, and openid
-            `access_type=offline&` +
-            `prompt=consent`; // Ensure consent screen is shown for new users/permissions
+    useEffect(() => {
+        setIsMac(navigator.userAgent.toLowerCase().includes('mac'));
+    }, []);
 
-        if (window.electronAPI) {
-            window.electronAPI.openAuthWindow(authUrl);
+    const [isSigningIn, setIsSigningIn] = useState(false);
+
+    const handleSignIn = useCallback(async () => {
+        if (isSigningIn) return;
+        setIsSigningIn(true);
+
+        try {
+            // Step 1: Always refresh config from landing page to get latest clientId/secret
+            if (!store.clientId || !store.clientSecret) {
+                await store.fetchAppConfig();
+            }
+
+            const clientId = store.clientId || '601898745585-8g9t0k72gq4q1a4s1o4d1t6t7e5v4c4g.apps.googleusercontent.com';
+            const redirectUri = store.redirectUri || 'https://browser.ponsrischool.in/oauth2callback';
+
+            if (!clientId) {
+                console.error('[Auth] No clientId available — check landing page config');
+                setIsSigningIn(false);
+                return;
+            }
+
+            // Step 2: Build Google OAuth URL — request broad scopes including Gmail
+            const scopes = [
+                'openid',
+                'email',
+                'profile',
+                'https://www.googleapis.com/auth/gmail.readonly',
+                'https://www.googleapis.com/auth/gmail.send',
+            ].join(' ');
+
+            const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
+                `client_id=${encodeURIComponent(clientId)}&` +
+                `redirect_uri=${encodeURIComponent(redirectUri)}&` +
+                `response_type=code&` +
+                `scope=${encodeURIComponent(scopes)}&` +
+                `access_type=offline&` +
+                `prompt=consent`; // Always show consent to get refresh_token
+
+            console.log('[Auth] Opening Google Sign-In in external browser...');
+
+            // Step 3: Open system browser (avoids Electron 401 / unsupported_browser errors)
+            if (window.electronAPI) {
+                window.electronAPI.openAuthWindow(authUrl);
+            }
+        } catch (err) {
+            console.error('[Auth] Sign-in initiation failed:', err);
+        } finally {
+            // Reset after a delay — callback will handle the actual state update
+            setTimeout(() => setIsSigningIn(false), 5000);
         }
-    }, [store.clientId, store.redirectUri]);
+    }, [store, isSigningIn]);
 
     const isTabSuspended = (tabId: string) => {
         const tab = store.tabs.find((t) => t.id === tabId);
@@ -49,17 +90,21 @@ const TitleBar = ({ onToggleSpotlightSearch, onOpenSettings }: TitleBarProps) =>
 
     return (
         <div className={`h-10 bg-black/60 backdrop-blur-xl flex items-center justify-between px-4 select-none drag-region fixed top-0 left-0 right-0 z-[200] ${showTabBar ? 'border-b border-white/5' : ''}`}>
-            <div className="flex items-center gap-2 no-drag-region">
-                <button onClick={handleClose} className="h-3 w-3 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center group">
-                    <X size={8} className="text-black opacity-0 group-hover:opacity-100" />
-                </button>
-                <button onClick={handleMinimize} className="h-3 w-3 rounded-full bg-yellow-500 hover:bg-yellow-600 flex items-center justify-center group">
-                    <Minus size={8} className="text-black opacity-0 group-hover:opacity-100" />
-                </button>
-                <button onClick={handleMaximize} className="h-3 w-3 rounded-full bg-green-500 hover:bg-green-600 flex items-center justify-center group">
-                    <Maximize2 size={8} className="text-black opacity-0 group-hover:opacity-100" />
-                </button>
-            </div>
+            {!isMac ? (
+                <div className="flex items-center gap-2 no-drag-region">
+                    <button onClick={handleClose} className="h-3 w-3 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center group">
+                        <X size={8} className="text-black opacity-0 group-hover:opacity-100" />
+                    </button>
+                    <button onClick={handleMinimize} className="h-3 w-3 rounded-full bg-yellow-500 hover:bg-yellow-600 flex items-center justify-center group">
+                        <Minus size={8} className="text-black opacity-0 group-hover:opacity-100" />
+                    </button>
+                    <button onClick={handleMaximize} className="h-3 w-3 rounded-full bg-green-500 hover:bg-green-600 flex items-center justify-center group">
+                        <Maximize2 size={8} className="text-black opacity-0 group-hover:opacity-100" />
+                    </button>
+                </div>
+            ) : (
+                <div className="w-[60px]" /> // Spacer to prevent overlap with native macOS traffic lights
+            )}
             {/* Comet AI Logo and Text */}
             <div className="flex items-center gap-2 px-3 drag-region">
                 <img src="icon.ico" alt="Comet AI Logo" className="w-5 h-5 object-contain" />
@@ -94,11 +139,20 @@ const TitleBar = ({ onToggleSpotlightSearch, onOpenSettings }: TitleBarProps) =>
                 ) : (
                     <button
                         onClick={handleSignIn}
-                        className="px-3 py-1 bg-sky-500/10 hover:bg-sky-500/20 rounded-full text-xs font-semibold text-sky-400 border border-sky-500/30 transition-colors flex items-center gap-1"
-                        title="Sign in with Comet ID"
+                        disabled={isSigningIn}
+                        className={`px-3 py-1 rounded-full text-xs font-semibold border transition-all flex items-center gap-1 ${
+                            isSigningIn
+                                ? 'bg-sky-500/5 text-sky-400/50 border-sky-500/20 cursor-not-allowed'
+                                : 'bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border-sky-500/30 cursor-pointer'
+                        }`}
+                        title={isSigningIn ? 'Opening browser...' : 'Sign in with Google'}
                     >
-                        <LogIn size={14} />
-                        <span>Sign in</span>
+                        {isSigningIn ? (
+                            <span className="inline-block w-3 h-3 rounded-full border-2 border-sky-400/40 border-t-sky-400 animate-spin" />
+                        ) : (
+                            <LogIn size={14} />
+                        )}
+                        <span>{isSigningIn ? 'Opening...' : 'Sign in'}</span>
                     </button>
                 )}
                 <button onClick={handleOpenSettingsAction} className="ml-2 p-1 text-white/60 hover:text-white transition-colors">
